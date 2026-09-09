@@ -522,7 +522,7 @@ function load(){
     if(raw) return JSON.parse(raw);
   }catch(e){}
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
-    job:CONFIG.jobs[0], plant:[], labour:[], leave:[], vos:[], voCounter:0 };
+    job:CONFIG.jobs[0], plant:[], labour:[], leave:[], vos:[] };
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
@@ -680,10 +680,20 @@ function smallPlantText(v){
     .join(", ");
 }
 
-function nextVoRef(){
-  DB.voCounter = (DB.voCounter||0) + 1;
-  return "VO" + DB.voCounter;
+/* The next number is always one past the highest in use, worked out fresh each
+   time. Delete VO1 while it is the only sheet and the next one raised is VO1
+   again. Rename one to VO7 and the next is VO8. */
+function highestVoNumber(){
+  let max = 0;
+  (DB.vos||[]).forEach(v=>{
+    const m = String(v.ref||"").match(/(\d+)\s*$/);
+    if(!m) return;
+    const n = parseInt(m[1],10);
+    if(!isNaN(n) && n > max) max = n;
+  });
+  return max;
 }
+function nextVoRef(){ return "VO" + (highestVoNumber() + 1); }
 function voForRecord(recId){ return (DB.vos||[]).find(v=>v.recordId===recId) || null; }
 
 function syncVo(rec){
@@ -774,7 +784,7 @@ function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="leave"){ leaveDraft = null; }
-  if(name!=="vo"){ voSign = null; voEdit = null; }
+  if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; }
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
   render();
@@ -1741,6 +1751,7 @@ function voListView(){
 
 let voSign = null;   /* the PC signature being captured */
 let voEdit = null;   /* a sheet being amended */
+let voEditRef = "";  /* its number, edited separately from the content */
 
 function voView(){
   const v = (DB.vos||[]).find(x=>x.id===view.id);
@@ -1756,7 +1767,11 @@ function voView(){
       <h1 class="greet" style="font-size:22px;margin-top:12px">Amend ${esc(v.ref)}</h1>
       <p class="sub">${longDate(v.date)}</p>
       <div class="card">
+        <div class="f"><label>Sheet number</label>
+          <div class="hint">Change it if it needs to line up with the numbering the client uses.</div>
+          <input class="in" data-veref="1" value="${esc(voEditRef)}"></div>
         <div class="f"><label>Instruction reference</label>
+          <div class="hint">Their reference, if they gave one.</div>
           <input class="in" data-ve="ref" value="${esc(voEdit.ref||"")}"></div>
         <div class="f"><label>Instructed by</label>
           <input class="in" data-ve="instructedBy" value="${esc(voEdit.instructedBy||"")}"></div>
@@ -2451,6 +2466,7 @@ function bind(){
     const v = DB.vos.find(x=>x.id===view.id);
     voEdit = JSON.parse(JSON.stringify(v.data||{}));
     if(!voEdit.hours || typeof voEdit.hours!=="object") voEdit.hours = { h:"", m:"" };
+    voEditRef = v.ref || "";
     render();
   };
   app.querySelectorAll("[data-ve]").forEach(el=>{
@@ -2465,21 +2481,35 @@ function bind(){
     };
     el.onchange = el.oninput;
   });
-  app.querySelectorAll("[data-vecancel]").forEach(el=>el.onclick=()=>{ voEdit = null; render(); });
+  const veref = app.querySelector("[data-veref]");
+  if(veref) veref.oninput = () => { voEditRef = veref.value; };
+
+  app.querySelectorAll("[data-vecancel]").forEach(el=>el.onclick=()=>{ voEdit = null; voEditRef = ""; render(); });
   const vesave = app.querySelector("[data-vesave]");
   if(vesave) vesave.onclick = ()=>{
     const v = DB.vos.find(x=>x.id===view.id);
+    const ref = (voEditRef||"").trim();
+    if(!ref){ toast("Give the sheet a number"); return; }
+    const clash = (DB.vos||[]).some(x=>x.id!==v.id && (x.ref||"").toLowerCase()===ref.toLowerCase());
+    if(clash){ toast(ref+" is already used by another sheet"); return; }
+
+    v.ref = ref;
     v.data = Object.assign({}, v.data, voEdit);
     v.amendedAt = Date.now();
-    voEdit = null; save(); render(); toast(v.ref+" amended");
+
+    voEdit = null; voEditRef = "";
+    save(); render(); toast(v.ref+" amended");
   };
 
   /* deleting */
   app.querySelectorAll("[data-vodel]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-vodel");
     const v = (DB.vos||[]).find(x=>x.id===id);
+    const isLast = v && highestVoNumber() === parseInt((String(v.ref).match(/(\d+)\s*$/)||[])[1],10);
     askConfirm("Delete "+(v?v.ref:"this sheet")+"?",
-      "The number is not reused, so the sequence will show a gap. The diary it came from is not affected.",
+      (isLast ? "It is the last number in use, so the next sheet raised will be "+v.ref+" again. "
+              : "Later sheets keep their numbers, so the sequence will show a gap. ")
+      + "The diary it came from is not affected.",
       "Delete", ()=>{
         DB.vos = DB.vos.filter(x=>x.id!==id);
         save(); go("vos"); toast("Sheet deleted");
@@ -2850,7 +2880,7 @@ if(!DB.plant) DB.plant = [];
 if(!DB.labour) DB.labour = [];
 if(!DB.leave) DB.leave = [];
 if(!DB.vos) DB.vos = [];
-if(DB.voCounter === undefined) DB.voCounter = 0;
+delete DB.voCounter;          /* numbering is derived from the sheets themselves now */
 if(!DB.jobHours) DB.jobHours = {};
 if(!DB.jobHours[DB.job]){
   /* carry across anything set on the old app-wide setting, otherwise use the default */
