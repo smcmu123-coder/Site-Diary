@@ -385,6 +385,19 @@ function save(){
 }
 const cfg = () => DB.config || CONFIG;
 
+/* Working hours are set per job — a footway job and a deep drainage job rarely
+   run the same day. Falls back to the app default for a job never set up. */
+function hoursFor(job){
+  const j = job || DB.job;
+  const h = (DB.jobHours || {})[j];
+  return h || CONFIG.hours;
+}
+function setJobHours(patch){
+  DB.jobHours = DB.jobHours || {};
+  DB.jobHours[DB.job] = Object.assign({}, hoursFor(DB.job), patch);
+  save();
+}
+
 /* ---------------------------------------------------------------- dates -- */
 const iso = d => { const x=new Date(d);
   return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); };
@@ -421,16 +434,23 @@ function statusFor(date){
   const rec = recordFor(date);
   if(rec && rec.status==="submitted") return "done";
   if(date > t) return "future";
+  if(!inScope(date)) return "none";     /* before the app started */
   if(!isWorking(date)) return rec ? "draft" : "none";
   if(date === t) return rec ? "draft" : "due";
   if(date === prevWorking(t)) return "amber";
   return "red";
 }
 function prevWorking(s){ let d=addDays(s,-1); let i=0; while(!isWorking(d) && i++<10) d=addDays(d,-1); return d; }
+/* Only chase from the day the app started being used. Anything before that was
+   kept on paper and is none of its business. */
+function startDate(){ return DB.startDate || todayISO(); }
+function inScope(d){ return d >= startDate(); }
+
 function missedDays(){
   const t = todayISO(), out=[];
   let d = addDays(t,-1);
-  for(let i=0;i<28;i++){
+  for(let i=0;i<60;i++){
+    if(!inScope(d)) break;
     if(isWorking(d) && !recordFor(d)) out.push({date:d, level: d===prevWorking(t) ? "amber":"red"});
     d = addDays(d,-1);
   }
@@ -508,11 +528,11 @@ function workedHours(start, finish){
   const a=toMins(start), b=toMins(finish);
   if(a==null||b==null) return null;
   let mins = b-a; if(mins<0) mins += 24*60;
-  mins -= (Number(cfg().hours.breakMins)||30);
+  mins -= (Number(hoursFor().breakMins)||30);
   if(mins<0) mins = 0;
   return Math.round((mins/60)*100)/100;
 }
-const normalHours = () => workedHours(cfg().hours.start, cfg().hours.finish);
+const normalHours = (job) => workedHours(hoursFor(job).start, hoursFor(job).finish);
 function rowHours(row){
   if(!row || row.onSite!==true) return 0;
   if(row.normal===true) return normalHours() || 0;
@@ -887,7 +907,7 @@ function fieldHtml(f, v, err, path){
               <button type="button" class="${r.onSite===false?"n":""}" data-tbl="labourTable" data-i="${i}" data-k="onSite" data-v="0">No</button>
             </span></div>
             ${r.onSite===true ? `<div class="more">
-              <span class="lbl">Normal hours — ${esc(cfg().hours.start)} to ${esc(cfg().hours.finish)}, ${normalHours()} hours?</span>
+              <span class="lbl">Normal hours — ${esc(hoursFor().start)} to ${esc(hoursFor().finish)}, ${normalHours()} hours?</span>
               <span class="yn" style="width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 <button type="button" class="${r.normal===true?"y":""}" data-tbl="labourTable" data-i="${i}" data-k="normal" data-v="1">Yes</button>
                 <button type="button" class="${r.normal===false?"n":""}" data-tbl="labourTable" data-i="${i}" data-k="normal" data-v="0">No</button>
@@ -901,7 +921,7 @@ function fieldHtml(f, v, err, path){
                 <input class="in" style="min-height:46px;margin-top:8px" placeholder="Reason — e.g. left early for an appointment"
                   value="${esc(r.reason||"")}" data-tin="labourTable" data-i="${i}" data-k="reason" aria-label="Reason">
                 ` : `<div style="margin-top:8px;font-size:13px;color:var(--ink-2)">
-                  ${normalHours()} hours, ${esc(cfg().hours.breakMins)} minute break deducted</div>`}
+                  ${normalHours()} hours, ${esc(hoursFor().breakMins)} minute break deducted</div>`}
             </div>` : ""}
           </div>`;
         }).join("") : `<div class="tempty">Nobody on the labour register for this job yet.</div>`)+
@@ -989,8 +1009,8 @@ function tableRows(f, val){
       const h = rowHours(r);
       return `<tr><td>${esc(r.name||"")}</td><td>${esc(r.trade||"")}</td>
         <td>${r.onSite===true?"Yes":r.onSite===false?"No":"—"}</td>
-        <td>${esc(r.onSite&&r.normal===false?r.start:(r.onSite?cfg().hours.start:"—"))}</td>
-        <td>${esc(r.onSite&&r.normal===false?r.finish:(r.onSite?cfg().hours.finish:"—"))}</td>
+        <td>${esc(r.onSite&&r.normal===false?r.start:(r.onSite?hoursFor().start:"—"))}</td>
+        <td>${esc(r.onSite&&r.normal===false?r.finish:(r.onSite?hoursFor().finish:"—"))}</td>
         <td>${r.onSite?h:"—"}</td>
         <td>${esc(r.reason||"")}</td></tr>`;
     }).join("")+`</table>`;
@@ -1257,8 +1277,8 @@ function timesheetWeek(ws){
       const key = row.id || row.name;
       if(!people[key]) people[key] = { name:row.name, trade:row.trade, days:{}, total:0 };
       const h = rowHours(row);
-      people[key].days[d] = { hours:h, start: row.normal===false?row.start:cfg().hours.start,
-        finish: row.normal===false?row.finish:cfg().hours.finish, normal: row.normal!==false,
+      people[key].days[d] = { hours:h, start: row.normal===false?row.start:hoursFor().start,
+        finish: row.normal===false?row.finish:hoursFor().finish, normal: row.normal!==false,
         reason: row.reason||"" };
       people[key].total += h;
     });
@@ -1302,7 +1322,7 @@ function timesheetView(){
             ${Math.round(grand*100)/100}</td></tr>
       </table>
       <p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
-        Hours are finish minus start, less a ${cfg().hours.breakMins} minute break.
+        Hours are finish minus start, less a ${hoursFor().breakMins} minute break.
         Amber figures were outside normal hours.</p>
     </div>
     <button class="btn" data-tsprint="${ws}">Open timesheet PDF</button>`
@@ -1322,21 +1342,30 @@ function settingsView(){
       <div class="f" style="margin:0"><label>Email</label><input class="in" data-cfg="user.email" value="${esc(c.user.email)}"></div>
     </div>
 
-    <div class="sect">Working hours</div>
+    <div class="sect">Diaries</div>
     <div class="card">
-      <p style="margin-bottom:14px">Used for anyone marked as working normal hours, and for the break
-      deducted from every timesheet entry.</p>
+      <div class="f" style="margin:0"><label>Chasing diaries from</label>
+        <div class="hint">The app ignores anything before this date, so it never asks for
+        diaries that were kept on paper.</div>
+        <input class="in" type="date" data-start="1" value="${esc(DB.startDate||todayISO())}"></div>
+    </div>
+
+    <div class="sect">Working hours — ${esc(DB.job)}</div>
+    <div class="card">
+      <p style="margin-bottom:14px">Set per job, so a different site can run different hours.
+      Used for anyone marked as working normal hours, and for the break taken off every
+      timesheet entry.</p>
       <div class="g2">
         <div class="f"><label>Start</label>
-          <input class="in" type="time" data-cfg="hours.start" value="${esc(c.hours.start)}"></div>
+          <input class="in" type="time" data-jh="start" value="${esc(hoursFor().start)}"></div>
         <div class="f"><label>Finish</label>
-          <input class="in" type="time" data-cfg="hours.finish" value="${esc(c.hours.finish)}"></div>
+          <input class="in" type="time" data-jh="finish" value="${esc(hoursFor().finish)}"></div>
       </div>
-      <div class="f" style="margin:0"><label>Unpaid break</label>
-        <input class="in" type="number" data-cfg="hours.breakMins" value="${esc(c.hours.breakMins)}"></div>
+      <div class="f" style="margin:0"><label>Unpaid break (minutes)</label>
+        <input class="in" type="number" data-jh="breakMins" value="${esc(hoursFor().breakMins)}"></div>
       <div class="card" style="background:var(--canvas);box-shadow:none;margin:14px 0 0">
-        <span style="font-size:12.5px;color:var(--ink-2)">A normal day works out at
-        <b>${normalHours()} hours</b>.</span>
+        <span style="font-size:12.5px;color:var(--ink-2)">A normal day on this job is
+        <b id="normalTotal">${normalHours()} hours</b>.</span>
       </div>
     </div>
 
@@ -1658,6 +1687,18 @@ function bind(){
       if(pv) pv.textContent = previewPath();
     };
   });
+  app.querySelectorAll("[data-jh]").forEach(el=>{
+    el.oninput = () => {
+      setJobHours({ [el.dataset.jh]: el.value });
+      const t = document.getElementById("normalTotal");
+      if(t) t.textContent = (normalHours()||0) + " hours";   /* live, no redraw */
+    };
+    el.onchange = el.oninput;
+  });
+
+  const sd = app.querySelector("[data-start]");
+  if(sd) sd.oninput = ()=>{ if(sd.value){ DB.startDate = sd.value; save(); } };
+
   const jb = app.querySelector("[data-job]");
   if(jb) jb.oninput = ()=>{
     DB.job = jb.value.trim() || DB.job;
@@ -1911,7 +1952,7 @@ function printTimesheet(ws){
       ${people.map(p=>days.filter(d=>p.days[d]).map(d=>`<tr>
         <td>${esc(p.name)}</td><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d)}</td>
         <td>${esc(p.days[d].start)}</td><td>${esc(p.days[d].finish)}</td>
-        <td>${c.hours.breakMins} min</td><td>${p.days[d].hours}</td>
+        <td>${hoursFor().breakMins} min</td><td>${p.days[d].hours}</td>
         <td>${esc(p.days[d].reason||"")}</td></tr>`).join("")).join("")}
     </table>
     <div class="foot"><span>${esc(c.company)} · timesheet w/c ${shortDate(ws)}</span>
@@ -1988,9 +2029,21 @@ function importBackup(){
 /* ------------------------------------------------------------------- boot -- */
 if(!DB.config) DB.config = JSON.parse(JSON.stringify(CONFIG));
 if(!DB.job) DB.job = CONFIG.jobs[0];
+if(!DB.startDate){
+  const earliest = (DB.records||[]).map(r=>r.date).sort()[0];
+  DB.startDate = earliest && earliest < todayISO() ? earliest : todayISO();
+}
 if(!DB.plant) DB.plant = [];
 if(!DB.labour) DB.labour = [];
-if(!DB.config.hours) DB.config.hours = JSON.parse(JSON.stringify(CONFIG.hours));
+if(!DB.jobHours) DB.jobHours = {};
+if(!DB.jobHours[DB.job]){
+  /* carry across anything set on the old app-wide setting, otherwise use the default */
+  const old = DB.config && DB.config.hours;
+  DB.jobHours[DB.job] = (old && old.start && old.finish)
+    ? { start:old.start, finish:old.finish, breakMins:Number(old.breakMins)||30 }
+    : JSON.parse(JSON.stringify(CONFIG.hours));
+}
+if(DB.config) delete DB.config.hours;
 if(DB.config.allowDelete === undefined) DB.config.allowDelete = CONFIG.allowDelete;
 save();
 render();
