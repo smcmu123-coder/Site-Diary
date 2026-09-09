@@ -36,7 +36,51 @@ input,select,textarea{font:inherit;color:inherit}
   padding-left:max(16px, env(safe-area-inset-left));
   padding-right:max(16px, env(safe-area-inset-right));
   background:var(--paper);overflow-x:hidden}
-@media(min-width:700px){.app{padding:0 34px 40px;box-shadow:0 0 0 1px var(--line)}}
+.projgrid{display:grid;gap:12px}
+.reggrid{display:grid;gap:0}
+@media(min-width:760px){
+  .reggrid{grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  .reggrid > .card,.reggrid > .rep{margin-bottom:0}
+}
+
+/* iPad: more room, bigger type, cards side by side. Same code, one layout. */
+@media(min-width:760px){
+  body{background:var(--canvas)}
+  .app{max-width:760px;padding:0 34px 60px;box-shadow:0 0 0 1px var(--line);
+    background:var(--paper)}
+  h1.greet{font-size:34px}
+  .sub{font-size:15px;margin-bottom:26px}
+  .week{gap:6px;margin-bottom:28px}
+  .wd{padding:13px 0 15px;border-radius:18px}
+  .wd .l{font-size:12.5px} .wd .n{font-size:19px} .wd .s{width:7px;height:7px}
+  .warrow{width:38px;font-size:22px}
+  .hero{padding:34px 28px;border-radius:28px}
+  .hero .ttl{font-size:29px}
+  .hero .why{font-size:15px}
+  .begin{min-height:56px;font-size:17.5px;padding:0 48px}
+  .card{padding:22px}
+  .projgrid{grid-template-columns:repeat(3,1fr);align-items:start}
+  .projgrid .card{margin-bottom:0;height:100%}
+  .cg{grid-template-columns:repeat(3,1fr)}
+  .pg{grid-template-columns:repeat(4,1fr);gap:10px}
+  .btn{min-height:58px}
+  .sect{margin:32px 0 12px}
+  .thead .c2{display:block;flex:none}
+  .trow .c2{display:block} .trow .subfleet{display:none}
+  .timegrid{grid-template-columns:1fr 1fr auto}
+  .timegrid .calc{grid-column:auto;text-align:left}
+}
+@media(min-width:1024px){
+  .app{max-width:880px}
+  .pg{grid-template-columns:repeat(5,1fr)}
+  .lightbox .lbimg{padding:0 40px}
+  .sheet{padding:34px 40px}
+}
+
+/* landscape on a tablet: keep the reading width sensible */
+@media(min-width:900px) and (orientation:landscape){
+  .app{max-width:900px}
+}
 .hide{display:none!important}
 
 /* header */
@@ -741,6 +785,7 @@ function homeView(){
        <span class="bar"><i style="width:${wk.length?(wkDone/wk.length*100):0}%"></i></span>
      </div>
      <div class="sect">Project</div>
+     <div class="projgrid">
      ${(function(){
        const n = currentPlant().length;
        const al = lolerAlerts();
@@ -782,6 +827,7 @@ function homeView(){
          <span style="color:var(--ink-3)">&rsaquo;</span>
        </div>
      </button>
+     </div>
      <button class="btn ghost" data-go="list">All diaries</button>`;
 }
 
@@ -1244,10 +1290,10 @@ function plantView(){
       is the hours. Take an item off site and it stops appearing from that date.</p>
     </div>
     ${alertCard}
-    ${onSite.length ? `<div class="sect">On site (${onSite.length})</div>${liveRows}`
+    ${onSite.length ? `<div class="sect">On site (${onSite.length})</div><div class="reggrid">${liveRows}</div>`
       : `<div class="card"><h3>Nothing on site yet</h3><p>Add the machines currently on the job.</p></div>`}
     ${addBlock}
-    ${offSite.length ? `<div class="sect">Off site (${offSite.length})</div>${offRows}` : ""}`;
+    ${offSite.length ? `<div class="sect">Off site (${offSite.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
 }
 
 let labourDraft = null;
@@ -1329,10 +1375,10 @@ function labourView(){
       <p>Everyone here appears in the diary each day. You tick who was on, and anyone
       off normal hours gets a start and finish time — the timesheet builds itself.</p>
     </div>
-    ${on.length ? `<div class="sect">On site (${on.length})</div>${rows}`
+    ${on.length ? `<div class="sect">On site (${on.length})</div><div class="reggrid">${rows}</div>`
       : `<div class="card"><h3>Nobody added yet</h3><p>Add the gang working on this job.</p></div>`}
     ${add}
-    ${off.length ? `<div class="sect">Left site (${off.length})</div>${offRows}` : ""}`;
+    ${off.length ? `<div class="sect">Left site (${off.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
 }
 
 /* ------------------------------------------------------------- timesheet -- */
