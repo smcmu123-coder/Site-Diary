@@ -514,32 +514,26 @@ const DIARY = [
 
   { title:"Dayworks", fields:[
     { id:"dayworks", type:"yesno", label:"Any dayworks carried out today?", required:true,
-      hint:"Work outside the contract, instructed on site. Nothing below appears unless you answer yes." },
-    { id:"dwRef", type:"text", label:"Daywork or instruction reference",
-      showIf:{field:"dayworks",equals:true} },
-    { id:"dwBy", type:"text", label:"Instructed by", showIf:{field:"dayworks",equals:true},
-      hint:"Who gave the instruction, and their company." },
-    { id:"dwWhat", type:"textarea", label:"What was instructed?", required:true,
-      showIf:{field:"dayworks",equals:true} },
-    { id:"dwLabour", type:"peoplepick", label:"Labour used", required:true,
-      showIf:{field:"dayworks",equals:true} },
-    { id:"dwPlant", type:"plantpick", label:"Plant used",
-      showIf:{field:"dayworks",equals:true} },
-    { id:"dwSmallPlant", type:"repeater", label:"Small plant and tools",
-      itemLabel:"Item", addLabel:"Add item",
-      showIf:{field:"dayworks",equals:true},
-      hint:"Anything not on the plant register — breaker, disc cutter, whacker.",
+      hint:"Work outside the contract, instructed on site. A numbered sheet is raised for each one." },
+    { id:"dwList", type:"repeater", label:"Dayworks", itemLabel:"Daywork", addLabel:"Add another daywork",
+      required:true, collapsible:true, showIf:{field:"dayworks",equals:true},
       columns:[
-        { id:"item", type:"text", label:"Item", required:true },
-        { id:"hours", type:"duration", label:"Time used", required:true }
-      ]},
-    { id:"dwHours", type:"duration", label:"Time taken", required:true,
-      showIf:{field:"dayworks",equals:true} },
-    { id:"dwMaterials", type:"textarea", label:"Materials used",
-      showIf:{field:"dayworks",equals:true} },
-    { id:"dwComments", type:"textarea", label:"Other comments",
-      showIf:{field:"dayworks",equals:true},
-      hint:"Anything that supports the claim. A daywork sheet is raised for signing once you submit." }
+        { id:"what", type:"textarea", label:"What was instructed?", required:true },
+        { id:"ref", type:"text", label:"Daywork or instruction reference" },
+        { id:"by", type:"text", label:"Instructed by",
+          hint:"Who gave the instruction, and their company." },
+        { id:"labour", type:"peoplepick", label:"Labour used", required:true },
+        { id:"plant", type:"plantpick", label:"Plant used" },
+        { id:"smallPlant", type:"repeater", label:"Small plant and tools",
+          itemLabel:"Item", addLabel:"Add item",
+          columns:[
+            { id:"item", type:"text", label:"Item", required:true },
+            { id:"hours", type:"duration", label:"Time used", required:true }
+          ]},
+        { id:"hours", type:"duration", label:"Time taken", required:true },
+        { id:"materials", type:"textarea", label:"Materials used" },
+        { id:"comments", type:"textarea", label:"Other comments" }
+      ]}
   ]},
 
   { title:"Visitors", fields:[
@@ -1465,30 +1459,44 @@ const VO_PREFIX = "CGC-VO-";
 function nextVoRef(){ return VO_PREFIX + String(highestVoNumber() + 1).padStart(3,"0"); }
 function voForRecord(recId){ return (DB.vos||[]).find(v=>v.recordId===recId) || null; }
 
+function voForRecordIndex(recId, idx){
+  return (DB.vos||[]).find(v=>v.recordId===recId && (v.taskIndex||0)===idx) || null;
+}
+
+/* One sheet per daywork on the diary, so a day with two instructions raises two. */
 function syncVo(rec){
   DB.vos = DB.vos || [];
   const d = rec.data || {};
-  const has = d.dayworks === true;
-  const existing = voForRecord(rec.id);
+  let tasks = [];
+  if(d.dayworks === true){
+    tasks = Array.isArray(d.dwList) && d.dwList.length ? d.dwList
+      : (d.dwWhat ? [{ what:d.dwWhat, ref:d.dwRef, by:d.dwBy, labour:d.dwLabour,
+          plant:d.dwPlant, smallPlant:d.dwSmallPlant, hours:d.dwHours,
+          materials:d.dwMaterials, comments:d.dwComments }] : []);
+  }
 
-  if(!has){
-    /* dayworks answer changed to no — drop it, unless it has been signed */
-    if(existing && existing.status !== "signed")
-      DB.vos = DB.vos.filter(v=>v.id!==existing.id);
-    return;
-  }
-  const snapshot = {
-    ref: d.dwRef||"", instructedBy: d.dwBy||"", what: d.dwWhat||"",
-    labour: d.dwLabour||[], plant: d.dwPlant||[], smallPlant: d.dwSmallPlant||"",
-    hours: d.dwHours||"", materials: d.dwMaterials||"", comments: d.dwComments||""
-  };
-  if(existing){
-    if(existing.status !== "signed"){ existing.data = snapshot; existing.updatedAt = Date.now(); }
-    return;
-  }
-  DB.vos.push({
-    id:"vo_"+Date.now(), ref: nextVoRef(), recordId: rec.id, job: rec.job, date: rec.date,
-    raisedBy: rec.by, createdAt: Date.now(), status:"unsigned", data: snapshot
+  /* drop any sheet whose task has gone, unless it has been signed */
+  (DB.vos||[]).filter(v=>v.recordId===rec.id).forEach(v=>{
+    if((v.taskIndex||0) >= tasks.length && v.status!=="signed")
+      DB.vos = DB.vos.filter(x=>x.id!==v.id);
+  });
+
+  tasks.forEach((t, i)=>{
+    const snapshot = {
+      ref: t.ref||"", instructedBy: t.by||"", what: t.what||"",
+      labour: t.labour||[], plant: t.plant||[], smallPlant: t.smallPlant||[],
+      hours: t.hours||"", materials: t.materials||"", comments: t.comments||""
+    };
+    const existing = voForRecordIndex(rec.id, i);
+    if(existing){
+      if(existing.status !== "signed"){ existing.data = snapshot; existing.updatedAt = Date.now(); }
+      return;
+    }
+    DB.vos.push({
+      id:"vo_"+Date.now()+"_"+i, ref: nextVoRef(), recordId: rec.id, taskIndex: i,
+      job: rec.job, date: rec.date, raisedBy: rec.by, createdAt: Date.now(),
+      status:"unsigned", data: snapshot
+    });
   });
 }
 
@@ -1553,7 +1561,7 @@ function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="leave"){ leaveDraft = null; leaveDay = null; }
-  if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; }
+  if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; voEditDate = ""; }
   if(name!=="defect"){ fixDraft = null; }
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
@@ -1873,7 +1881,7 @@ function homeView(){
        </div>
      </button>
      </div>
-     <button class="btn ghost" data-go="list">All diaries</button>`;
+     <button class="btn ghost" data-go="list">All records</button>`;
 }
 
 /* ------------------------------------------------------------------- form -- */
@@ -2031,11 +2039,25 @@ function fieldHtml(f, v, err, path){
     }
     case "repeater":{
       const rows = val||[];
-      c = rows.map((row,i)=>`<div class="rep">
-        <div class="rh"><span>${esc(f.itemLabel||"Item")} ${i+1}</span>
-        <button type="button" class="rm" data-del="${id}" data-i="${i}">Remove</button></div>`+
-        f.columns.map(col=>fieldHtml(Object.assign({},col,{required:false}), row, null, id+"."+i+"."+col.id)).join("")+
-        `</div>`).join("") +
+      c = rows.map((row,i)=>{
+        if(f.collapsible && row.__done){
+          const first = f.columns.find(col=>row[col.id]);
+          const summary = first ? String(row[first.id]).slice(0,70) : "Filled in";
+          return `<div class="rep" style="background:var(--ok-bg);border-color:var(--ok)">
+            <div class="rh"><span style="color:var(--ok)">${esc(f.itemLabel||"Item")} ${i+1} — complete</span>
+              <button type="button" class="rm" style="color:var(--ink-2)"
+                data-undone="${id}" data-i="${i}">Edit</button></div>
+            <div style="font-size:14px;color:var(--ink-2)">${esc(summary)}</div>
+          </div>`;
+        }
+        return `<div class="rep">
+          <div class="rh"><span>${esc(f.itemLabel||"Item")} ${i+1}</span>
+          <button type="button" class="rm" data-del="${id}" data-i="${i}">Remove</button></div>`+
+          f.columns.map(col=>fieldHtml(Object.assign({},col,{required:false}), row, null, id+"."+i+"."+col.id)).join("")+
+          (f.collapsible ? `<button type="button" class="btn" style="margin:6px 0 0"
+            data-done="${id}" data-i="${i}">Complete ${esc((f.itemLabel||"item").toLowerCase())} ${i+1}</button>` : "")+
+          `</div>`;
+      }).join("") +
         `<button type="button" class="btn line" data-add="${id}">+ ${esc(f.addLabel||"Add")}</button>`;
       break;
     }
@@ -2310,24 +2332,66 @@ function readRow(f, val){
   return `<div class="kv"><span class="k">${esc(f.label)}</span><span class="v">${esc(fmt(f,val))}</span></div>`;
 }
 
+let listFilter = "all";
+let listDate = "";
+
 function listView(){
-  const recs = DB.records.slice().sort((a,b)=>a.date<b.date?1:-1);
+  const all = DB.records.slice().sort((a,b)=>
+    a.date===b.date ? (b.submittedAt||b.createdAt||0)-(a.submittedAt||a.createdAt||0)
+                    : (a.date<b.date?1:-1));
+  const counts = {
+    all: all.length,
+    diary: all.filter(r=>(r.form||"diary")==="diary").length,
+    plantcheck: all.filter(r=>r.form==="plantcheck").length
+  };
+  let recs = all.filter(r=> listFilter==="all" ? true : (r.form||"diary")===listFilter);
+  if(listDate) recs = recs.filter(r=>r.date===listDate);
+
+  const chip = (k,label) => `<button class="pill ${listFilter===k?"ok":"grey"}"
+    style="padding:9px 14px;font-size:13.5px" data-lfilter="${k}">${label} ${counts[k]}</button>`;
+
+  /* group what is left by day */
+  const days = [];
+  recs.forEach(r=>{ if(!days.length || days[days.length-1].date!==r.date) days.push({date:r.date, items:[]});
+    days[days.length-1].items.push(r); });
+
+  const row = r => {
+    const machine = r.plantId ? ((DB.plant||[]).find(x=>x.id===r.plantId)||{}) : null;
+    return `<div class="row">
+      <button style="flex:1;text-align:left;display:block" data-view="${r.id}">
+        <b style="display:block;font-size:15.5px;font-weight:640">${esc(formDef(r.form).name)}${
+          machine ? " — "+esc(machine.item||machine.fleetNo||"") : ""}</b>
+        <span style="display:block;font-size:13px;color:var(--ink-3)">
+          ${esc(r.ref||"Draft")}${r.submittedAt?" · "+timeOnly(r.submittedAt):""}${
+            machine&&machine.fleetNo?" · "+esc(machine.fleetNo):""}</span>
+      </button>
+      <span class="pill ${r.status==="submitted"?"ok":"amber"}">${r.status==="submitted"?"Done":"Draft"}</span>
+      ${cfg().allowDelete ? `<button data-del-rec="${r.id}" aria-label="Delete"
+        style="color:var(--bad);font-size:20px;padding:0 4px">&times;</button>` : ""}
+    </div>`;
+  };
+
   return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
-    <h1 class="greet" style="font-size:22px;margin-top:12px">All diaries</h1>
-    <p class="sub">${recs.length} record${recs.length===1?"":"s"}</p>
-    ${recs.length?"":`<div class="card"><h3>Nothing yet</h3><p>Diaries appear here once submitted.</p></div>`}
-    <div class="card">`+recs.map(r=>
-      `<div class="row">
-        <button style="flex:1;text-align:left;display:block" data-view="${r.id}">
-          <b style="display:block;font-size:16px;font-weight:620">${esc(formDef(r.form).name)}</b>
-          <span style="display:block;font-size:13px;color:var(--ink-3)">${shortDate(r.date)} · ${esc(r.ref||"Draft")}${
-            r.plantId ? " · "+esc(((DB.plant||[]).find(x=>x.id===r.plantId)||{}).item||"") : ""}</span>
-        </button>
-        <span class="pill ${r.status==="submitted"?"ok":"amber"}">${r.status==="submitted"?"Submitted":"Draft"}</span>
-        ${cfg().allowDelete ? `<button data-del-rec="${r.id}" aria-label="Delete"
-          style="color:var(--bad);font-size:20px;padding:0 4px">&times;</button>` : ""}
-      </div>`).join("")+`</div>`;
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Records</h1>
+    <p class="sub">${esc(DB.job)}</p>
+
+    <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none">
+      ${chip("all","All")}${chip("diary","Site diary")}${chip("plantcheck","Plant inspection")}
+    </div>
+
+    <div class="card" style="display:flex;align-items:center;gap:10px;padding:10px 12px">
+      <span style="font-size:13.5px;font-weight:640;color:var(--ink-2);flex:none">Jump to</span>
+      <input class="in" type="date" style="min-height:44px;flex:1" data-listdate value="${esc(listDate)}">
+      ${listDate?`<button class="btn line sm" style="margin:0" data-lclear="1">Clear</button>`:""}
+    </div>
+
+    ${recs.length ? days.map(d=>`
+      <div class="sect" style="margin:22px 0 8px">${longDate(d.date)}</div>
+      <div class="card" style="padding:2px 16px">${d.items.map(row).join("")}</div>
+    `).join("") : `<div class="card"><h3>Nothing found</h3>
+      <p>${listDate ? "No records on "+longDate(listDate)+"." : "Records appear here once submitted."}</p></div>`}`;
 }
+
 
 /* The register is a list, not a page of open forms. Type the details once,
    press Add, and it becomes a line. Take it off hire and it drops to the
@@ -2888,7 +2952,9 @@ function voListView(){
     <h1 class="greet" style="font-size:22px;margin-top:12px">Dayworks</h1>
     <p class="sub">${esc(DB.job)}</p>
     ${vos.length?"":`<div class="card"><h3>Nothing yet</h3>
-      <p>Answer yes to dayworks on a diary and a numbered sheet is raised here automatically.</p></div>`}
+      <p>Answer yes to dayworks on a diary and a numbered sheet is raised here automatically.
+      Or raise one by hand below if a day has been missed.</p></div>`}
+    <button class="btn" data-vonew="1">+ New daywork sheet</button>
     ${vos.map(v=>`<button class="card" style="width:100%;text-align:left" data-vo="${v.id}">
       <div style="display:flex;align-items:flex-start;gap:10px">
         <div style="flex:1;min-width:0">
@@ -2904,6 +2970,7 @@ function voListView(){
 let voSign = null;   /* the PC signature being captured */
 let voEdit = null;   /* a sheet being amended */
 let voEditRef = "";  /* its number, edited separately from the content */
+let voEditDate = "";
 
 function voView(){
   const v = (DB.vos||[]).find(x=>x.id===view.id);
@@ -2919,6 +2986,8 @@ function voView(){
       <h1 class="greet" style="font-size:22px;margin-top:12px">Amend ${esc(v.ref)}</h1>
       <p class="sub">${longDate(v.date)}</p>
       <div class="card">
+        ${v.standalone ? `<div class="f"><label>Date of the works</label>
+          <input class="in" type="date" data-vedate="1" value="${esc(voEditDate||v.date)}"></div>` : ""}
         <div class="f"><label>Sheet number</label>
           <div class="hint">Numbered CGC-VO-001 upwards. Change it if it needs to line up with
           the client's own numbering.</div>
@@ -3011,6 +3080,7 @@ function voView(){
       ${row("Instruction ref", d.ref)}
       ${row("Instructed by", d.instructedBy)}
       ${row("Raised by", v.raisedBy)}
+      ${row("Source", v.standalone ? "Added by hand" : "From the site diary")}
       ${row("Time taken", durText(d.hours))}
     </div>
 
@@ -3356,21 +3426,34 @@ function stampPhoto(file){
 
 /* ------------------------------------------------------------------ events -- */
 function getVal(path){
-  const parts = String(path).split(".");
-  if(parts.length===1) return formState.values[parts[0]];
-  const [fid, idx, cid] = parts;
-  const row = (formState.values[fid]||[])[Number(idx)];
-  return row ? row[cid] : undefined;
+  let node = formState.values;
+  for(const seg of String(path).split(".")){
+    if(node == null) return undefined;
+    node = node[/^\d+$/.test(seg) ? Number(seg) : seg];
+  }
+  return node;
 }
 function setVal(path, value){
   const parts = String(path).split(".");
-  if(parts.length===1){ formState.values[parts[0]] = value; return; }
-  const [fid, idx, cid] = parts;
-  formState.values[fid][Number(idx)][cid] = value;
+  let node = formState.values;
+  for(let i=0;i<parts.length-1;i++){
+    const key = /^\d+$/.test(parts[i]) ? Number(parts[i]) : parts[i];
+    if(node[key] == null) node[key] = /^\d+$/.test(parts[i+1]) ? [] : {};
+    node = node[key];
+  }
+  const last = parts[parts.length-1];
+  node[/^\d+$/.test(last) ? Number(last) : last] = value;
 }
-function getField(id){
-  for(const s of sectionsFor(formState && formState.form)) for(const f of s.fields) if(f.id===id) return f;
-  return null;
+function getField(path){
+  const parts = String(path).split(".");
+  let field = null;
+  for(const s of sectionsFor(formState && formState.form))
+    for(const f of s.fields) if(f.id===parts[0]) field = f;
+  for(let i=1;i<parts.length && field;i++){
+    if(/^\d+$/.test(parts[i])) continue;
+    field = (field.columns||[]).find(c=>c.id===parts[i]) || null;
+  }
+  return field;
 }
 
 function bind(){
@@ -3396,6 +3479,13 @@ function bind(){
     };
   }
   app.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>go("record",{id:el.dataset.view}));
+  app.querySelectorAll("[data-lfilter]").forEach(el=>el.onclick=()=>{
+    listFilter = el.dataset.lfilter; render();
+  });
+  const ld = app.querySelector("[data-listdate]");
+  if(ld) ld.onchange = ()=>{ listDate = ld.value; render(); };
+  const lc = app.querySelector("[data-lclear]");
+  if(lc) lc.onclick = ()=>{ listDate = ""; render(); };
 
   /* form inputs */
   app.querySelectorAll("[data-f]").forEach(el=>{
@@ -3487,16 +3577,30 @@ function bind(){
     after();
   });
   app.querySelectorAll("[data-add]").forEach(el=>el.onclick=()=>{
-    const id=el.dataset.add;
-    const f = getField(id);
+    const path = el.dataset.add;
+    const f = getField(path);
     const blank = {};
-    (f&&f.columns||[]).forEach(c=>{ if(c.type==="peoplepick"||c.type==="plantpick") blank[c.id]=[]; });
-    formState.values[id]=(formState.values[id]||[]).concat([blank]);
+    (f&&f.columns||[]).forEach(c=>{
+      if(c.type==="peoplepick"||c.type==="plantpick"||c.type==="repeater") blank[c.id]=[];
+    });
+    setVal(path, (getVal(path)||[]).concat([blank]));
     after();
   });
   app.querySelectorAll("[data-del]").forEach(el=>el.onclick=()=>{
-    const id=el.dataset.del, i=Number(el.dataset.i);
-    formState.values[id]=formState.values[id].filter((_,ix)=>ix!==i); after(); });
+    const path=el.dataset.del, i=Number(el.dataset.i);
+    setVal(path, (getVal(path)||[]).filter((_,ix)=>ix!==i)); after(); });
+  app.querySelectorAll("[data-done]").forEach(el=>el.onclick=()=>{
+    const path=el.dataset.done, i=Number(el.dataset.i);
+    const rows = (getVal(path)||[]).slice();
+    rows[i] = Object.assign({}, rows[i], { __done:true });
+    setVal(path, rows); after();
+  });
+  app.querySelectorAll("[data-undone]").forEach(el=>el.onclick=()=>{
+    const path=el.dataset.undone, i=Number(el.dataset.i);
+    const rows = (getVal(path)||[]).slice();
+    rows[i] = Object.assign({}, rows[i]); delete rows[i].__done;
+    setVal(path, rows); after();
+  });
   app.querySelectorAll("[data-cam]").forEach(el=>el.onclick=()=>pickPhoto(el.dataset.cam,true));
   app.querySelectorAll("[data-lib]").forEach(el=>el.onclick=()=>pickPhoto(el.dataset.lib,false));
   app.querySelectorAll("[data-rmph]").forEach(el=>el.onclick=()=>{
@@ -3747,6 +3851,20 @@ function bind(){
   });
 
   app.querySelectorAll("[data-vo]").forEach(el=>el.onclick=()=>go("vo",{id:el.dataset.vo}));
+  const vnew = app.querySelector("[data-vonew]");
+  if(vnew) vnew.onclick = ()=>{
+    const v = { id:"vo_"+Date.now(), ref: nextVoRef(), recordId:null, job:DB.job,
+      date: todayISO(), raisedBy: cfg().user.name, createdAt: Date.now(), status:"unsigned",
+      standalone:true,
+      data:{ ref:"", instructedBy:"", what:"", labour:[], plant:[], smallPlant:[],
+        hours:{h:"",m:""}, materials:"", comments:"" } };
+    DB.vos = (DB.vos||[]).concat([v]);
+    save();
+    voEdit = JSON.parse(JSON.stringify(v.data));
+    voEditRef = v.ref;
+    go("vo",{id:v.id});
+    toast(v.ref+" raised — fill it in");
+  };
   const vss = app.querySelector("[data-vsstart]");
   if(vss) vss.onclick = ()=>{ voSign = { name:"", company:"", src:null }; render(); };
   const vsc = app.querySelector("[data-vscancel]");
@@ -3762,6 +3880,7 @@ function bind(){
     voEdit = JSON.parse(JSON.stringify(v.data||{}));
     if(!voEdit.hours || typeof voEdit.hours!=="object") voEdit.hours = { h:"", m:"" };
     voEditRef = v.ref || "";
+    voEditDate = v.date || todayISO();
     render();
   };
   app.querySelectorAll("[data-ve]").forEach(el=>{
@@ -3778,8 +3897,10 @@ function bind(){
   });
   const veref = app.querySelector("[data-veref]");
   if(veref) veref.oninput = () => { voEditRef = veref.value; };
+  const vedate = app.querySelector("[data-vedate]");
+  if(vedate) vedate.oninput = () => { voEditDate = vedate.value; };
 
-  app.querySelectorAll("[data-vecancel]").forEach(el=>el.onclick=()=>{ voEdit = null; voEditRef = ""; render(); });
+  app.querySelectorAll("[data-vecancel]").forEach(el=>el.onclick=()=>{ voEdit = null; voEditRef = ""; voEditDate = ""; render(); });
   const vesave = app.querySelector("[data-vesave]");
   if(vesave) vesave.onclick = ()=>{
     const v = DB.vos.find(x=>x.id===view.id);
@@ -3789,11 +3910,12 @@ function bind(){
     if(clash){ toast(ref+" is already used by another sheet"); return; }
 
     v.ref = ref;
+    if(v.standalone && voEditDate) v.date = voEditDate;
     v.data = Object.assign({}, v.data, voEdit);
     v.amendedAt = Date.now();
 
-    voEdit = null; voEditRef = "";
-    save(); render(); toast(v.ref+" amended");
+    voEdit = null; voEditRef = ""; voEditDate = "";
+    save(); render(); toast(v.ref+" saved");
   };
 
   /* deleting */
@@ -3927,9 +4049,11 @@ function submitForm(){
   syncVo(rec);
   raiseDefects(rec);
   save();
-  const vo = voForRecord(rec.id);
+  const raised = (DB.vos||[]).filter(v=>v.recordId===rec.id);
   const what = formDef(rec.form).name;
-  toast(vo ? what+" submitted · "+vo.ref+" raised" : what+" submitted — thank you");
+  toast(raised.length
+    ? what+" submitted · "+raised.map(v=>v.ref).join(", ")+" raised"
+    : what+" submitted — thank you");
   go("record",{id:rec.id});
 }
 
