@@ -128,6 +128,23 @@ h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;
   padding:0 42px;font-size:16.5px;font-weight:660}
 .hero.calm .begin{background:var(--green);color:#fff}
 
+/* hero carousel */
+.carousel{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;margin:0 -16px 8px;padding:0 16px 6px;
+  scrollbar-width:none}
+.carousel::-webkit-scrollbar{display:none}
+.carousel > *{flex:0 0 calc(100% - 26px);scroll-snap-align:center;margin:0}
+@media(min-width:760px){
+  .carousel{margin:0 0 8px;padding:0 0 6px}
+  .carousel > *{flex:0 0 calc(50% - 6px)}
+}
+.cdots{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
+.cdots i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block;
+  transition:background .2s}
+.cdots i.on{background:var(--green)}
+.hero .count{font-size:12.5px;color:rgba(255,255,255,.55);margin-top:2px}
+.hero.calm .count{color:var(--ink-3)}
+
 /* cards + rows */
 .card{background:var(--paper);border-radius:var(--r);box-shadow:var(--sh);padding:18px;
   margin-bottom:12px;min-width:0}
@@ -202,6 +219,38 @@ input[type=date].in,input[type=time].in,
 .f,.rep,.card{min-width:0}
 @media(max-width:360px){ .g2{grid-template-columns:1fr} }
 
+/* leave calendar */
+.cal{background:var(--paper);border-radius:var(--r);box-shadow:var(--sh);padding:14px 12px 12px;
+  margin-bottom:12px}
+.calnav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.calnav b{flex:1;text-align:center;font-size:16px;font-weight:660}
+.calnav button{width:42px;height:42px;border-radius:12px;font-size:20px;color:var(--green);
+  display:grid;place-items:center;flex:none}
+.calnav button[disabled]{color:var(--line)}
+.caldow{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
+.caldow span{text-align:center;font-size:10.5px;font-weight:700;color:var(--ink-3)}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.calday{aspect-ratio:1;border-radius:11px;display:grid;align-content:center;justify-items:center;
+  gap:3px;background:transparent;padding:2px}
+.calday .dn{font-size:13.5px;font-weight:620;line-height:1}
+.calday .dots{display:flex;gap:2px;height:6px;align-items:center;flex-wrap:wrap;
+  justify-content:center;max-width:100%}
+.calday .dots i{width:6px;height:6px;border-radius:50%;display:block}
+.calday.out .dn{color:#D3DAD5}
+.calday.we .dn{color:var(--ink-3)}
+.calday.today{box-shadow:inset 0 0 0 1.5px var(--green)}
+.calday.on{background:var(--green);}
+.calday.on .dn{color:#fff}
+.calday.on .dots i{box-shadow:0 0 0 1px rgba(255,255,255,.7)}
+.calkey{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--line-2);font-size:12.5px;color:var(--ink-2)}
+.calkey span{display:inline-flex;align-items:center;gap:6px}
+.calkey i{width:9px;height:9px;border-radius:50%;display:block}
+.dayoff{background:var(--info-bg);border-radius:14px;padding:14px;margin-bottom:12px}
+.dayoff h4{margin:0 0 8px;font-size:13.5px;font-weight:700;color:var(--info)}
+.dayoff .who{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:14.5px}
+.dayoff .who i{width:9px;height:9px;border-radius:50%;flex:none}
+
 /* timesheet */
 .tstotal{background:var(--green-50);border-radius:var(--r);padding:18px 20px;margin-bottom:12px;
   display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
@@ -235,6 +284,19 @@ input[type=date].in,input[type=time].in,
   padding:2px 4px 0}
 .tskey i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;
   vertical-align:-1px}
+
+/* yes / no / na check rows */
+.chk{border:1.5px solid var(--line-2);border-radius:14px;padding:12px;margin-bottom:8px;
+  background:#fff}
+.chk.bad{border-color:var(--bad);background:#FFFBFB}
+.chk .lab{font-size:15px;font-weight:600;line-height:1.3;margin-bottom:10px;display:block}
+.chk .opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.chk .opts button{min-height:46px;border:1.5px solid var(--line);border-radius:11px;
+  background:#fff;font-size:14.5px;font-weight:660}
+.chk .opts button.y{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.chk .opts button.n{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+.chk .opts button.na{background:var(--canvas);border-color:var(--ink-3);color:var(--ink-2)}
+.chk .fix{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
 
 /* diary tables */
 .ttable{border:1.5px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
@@ -512,6 +574,85 @@ const DIARY = [
   ]}
 ];
 
+/* ---------------------------------------------------- plant inspection --
+   Excavator Daily & Weekly Inspections (CGCivils-003), as the paper sheet.
+   Header details come from the machine, the job and whoever is signed in.
+   -------------------------------------------------------------------------*/
+const EXC_DAILY = [
+  "Engine oil level",
+  "Fuel level / leaks",
+  "Coolant level",
+  "Hydraulic oil level",
+  "Hydraulic system leaks",
+  "Grease attachments and check nipples",
+  "Grease machine and check nipples",
+  "Inspect seat belts",
+  "Inspect for cracks (dipper)",
+  "Check operation of switches",
+  "Check operation of console",
+  "Quick hitch check",
+  "Safety pins / correct pins in place",
+  "Flashing beacon / lights",
+  "Mirrors / cracks in windows"
+];
+const EXC_WEEKLY = [
+  "Water level check",
+  "Battery condition",
+  "Transmission levels",
+  "Slew motor oil level",
+  "Drain fuel sediment bowl",
+  "Drain fuel tank of water",
+  "Check fan belt",
+  "Check track tension",
+  "Track and pad rubbers",
+  "Bucket and dipper arm pins",
+  "Vandal guards",
+  "Operators manual in cab"
+];
+const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+
+/* Has a weekly check already been done for this machine this week? */
+function weeklyDone(date, plantId){
+  const wc = weekStart(date);
+  return DB.records.some(r => r.form==="excavator" && r.plantId===plantId
+    && r.status==="submitted" && weekStart(r.date)===wc && r.data && r.data.__weekly===true);
+}
+
+function plantCheckSections(){
+  const date = formState ? formState.date : todayISO();
+  const pid = formState ? formState.plantId : null;
+  const showWeekly = !weeklyDone(date, pid) || (formState && formState.values.__weekly===true);
+
+  const secs = [
+    { title:"Daily pre-use checks",
+      fields: EXC_DAILY.map(t=>({ id:"d_"+slug(t), type:"check", label:t, required:true })) }
+  ];
+  if(showWeekly){
+    secs.push({ title:"Weekly checks", note:"Due once a week for this machine.",
+      fields: EXC_WEEKLY.map(t=>({ id:"w_"+slug(t), type:"check", label:t, required:true })) });
+  }
+  secs.push({ title:"Declaration", fields:[
+    { id:"safe", type:"yesno", label:"Is the machine fit for use?", required:true },
+    { id:"engineerNote", type:"textarea", label:"Anything the fleet engineer should know?",
+      hint:"Defects are listed above with their photographs. Add anything else here." },
+    { id:"signature", type:"signature", label:"Signature", required:true,
+      hint:"I confirm the inspection results are accurate and, where deemed safe, the machine is fit for purpose." }
+  ]});
+  return secs;
+}
+
+/* Every form the app knows about. Adding another is an entry here. */
+const FORMS = {
+  diary: { key:"diary", name:"Site diary", short:"Diary", prefix:"DD",
+    sections:()=>DIARY, perMachine:false,
+    blurb:"Conditions, labour, plant, work done and dayworks." },
+  excavator: { key:"excavator", name:"Excavator inspection", short:"Plant check", prefix:"PC",
+    sections:plantCheckSections, perMachine:true,
+    blurb:"Daily pre-use checks, plus the weekly ones when they fall due." }
+};
+const formDef = k => FORMS[k] || FORMS.diary;
+const sectionsFor = k => formDef(k).sections();
+
 /* -------------------------------------------------------------- storage -- */
 const KEY = "cgc.diary.v1";
 let DB = load();
@@ -572,7 +713,13 @@ const initials = n => n.split(" ").map(p=>p[0]).slice(0,2).join("").toUpperCase(
    Weekends are never chased; a diary can still be created on one.
    -------------------------------------------------------------------------*/
 function recordFor(date, job){
-  return DB.records.find(r => r.date===date && r.job===(job||DB.job));
+  return DB.records.find(r => r.date===date && r.job===(job||DB.job) && (r.form||"diary")==="diary");
+}
+function checksFor(date){
+  return DB.records.filter(r => r.date===date && r.job===DB.job && r.form==="excavator");
+}
+function checkFor(date, plantId){
+  return checksFor(date).find(r => r.plantId===plantId) || null;
 }
 function statusFor(date){
   const t = todayISO();
@@ -631,6 +778,26 @@ function lolerState(p){
 function lolerAlerts(){
   return currentPlant().map(p=>({p, st:lolerState(p)}))
     .filter(x=>x.st.key==="expired" || x.st.key==="soon");
+}
+
+/* Any "No" on the latest check for a machine is a defect until it is checked
+   again and comes back clear. */
+function defectsFor(plantId){
+  const checks = DB.records.filter(r=>r.form==="excavator" && r.plantId===plantId
+    && r.status==="submitted").sort((a,b)=>(b.submittedAt||0)-(a.submittedAt||0));
+  const latest = checks[0];
+  if(!latest) return null;
+  const items = [];
+  sectionsFor("excavator").forEach(()=>{});
+  Object.keys(latest.data||{}).forEach(k=>{
+    const val = latest.data[k];
+    if(val && typeof val==="object" && val.v===false){
+      const label = (EXC_DAILY.concat(EXC_WEEKLY)).find(t=>("d_"+slug(t)===k)||("w_"+slug(t)===k)) || k;
+      items.push({ label, defect: val.defect||"", photos: val.photos||[] });
+    }
+  });
+  if(!items.length) return null;
+  return { record: latest, items, unsafe: latest.data.safe===false };
 }
 
 function refreshPlantPill(id){
@@ -693,7 +860,8 @@ function highestVoNumber(){
   });
   return max;
 }
-function nextVoRef(){ return "VO" + (highestVoNumber() + 1); }
+const VO_PREFIX = "CGC-VO-";
+function nextVoRef(){ return VO_PREFIX + String(highestVoNumber() + 1).padStart(3,"0"); }
 function voForRecord(recId){ return (DB.vos||[]).find(v=>v.recordId===recId) || null; }
 
 function syncVo(rec){
@@ -783,7 +951,7 @@ let viewWeek = weekStart(todayISO());
 function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
-  if(name!=="leave"){ leaveDraft = null; }
+  if(name!=="leave"){ leaveDraft = null; leaveDay = null; }
   if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; }
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
@@ -902,6 +1070,7 @@ function render(){
   else if(view.name==="record") app.innerHTML = recordView();
   else if(view.name==="list") app.innerHTML = listView();
   else if(view.name==="plant") app.innerHTML = plantView();
+  else if(view.name==="pickplant") app.innerHTML = pickPlantView();
   else if(view.name==="labour") app.innerHTML = labourView();
   else if(view.name==="leave") app.innerHTML = leaveView();
   else if(view.name==="vos") app.innerHTML = voListView();
@@ -972,6 +1141,28 @@ function homeView(){
       <button class="begin" data-start="${sel}">${rec?"Continue":"Begin"}</button></div>`;
   }
 
+  /* second card: plant inspections for the selected day */
+  const machines = onSitePlant(sel);
+  const doneChecks = checksFor(sel).filter(r=>r.status==="submitted");
+  const allChecked = machines.length>0 && doneChecks.length>=machines.length;
+  const plantHero = machines.length===0
+    ? `<div class="hero calm">
+        <div class="lab">Plant inspection</div>
+        <div class="ttl">No plant on site</div>
+        <div class="why">Add machines to the plant register and their checks appear here.</div>
+        <button class="begin" data-go="plant">Plant register</button></div>`
+    : allChecked
+    ? `<div class="hero calm">
+        <div class="lab">${isToday?"Today":shortDate(sel)}</div>
+        <div class="ttl">Checks complete</div>
+        <div class="count">${doneChecks.length} of ${machines.length} machines</div>
+        <button class="begin" data-pick="${sel}">View them</button></div>`
+    : `<div class="hero">
+        <div class="lab">Plant inspection</div>
+        <div class="ttl">${machines.length - doneChecks.length} to check</div>
+        <div class="count">${doneChecks.length} of ${machines.length} done ${isToday?"today":"that day"}</div>
+        <button class="begin" data-pick="${sel}">Begin</button></div>`;
+
   const missed = missedDays();
   const missedCard = missed.length ? `<button class="card" style="width:100%;text-align:left;
     background:${missed.some(m=>m.level==="red")?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"
@@ -992,7 +1183,11 @@ function homeView(){
        ${strip}
        <button class="warrow" data-week="1" ${canFwd?"":"disabled"} aria-label="Next week">&rsaquo;</button>
      </div>
-     ${hero}
+     <div class="carousel" id="heroCar">
+       ${hero}
+       ${plantHero}
+     </div>
+     <div class="cdots"><i class="on"></i><i></i></div>
      ${missedCard}
      <div class="card">
        <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -1065,10 +1260,11 @@ let formState = null;
 
 function visible(f, v){ return !f.showIf || v[f.showIf.field] === f.showIf.equals; }
 
-function startForm(date){
-  const rec = recordFor(date);
+function startForm(date, formKey, plantId){
+  formKey = formKey || "diary";
+  const rec = formKey==="diary" ? recordFor(date) : checkFor(date, plantId);
   if(rec && rec.status==="submitted"){ go("record",{id:rec.id}); return; }
-  const values = rec ? JSON.parse(JSON.stringify(rec.data)) : prefill(date);
+  const values = rec ? JSON.parse(JSON.stringify(rec.data)) : prefill(date, formKey);
   if(rec){
     ["personnel","plant","activities","progress","deliveries","dwLabour_old"].forEach(k=>{ delete values[k]; });
     values.tasks = values.tasks || [];
@@ -1089,14 +1285,16 @@ function startForm(date){
       if(!lv && r.leave){ r.leave = ""; r.leaveNote = ""; }
     });
   }
-  formState = { date, values, errors:{}, touched:false, id: rec?rec.id:null };
+  formState = { date, values, errors:{}, touched:false, id: rec?rec.id:null,
+    form: formKey, plantId: plantId||null };
   go("form",{date});
 }
-function prefill(date){
+function prefill(date, formKey){
   const v = {};
-  DIARY.forEach(s=>s.fields.forEach(f=>{
+  sectionsFor(formKey||"diary").forEach(s=>s.fields.forEach(f=>{
     if(f.type==="repeater"||f.type==="checkboxes"||f.type==="photos") v[f.id]=[];
   }));
+  if((formKey||"diary")!=="diary") return v;
   const prev = DB.records.filter(r=>r.job===DB.job && r.status==="submitted" && r.date<date)
     .sort((a,b)=>a.date<b.date?1:-1)[0];
   if(prev && prev.data.personnel) v.personnel = JSON.parse(JSON.stringify(prev.data.personnel));
@@ -1116,9 +1314,14 @@ function prefill(date){
 }
 function validate(){
   const e = {}, v = formState.values;
-  DIARY.forEach(s=>s.fields.forEach(f=>{
+  sectionsFor(formState.form).forEach(s=>s.fields.forEach(f=>{
     if(!visible(f,v) || !f.required) return;
     const val = v[f.id];
+    if(f.type==="check"){
+      if(!val || val.v===undefined){ e[f.id]="Answer this"; return; }
+      if(val.v===false && !(val.defect||"").trim()){ e[f.id]="Describe the defect"; return; }
+      return;
+    }
     const empty = f.type==="duration" ? durEmpty(val)
       : (val===undefined||val===null||val===""||(Array.isArray(val)&&val.length===0));
     if(empty){ e[f.id]="Required"; return; }
@@ -1154,8 +1357,8 @@ function validate(){
 function fieldHtml(f, v, err, path){
   const id = path||f.id;
   const val = v[f.id];
-  const lab = f.type==="signature"||true
-    ? `<label for="fl_${id}">${esc(f.label)}${f.required?' <span style="color:var(--bad)">*</span>':""}</label>` : "";
+  const lab = f.type==="check" ? ""
+    : `<label for="fl_${id}">${esc(f.label)}${f.required?' <span style="color:var(--bad)">*</span>':""}</label>`;
   const hint = f.hint?`<div class="hint">${esc(f.hint)}</div>`:"";
   let c = "";
   const ec = err?" err":"";
@@ -1307,6 +1510,31 @@ function fieldHtml(f, v, err, path){
         `</div>`;
       break;
     }
+    case "check":{
+      const cur = (val && typeof val==="object") ? val : {};
+      const set = cur.v;
+      c = `<div class="chk ${set===false?"bad":""}">
+        <span class="lab">${esc(f.label)}</span>
+        <div class="opts">
+          <button type="button" class="${set===true?"y":""}" data-chk3="${id}" data-v="y">Yes</button>
+          <button type="button" class="${set===false?"n":""}" data-chk3="${id}" data-v="n">No</button>
+          <button type="button" class="${set==="na"?"na":""}" data-chk3="${id}" data-v="na">N/A</button>
+        </div>
+        ${set===false ? `<div class="fix">
+          <textarea class="in" style="min-height:78px" placeholder="What is the defect?"
+            data-chkd="${id}">${esc(cur.defect||"")}</textarea>
+          ${(cur.photos||[]).length ? `<div class="pg" style="margin-top:10px">`+
+            cur.photos.map((ph,pi)=>`<div class="ph"><img src="${ph.src}" alt="" data-taken="${ph.takenAt||""}">
+              <button type="button" data-chkrm="${id}" data-i="${pi}" aria-label="Remove">&times;</button></div>`).join("")+
+            `</div>` : ""}
+          <div class="g2" style="margin-top:10px">
+            <button type="button" class="btn line" style="margin:0" data-chkcam="${id}">Photo</button>
+            <button type="button" class="btn line" style="margin:0" data-chklib="${id}">Upload</button>
+          </div>
+        </div>` : ""}
+      </div>`;
+      break;
+    }
     case "signature":
       c = `<button type="button" class="sigbtn ${val?"signed":""}" data-sigopen="${id}">
           ${val && val.src
@@ -1325,24 +1553,38 @@ function fieldHtml(f, v, err, path){
 function formView(){
   const v = formState.values;
   const errs = formState.touched ? formState.errors : {};
+  const def = formDef(formState.form);
+  const secs = sectionsFor(formState.form);
+  const machine = formState.plantId
+    ? (DB.plant||[]).find(x=>x.id===formState.plantId) : null;
   let total=0, ok=0;
-  DIARY.forEach(s=>s.fields.forEach(f=>{ if(f.required && visible(f,v)){ total++; if(!validate()[f.id]) ok++; }}));
+  secs.forEach(s=>s.fields.forEach(f=>{ if(f.required && visible(f,v)){ total++; if(!validate()[f.id]) ok++; }}));
 
-  const body = DIARY.map(s=>{
+  const body = secs.map(s=>{
     const fs = s.fields.filter(f=>visible(f,v));
     if(!fs.length) return "";
-    return `<div class="sect">${esc(s.title)}</div><div class="card">`+
-      fs.map(f=>fieldHtml(f, v, errs[f.id])).join("")+`</div>`;
+    const isChecks = fs.length && fs[0].type==="check";
+    return `<div class="sect">${esc(s.title)}</div>`+
+      (s.note?`<p class="sub" style="margin:-4px 0 10px;color:var(--ink-3)">${esc(s.note)}</p>`:"")+
+      (isChecks ? fs.map(f=>fieldHtml(f, v, errs[f.id])).join("")
+        : `<div class="card">`+fs.map(f=>fieldHtml(f, v, errs[f.id])).join("")+`</div>`);
   }).join("");
 
   return `<div class="top">
       <button class="chip" data-go="home">&lsaquo; Back</button>
       <span class="pill info">${ok}/${total} required</span>
     </div>
-    <h1 class="greet" style="font-size:22px;margin-top:12px">Site diary</h1>
-    <p class="sub">${esc(DB.job)} · ${longDate(formState.date)}</p>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(def.name)}</h1>
+    <p class="sub">${longDate(formState.date)}</p>
+    ${machine ? `<div class="card" style="background:var(--green-50);box-shadow:none">
+      <div class="kv"><span class="k">Competent person</span><span class="v">${esc(cfg().user.name)}</span></div>
+      <div class="kv"><span class="k">Fleet number</span><span class="v">${esc(machine.fleetNo||"—")}</span></div>
+      <div class="kv"><span class="k">Model</span><span class="v">${esc(machine.model||machine.item||"—")}</span></div>
+      <div class="kv"><span class="k">Week commencing</span><span class="v">${shortDate(weekStart(formState.date))}</span></div>
+      <div class="kv"><span class="k">Site</span><span class="v">${esc(DB.job)}</span></div>
+    </div>` : ""}
     ${body}
-    <button class="btn" data-submit="1">Submit diary</button>
+    <button class="btn" data-submit="1">Submit ${esc(def.name.toLowerCase())}</button>
     <button class="btn ghost" data-draft="1">Save draft and close</button>`;
 }
 
@@ -1350,7 +1592,7 @@ function formView(){
 function recordView(){
   const r = DB.records.find(x=>x.id===view.id);
   if(!r) return `<div class="card"><h3>Not found</h3></div>`;
-  const rows = DIARY.map(s=>{
+  const rows = sectionsFor(r.form).map(s=>{
     const fs = s.fields.filter(f=>visible(f,r.data) && f.type!=="signature");
     if(!fs.length) return "";
     return `<div class="sect">${esc(s.title)}</div><div class="card">`+
@@ -1401,6 +1643,13 @@ function tableRows(f, val){
 }
 
 function readRow(f, val){
+  if(f.type==="check"){
+    const v = val||{};
+    const txt = v.v===true?"Yes":v.v===false?"No":v.v==="na"?"N/A":"—";
+    return `<div class="kv"><span class="k">${esc(f.label)}</span>
+      <span class="v" style="color:${v.v===false?"var(--bad)":"inherit"}">${txt}${
+        v.v===false&&v.defect?" — "+esc(v.defect):""}</span></div>`;
+  }
   if(f.type==="peoplepick"||f.type==="plantpick"){
     return `<div class="kv"><span class="k">${esc(f.label)}</span>
       <span class="v">${val&&val.length?esc(val.join(", ")):"—"}</span></div>`;
@@ -1443,8 +1692,9 @@ function listView(){
     <div class="card">`+recs.map(r=>
       `<div class="row">
         <button style="flex:1;text-align:left;display:block" data-view="${r.id}">
-          <b style="display:block;font-size:16px;font-weight:620">${longDate(r.date)}</b>
-          <span style="display:block;font-size:13px;color:var(--ink-3)">${esc(r.ref||"Draft")} · ${esc(r.job)}</span>
+          <b style="display:block;font-size:16px;font-weight:620">${esc(formDef(r.form).name)}</b>
+          <span style="display:block;font-size:13px;color:var(--ink-3)">${shortDate(r.date)} · ${esc(r.ref||"Draft")}${
+            r.plantId ? " · "+esc(((DB.plant||[]).find(x=>x.id===r.plantId)||{}).item||"") : ""}</span>
         </button>
         <span class="pill ${r.status==="submitted"?"ok":"amber"}">${r.status==="submitted"?"Submitted":"Draft"}</span>
         ${cfg().allowDelete ? `<button data-del-rec="${r.id}" aria-label="Delete"
@@ -1459,7 +1709,7 @@ let plantDraft = null;
 let plantEditId = null;
 
 function blankPlant(){
-  return { item:"", fleetNo:"", owner:"Hired", onDate:todayISO(), offDate:"", examDate:"" };
+  return { item:"", fleetNo:"", model:"", owner:"Hired", onDate:todayISO(), offDate:"", examDate:"" };
 }
 
 function plantFields(p, attr){
@@ -1468,8 +1718,12 @@ function plantFields(p, attr){
     <div class="f"><label>Plant item</label>
       <input class="in" ${attr}="item" value="${esc(p.item)}" placeholder="e.g. 13T 360 excavator"></div>
     <div class="g2">
-      <div class="f"><label>Fleet / reg no.</label>
+      <div class="f"><label>Fleet number</label>
         <input class="in" ${attr}="fleetNo" value="${esc(p.fleetNo||"")}"></div>
+      <div class="f"><label>Model</label>
+        <input class="in" ${attr}="model" value="${esc(p.model||"")}" placeholder="e.g. SK130"></div>
+    </div>
+    <div class="g2">
       <div class="f"><label>Owned or hired</label>
         <select class="in" ${attr}="owner">
           ${["Owned","Hired","Subcontractor"].map(o=>`<option ${p.owner===o?"selected":""}>${esc(o)}</option>`).join("")}
@@ -1484,6 +1738,26 @@ function plantFields(p, attr){
     </div>
     <div class="hint" style="margin:-8px 0 0">LOLER for lifting equipment, PUWER for everything
     else. Leave blank if neither applies.</div>`;
+}
+
+function pickPlantView(){
+  const d = view.date || todayISO();
+  const machines = onSitePlant(d);
+  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Plant inspection</h1>
+    <p class="sub">${longDate(d)}</p>
+    ${machines.length ? "" : `<div class="card"><h3>Nothing on site</h3>
+      <p>Add machines to the plant register first.</p></div>`}
+    ${machines.map(m=>{
+      const rec = checkFor(d, m.id);
+      const done = rec && rec.status==="submitted";
+      return `<button class="task" data-check="${m.id}">
+        <span class="n"><b>${esc(m.item||"Unnamed")}</b>
+          <span>${esc(m.fleetNo||"No fleet no.")}${done?" · checked "+timeOnly(rec.submittedAt):
+            rec?" · draft saved":""}</span></span>
+        ${done?`<span class="pill ok">Done</span>`:`<span class="pill grey">To do</span>`}
+      </button>`;
+    }).join("")}`;
 }
 
 function plantView(){
@@ -1523,6 +1797,14 @@ function plantView(){
         </div>
         <span class="pill ${ls.cls}" id="pill_${p.id}">${esc(ls.label)}</span>
       </div>
+      ${df ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.08)">
+        <b style="color:var(--bad);font-size:14px;display:block;margin-bottom:4px">
+          ${df.items.length} defect${df.items.length===1?"":"s"}${df.unsafe?" · not fit for use":""}</b>
+        ${df.items.map(x=>`<div style="font-size:13.5px;color:var(--ink-2);padding:2px 0">
+          <b style="font-weight:640">${esc(x.label)}</b>${x.defect?" — "+esc(x.defect):""}</div>`).join("")}
+        <span style="display:block;font-size:12px;color:var(--ink-3);margin-top:6px">
+          From ${esc(df.record.ref||"the last check")}, ${shortDate(df.record.date)}</span>
+      </div>` : ""}
       <div style="display:flex;gap:8px;margin-top:14px">
         <button class="btn line sm" style="flex:1;margin:0" data-pledit="${p.id}">Edit</button>
         <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-ploff="${p.id}">Plant off site</button>
@@ -1663,14 +1945,40 @@ function labourView(){
 }
 
 let leaveDraft = null;
+let leaveMonth = null;      /* first of the month being viewed */
+let leaveDay = null;        /* the day tapped */
+
+const LEAVE_COLOURS = ["#1F5A2D","#1B4F7A","#A9611B","#5B3E8C","#0F6B63","#A72B22","#5C6B21","#8A3B62"];
+function personColour(id){
+  const list = (DB.labour||[]).filter(l=>l.job===DB.job).map(l=>l.id);
+  const i = list.indexOf(id);
+  return LEAVE_COLOURS[(i<0?0:i) % LEAVE_COLOURS.length];
+}
+function monthStart(d){ const x = parse(d||todayISO()); return iso(new Date(x.getFullYear(), x.getMonth(), 1)); }
+function addMonths(mStart, n){
+  const x = parse(mStart);
+  return iso(new Date(x.getFullYear(), x.getMonth()+n, 1));
+}
+function monthCells(mStart){
+  const first = parse(mStart);
+  const lead = (first.getDay()+6)%7;                       /* Monday first */
+  const start = addDays(mStart, -lead);
+  const cells = [];
+  for(let i=0;i<42;i++) cells.push(addDays(start, i));
+  /* drop a trailing all-next-month week */
+  while(cells.length>35 && parse(cells[cells.length-1]).getMonth() !== first.getMonth()
+        && parse(cells[cells.length-7]).getMonth() !== first.getMonth()) cells.length -= 7;
+  return cells;
+}
 
 function leaveView(){
+  const nameOf = id => ((DB.labour||[]).find(x=>x.id===id)||{}).name || "Unknown";
   const people = (DB.labour||[]).filter(l=>l.job===DB.job);
   const all = (DB.leave||[]).slice().sort((a,b)=>a.from.localeCompare(b.from));
   const t = todayISO();
   const upcoming = all.filter(l=>l.to>=t);
   const past = all.filter(l=>l.to<t).reverse();
-  const nameOf = id => (DB.labour||[]).find(x=>x.id===id)?.name || "Unknown";
+
 
   const card = (l, faded) => {
     const days = (function(){ let n=0,d=l.from; while(d<=l.to && n<400){ if(isWorking(d)) n++; d=addDays(d,1);} return n; })();
@@ -1714,9 +2022,58 @@ function leaveView(){
     </div>`
     : `<button class="btn" data-lvadd="1">+ Book time off</button>`;
 
+  /* ---------- month calendar ---------- */
+  const mStart = leaveMonth || monthStart(todayISO());
+  const cells = monthCells(mStart);
+  const thisMonth = parse(mStart).getMonth();
+
+  const offOn = d => (DB.leave||[]).filter(l => l.from<=d && l.to>=d);
+
+  const grid = cells.map(d=>{
+    const dt = parse(d);
+    const off = offOn(d);
+    const out = dt.getMonth()!==thisMonth;
+    const we = dt.getDay()===0 || dt.getDay()===6;
+    return `<button class="calday${out?" out":""}${we?" we":""}${d===t?" today":""}${d===leaveDay?" on":""}"
+      data-calday="${d}">
+      <span class="dn">${dt.getDate()}</span>
+      <span class="dots">${off.slice(0,4).map(l=>
+        `<i style="background:${personColour(l.personId)}"></i>`).join("")}</span>
+    </button>`;
+  }).join("");
+
+  const monthPeople = [...new Set((DB.leave||[])
+    .filter(l => cells.some(d => parse(d).getMonth()===thisMonth && l.from<=d && l.to>=d))
+    .map(l=>l.personId))];
+
+  const selected = leaveDay ? offOn(leaveDay) : [];
+  const dayPanel = leaveDay ? `<div class="dayoff">
+      <h4>${longDate(leaveDay)}</h4>
+      ${selected.length
+        ? selected.map(l=>`<div class="who">
+            <i style="background:${personColour(l.personId)}"></i>
+            <span style="flex:1">${esc(nameOf(l.personId))}</span>
+            <span class="pill ${l.type==="HOL"?"info":"grey"}">${esc(l.type)}</span></div>`).join("")
+        : `<div style="font-size:14px;color:var(--ink-2)">Nobody booked off.</div>`}
+    </div>` : "";
+
+  const calendar = `<div class="cal">
+      <div class="calnav">
+        <button data-calmv="-1" aria-label="Previous month">&lsaquo;</button>
+        <b>${MON[parse(mStart).getMonth()]} ${parse(mStart).getFullYear()}</b>
+        <button data-calmv="1" aria-label="Next month">&rsaquo;</button>
+      </div>
+      <div class="caldow">${["M","T","W","T","F","S","S"].map(x=>`<span>${x}</span>`).join("")}</div>
+      <div class="calgrid">${grid}</div>
+      ${monthPeople.length ? `<div class="calkey">${monthPeople.map(id=>
+        `<span><i style="background:${personColour(id)}"></i>${esc(nameOf(id))}</span>`).join("")}</div>` : ""}
+    </div>`;
+
   return `<div class="top"><button class="chip" data-go="labour">&lsaquo; Back</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Time off</h1>
     <p class="sub">${esc(DB.job)}</p>
+    ${calendar}
+    ${dayPanel}
     <div class="card" style="background:var(--green-50);box-shadow:none">
       <p>Book someone off and the diary marks them automatically — no need to answer for them —
       and the timesheet shows the code instead of hours.</p>
@@ -1768,7 +2125,8 @@ function voView(){
       <p class="sub">${longDate(v.date)}</p>
       <div class="card">
         <div class="f"><label>Sheet number</label>
-          <div class="hint">Change it if it needs to line up with the numbering the client uses.</div>
+          <div class="hint">Numbered CGC-VO-001 upwards. Change it if it needs to line up with
+          the client's own numbering.</div>
           <input class="in" data-veref="1" value="${esc(voEditRef)}"></div>
         <div class="f"><label>Instruction reference</label>
           <div class="hint">Their reference, if they gave one.</div>
@@ -2094,12 +2452,14 @@ function pathFor(r){
   return (c.sharepoint.site?c.sharepoint.site+"/":"") + c.sharepoint.library + "/" + folder + "/" + file + ".pdf";
 }
 function previewPath(){
-  return pathFor({ date: todayISO(), job: DB.job, ref: nextRef(true) });
+  return pathFor({ date: todayISO(), job: DB.job, ref: nextRef("DD", true) });
 }
-function nextRef(peek){
-  const n = (DB.counter||0) + 1;
-  if(!peek) DB.counter = n;
-  return cfg().refPrefix + "-" + String(n).padStart(4,"0");
+function nextRef(prefix, peek){
+  const p = prefix || cfg().refPrefix;
+  DB.counters = DB.counters || {};
+  const n = (DB.counters[p]||0) + 1;
+  if(!peek) DB.counters[p] = n;
+  return p + "-" + String(n).padStart(4,"0");
 }
 
 /* ------------------------------------------------------------------ photos -- */
@@ -2204,7 +2564,7 @@ function setVal(path, value){
   formState.values[fid][Number(idx)][cid] = value;
 }
 function getField(id){
-  for(const s of DIARY) for(const f of s.fields) if(f.id===id) return f;
+  for(const s of sectionsFor(formState && formState.form)) for(const f of s.fields) if(f.id===id) return f;
   return null;
 }
 
@@ -2216,7 +2576,20 @@ function bind(){
     view.date = el.dataset.day; viewWeek = weekStart(el.dataset.day); render(); });
   app.querySelectorAll("[data-week]").forEach(el=>el.onclick=()=>{
     viewWeek = addDays(viewWeek, 7*Number(el.dataset.week)); render(); });
-  app.querySelectorAll("[data-start]").forEach(el=>el.onclick=()=>startForm(el.dataset.start));
+  app.querySelectorAll("[data-start]").forEach(el=>el.onclick=()=>startForm(el.dataset.start,"diary"));
+  app.querySelectorAll("[data-pick]").forEach(el=>el.onclick=()=>go("pickplant",{date:el.dataset.pick}));
+  app.querySelectorAll("[data-check]").forEach(el=>el.onclick=()=>
+    startForm(view.date||todayISO(), "excavator", el.dataset.check));
+
+  /* carousel position dots */
+  const car = document.getElementById("heroCar");
+  if(car){
+    const dots = document.querySelectorAll(".cdots i");
+    car.onscroll = () => {
+      const i = Math.round(car.scrollLeft / (car.clientWidth * 0.92));
+      dots.forEach((dt,ix)=>dt.classList.toggle("on", ix===Math.min(i,dots.length-1)));
+    };
+  }
   app.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>go("record",{id:el.dataset.view}));
 
   /* form inputs */
@@ -2260,6 +2633,46 @@ function bind(){
     };
     el.onchange = el.oninput;
   });
+  app.querySelectorAll("[data-chk3]").forEach(el=>el.onclick=()=>{
+    const path = el.dataset.chk3;
+    const cur = getVal(path) || {};
+    const v = el.dataset.v==="y" ? true : el.dataset.v==="n" ? false : "na";
+    const next = Object.assign({}, cur, { v });
+    if(v!==false){ delete next.defect; delete next.photos; }
+    setVal(path, next);
+    after();
+  });
+  app.querySelectorAll("[data-chkd]").forEach(el=>{
+    el.oninput = () => {
+      const path = el.dataset.chkd;
+      setVal(path, Object.assign({}, getVal(path)||{}, { defect: el.value }));
+      if(formState.touched) formState.errors = validate();
+    };
+  });
+  const addChkPhoto = (path, cam) => {
+    const inp = document.createElement("input");
+    inp.type="file"; inp.accept="image/*"; inp.multiple=true;
+    if(cam) inp.setAttribute("capture","environment");
+    inp.onchange = async () => {
+      const out=[];
+      for(const file of Array.from(inp.files).slice(0,6)){
+        try{ out.push(await stampPhoto(file)); }catch(e){}
+      }
+      const cur = getVal(path)||{};
+      setVal(path, Object.assign({}, cur, { photos:(cur.photos||[]).concat(out) }));
+      after();
+    };
+    inp.click();
+  };
+  app.querySelectorAll("[data-chkcam]").forEach(el=>el.onclick=()=>addChkPhoto(el.dataset.chkcam,true));
+  app.querySelectorAll("[data-chklib]").forEach(el=>el.onclick=()=>addChkPhoto(el.dataset.chklib,false));
+  app.querySelectorAll("[data-chkrm]").forEach(el=>el.onclick=()=>{
+    const path = el.dataset.chkrm, i = Number(el.dataset.i);
+    const cur = getVal(path)||{};
+    setVal(path, Object.assign({}, cur, { photos:(cur.photos||[]).filter((_,ix)=>ix!==i) }));
+    after();
+  });
+
   app.querySelectorAll("[data-yes]").forEach(el=>el.onclick=()=>{ setVal(el.dataset.yes,true); after(); });
   app.querySelectorAll("[data-no]").forEach(el=>el.onclick=()=>{ setVal(el.dataset.no,false); after(); });
   app.querySelectorAll("[data-chk]").forEach(el=>el.onclick=()=>{
@@ -2548,8 +2961,23 @@ function bind(){
     el.oninput = () => { if(leaveDraft) leaveDraft[el.dataset.lvd] = el.value; };
     el.onchange = el.oninput;
   });
+  app.querySelectorAll("[data-calmv]").forEach(el=>el.onclick=()=>{
+    leaveMonth = addMonths(leaveMonth || monthStart(todayISO()), Number(el.dataset.calmv));
+    leaveDay = null; render();
+  });
+  app.querySelectorAll("[data-calday]").forEach(el=>el.onclick=()=>{
+    const d = el.dataset.calday;
+    leaveDay = (leaveDay===d) ? null : d;
+    leaveMonth = monthStart(d);
+    render();
+  });
+
   const lva = app.querySelector("[data-lvadd]");
-  if(lva) lva.onclick = ()=>{ leaveDraft = { personId:"", type:"HOL", from:todayISO(), to:todayISO(), note:"" }; render(); };
+  if(lva) lva.onclick = ()=>{
+    const d = leaveDay || todayISO();
+    leaveDraft = { personId:"", type:"HOL", from:d, to:d, note:"" };
+    render();
+  };
   const lvc = app.querySelector("[data-lvcancel]");
   if(lvc) lvc.onclick = ()=>{ leaveDraft = null; render(); };
   const lvs = app.querySelector("[data-lvsave]");
@@ -2583,6 +3011,7 @@ function saveDraft(){
   const id = formState.id || ("rec_"+Date.now());
   const existing = DB.records.find(r=>r.id===id);
   const rec = existing || { id, job:DB.job, date:formState.date, ref:null,
+    form: formState.form || "diary", plantId: formState.plantId || null,
     status:"draft", createdAt:Date.now(), by:cfg().user.name };
   rec.data = formState.values;
   rec.updatedAt = Date.now();
@@ -2602,8 +3031,11 @@ function submitForm(){
     if(first) first.scrollIntoView({behavior:"smooth",block:"center"});
     return;
   }
+  if(formState.form==="excavator"){
+    formState.values.__weekly = sectionsFor("excavator").some(x=>x.title==="Weekly checks");
+  }
   const rec = saveDraft();
-  if(rec.status!=="submitted"){ rec.ref = nextRef(); }
+  if(rec.status!=="submitted"){ rec.ref = nextRef(formDef(rec.form).prefix); }
   rec.status = "submitted";
   rec.submittedAt = Date.now();
   rec.by = cfg().user.name;
@@ -2627,11 +3059,18 @@ function printRecord(id){
     : Array.isArray(v) ? (v.length?v.join(", "):"—")
     : String(v)+(fl.suffix?" "+fl.suffix:"");
   let body = "";
-  DIARY.forEach(s=>{
+  sectionsFor(r.form).forEach(s=>{
     const fs = s.fields.filter(f=>visible(f,r.data) && f.type!=="photos" && f.type!=="signature");
     if(!fs.length) return;
     body += `<h2>${esc(s.title)}</h2>`;
     fs.forEach(f=>{
+      if(f.type==="check"){
+        const v = r.data[f.id]||{};
+        const txt = v.v===true?"Yes":v.v===false?"No":v.v==="na"?"N/A":"—";
+        body += `<table><tr><th>${esc(f.label)}</th><td${v.v===false?' style="color:#A72B22;font-weight:600"':""}>${txt}${
+          v.v===false&&v.defect?" — "+esc(v.defect):""}</td></tr></table>`;
+        return;
+      }
       if(f.type==="planttable"||f.type==="labourtable"){
         body += tableRows(f, r.data[f.id]);
         return;
@@ -2652,7 +3091,12 @@ function printRecord(id){
       }
     });
   });
-  const photos = r.data.photos||[];
+  let photos = (r.data.photos||[]).slice();
+  Object.keys(r.data||{}).forEach(k=>{
+    const val = r.data[k];
+    if(val && typeof val==="object" && val.v===false && (val.photos||[]).length)
+      photos = photos.concat(val.photos);
+  });
   if(photos.length){
     body += `<h2>Photographs</h2><div class="imgs">`+
       photos.map((p,i)=>`<figure style="margin:0"><img src="${p.src}">
@@ -2660,20 +3104,29 @@ function printRecord(id){
   }
   const sig = r.data.signature;
   if(sig){
-    body += `<h2>Declaration</h2><p style="margin:0 0 6px">I confirm this is a true account of activity on site on
-      ${longDate(r.date)}.</p><img src="${sig.src}" style="height:58px;border:1px solid #CBD3CD;padding:3px">
+    body += `<h2>Declaration</h2><p style="margin:0 0 6px">${r.form==="excavator"
+      ? "Upon inspecting, I confirm that the inspection results are accurate and where deemed as safe are fit for purpose."
+      : "I confirm this is a true account of activity on site on "+longDate(r.date)+"."}</p><img src="${sig.src}" style="height:58px;border:1px solid #CBD3CD;padding:3px">
       <div style="font-size:10px;color:#555;margin-top:3px">${esc(r.by)} · ${esc(r.byEmail||"")} · ${stamp(r.submittedAt)}</div>`;
   }
   document.getElementById("sheet").innerHTML = `
     <div class="ph-head">
       <img src="${LOGO}" alt="${esc(c.company)}">
-      <div style="text-align:right"><h1>Daily Diary</h1>
+      <div style="text-align:right"><h1>${r.form==="excavator"?"Excavator Inspection":"Daily Diary"}</h1>
       <div style="font-size:10.5px;color:#555">${esc(r.ref||"")} · v${r.version||1}</div></div>
     </div>
     <table>
-      <tr><th>Job</th><td>${esc(r.job)}</td></tr>
-      <tr><th>Date</th><td>${longDate(r.date)}</td></tr>
-      <tr><th>Completed by</th><td>${esc(r.by)} — ${stamp(r.submittedAt)}</td></tr>
+      <tr><th>Site / depot</th><td>${esc(r.job)}</td></tr>
+      ${(function(){
+        if(r.form!=="excavator") return "";
+        const m = (DB.plant||[]).find(x=>x.id===r.plantId) || {};
+        return `<tr><th>Fleet number</th><td>${esc(m.fleetNo||"—")}</td></tr>
+          <tr><th>Model</th><td>${esc(m.model||m.item||"—")}</td></tr>
+          <tr><th>Week commencing</th><td>${shortDate(weekStart(r.date))}</td></tr>`;
+      })()}
+      <tr><th>Inspection date</th><td>${longDate(r.date)}</td></tr>
+      <tr><th>${r.form==="excavator"?"Competent person":"Completed by"}</th>
+        <td>${esc(r.by)} — ${stamp(r.submittedAt)}</td></tr>
     </table>
     ${body}
     <div class="foot"><span>${esc(c.company)} · ${esc(r.ref||"")}</span>
