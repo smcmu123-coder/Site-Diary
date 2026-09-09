@@ -252,7 +252,7 @@ const CONFIG = {
   jobs: ["Damfield Extra Care"],
   workingDays: [1,2,3,4,5],          // Mon-Fri. Sat/Sun optional, never chased.
   refPrefix: "DD",
-  hours: { start:"07:30", finish:"16:30", breakMins:30 },
+  hours: { start:"07:30", finish:"17:00", breakMins:30 },
 
   /* TESTING ONLY. Set to false before this goes out to site teams — a submitted
      diary is a contractual record and should never be deletable by a normal
@@ -287,79 +287,60 @@ const DIARY = [
     { id:"weatherHours", type:"number", label:"Time lost", suffix:"hours",
       showIf:{field:"weatherStop",equals:true} }
   ]},
-  { title:"Labour on site", fields:[
-    { id:"personnel", type:"repeater", label:"Gangs", itemLabel:"Gang", addLabel:"Add gang", required:true,
-      columns:[
-        { id:"company", type:"select", label:"Company", required:true,
-          options:["Cheltenham Green Civils","Subcontractor","Agency","Client / PC"] },
-        { id:"trade", type:"select", label:"Trade", required:true,
-          options:["Groundworker","Machine operator","Banksman","Pipelayer","Steel fixer",
-                   "Concrete gang","Kerb layer","Traffic management","Supervisor","Other"] },
-        { id:"qty", type:"number", label:"Number", required:true },
-        { id:"hours", type:"number", label:"Hours" }
-      ]},
-    { id:"visitors", type:"repeater", label:"Visitors", itemLabel:"Visitor", addLabel:"Add visitor",
-      columns:[
-        { id:"name", type:"text", label:"Name", required:true },
-        { id:"org", type:"text", label:"Company" },
-        { id:"inducted", type:"yesno", label:"Inducted?" }
-      ]}
+
+  { title:"Who was on site", fields:[
+    { id:"labourTable", type:"labourtable", label:"Site labour", required:true,
+      hint:"Anyone outside normal hours gets a start, a finish and a reason — the timesheet does the rest." }
   ]},
+
   { title:"Plant on site", fields:[
     { id:"plantTable", type:"planttable", label:"Plant", required:true,
       hint:"Straight off your plant register. Just say whether each one was used." }
   ]},
-  { title:"Site labour", fields:[
-    { id:"labourTable", type:"labourtable", label:"Who was on site", required:true,
-      hint:"Anyone not on normal hours — put their start and finish in and the timesheet works itself out." }
-  ]},
+
   { title:"Work carried out", fields:[
-    { id:"activities", type:"checkboxes", label:"Activities today", required:true,
-      options:["Site clearance","Setting out","Excavation","Drainage","Chambers","Ducting",
-               "Concrete","Kerbing","Sub-base","Surfacing","Muck away","Reinstatement",
-               "Fencing","Welfare / setup"] },
-    { id:"progress", type:"textarea", label:"Progress and locations", required:true,
-      hint:"What was done and where — chainage, plot numbers, manhole refs." },
-    { id:"deliveries", type:"repeater", label:"Deliveries", itemLabel:"Delivery", addLabel:"Add delivery",
+    { id:"tasks", type:"repeater", label:"Tasks", itemLabel:"Task", addLabel:"Add task", required:true,
+      hint:"One entry per job of work, and who did it.",
       columns:[
-        { id:"supplier", type:"text", label:"Supplier", required:true },
-        { id:"material", type:"text", label:"Material", required:true },
-        { id:"qty", type:"text", label:"Quantity" },
-        { id:"ticket", type:"text", label:"Ticket no." }
+        { id:"what", type:"textarea", label:"What was done", required:true,
+          hint:"Include where — chainage, plot numbers, manhole refs." },
+        { id:"who", type:"peoplepick", label:"Who did it", required:true }
       ]}
   ]},
+
   { title:"Dayworks", fields:[
     { id:"dayworks", type:"yesno", label:"Any dayworks carried out today?", required:true,
-      hint:"Work outside the contract, instructed on site. Everything below only appears if you answer yes." },
+      hint:"Work outside the contract, instructed on site. Nothing below appears unless you answer yes." },
     { id:"dwRef", type:"text", label:"Daywork or instruction reference",
       showIf:{field:"dayworks",equals:true} },
     { id:"dwBy", type:"text", label:"Instructed by", showIf:{field:"dayworks",equals:true},
       hint:"Who gave the instruction, and their company." },
     { id:"dwWhat", type:"textarea", label:"What was instructed?", required:true,
       showIf:{field:"dayworks",equals:true} },
-    { id:"dwLabour", type:"repeater", label:"Labour used", itemLabel:"Gang", addLabel:"Add labour",
+    { id:"dwLabour", type:"peoplepick", label:"Labour used", required:true,
+      showIf:{field:"dayworks",equals:true} },
+    { id:"dwPlant", type:"plantpick", label:"Plant used",
+      showIf:{field:"dayworks",equals:true} },
+    { id:"dwSmallPlant", type:"text", label:"Small plant or tools used",
       showIf:{field:"dayworks",equals:true},
-      columns:[
-        { id:"trade", type:"select", label:"Trade", required:true,
-          options:["Groundworker","Machine operator","Banksman","Pipelayer","Steel fixer",
-                   "Concrete gang","Kerb layer","Traffic management","Supervisor","Other"] },
-        { id:"qty", type:"number", label:"Number", required:true },
-        { id:"hours", type:"number", label:"Hours", required:true }
-      ]},
-    { id:"dwPlant", type:"repeater", label:"Plant used", itemLabel:"Item", addLabel:"Add plant",
-      showIf:{field:"dayworks",equals:true},
-      columns:[
-        { id:"item", type:"plantselect", label:"Plant item", required:true },
-        { id:"other", type:"text", label:"If other, what was it?" },
-        { id:"hours", type:"number", label:"Time used (hours)", required:true }
-      ]},
+      hint:"Anything not on the plant register — breaker, disc cutter, whacker." },
+    { id:"dwHours", type:"number", label:"Time taken", suffix:"hours", required:true,
+      showIf:{field:"dayworks",equals:true} },
     { id:"dwMaterials", type:"textarea", label:"Materials used",
       showIf:{field:"dayworks",equals:true} },
     { id:"dwComments", type:"textarea", label:"Other comments",
-      showIf:{field:"dayworks",equals:true},
-      hint:"Anything that supports the claim — delays caused, agreement on site, photos taken." },
+      showIf:{field:"dayworks",equals:true} },
     { id:"dwSigned", type:"yesno", label:"Signed off on site by the client or PC?",
       showIf:{field:"dayworks",equals:true} }
+  ]},
+
+  { title:"Visitors", fields:[
+    { id:"visitors", type:"repeater", label:"Visitors", itemLabel:"Visitor", addLabel:"Add visitor",
+      columns:[
+        { id:"name", type:"text", label:"Name", required:true },
+        { id:"org", type:"text", label:"Company" },
+        { id:"inducted", type:"yesno", label:"Inducted?" }
+      ]}
   ]},
 
   { title:"Issues and safety", fields:[
@@ -374,10 +355,12 @@ const DIARY = [
       showIf:{field:"accident",equals:true},
       hint:"Report by phone as well. This does not replace the accident book." }
   ]},
+
   { title:"Photographs", fields:[
     { id:"photos", type:"photos", label:"Progress photographs",
       hint:"Date, time and job are stamped onto each photo automatically." }
   ]},
+
   { title:"Sign off", fields:[
     { id:"notes", type:"textarea", label:"Anything else for the record?" },
     { id:"signature", type:"signature", label:"Signature", required:true }
@@ -492,6 +475,19 @@ function refreshPlantPill(id){
   el.textContent = st.label;
   const inp = document.querySelector('[data-pl="'+id+'.lolerDate"]');
   if(inp) inp.classList.toggle("err", st.key==="expired");
+}
+
+/* Who can be picked in the diary: whoever has been ticked on site today, and
+   if nobody has been ticked yet, everyone on the register. */
+function availablePeople(){
+  const rows = (formState && formState.values.labourTable) || [];
+  const on = rows.filter(r=>r.onSite===true).map(r=>r.name).filter(Boolean);
+  if(on.length) return on;
+  return onSiteLabour(formState ? formState.date : null).map(l=>l.name).filter(Boolean);
+}
+function availablePlant(){
+  return onSitePlant(formState ? formState.date : null)
+    .map(p => p.item + (p.fleetNo ? " ("+p.fleetNo+")" : "")).filter(Boolean);
 }
 
 /* -------------------------------------------------------- labour register -- */
@@ -717,6 +713,8 @@ function startForm(date){
   if(rec && rec.status==="submitted"){ go("record",{id:rec.id}); return; }
   const values = rec ? JSON.parse(JSON.stringify(rec.data)) : prefill(date);
   if(rec){
+    ["personnel","plant","activities","progress","deliveries","dwLabour_old"].forEach(k=>{ delete values[k]; });
+    values.tasks = values.tasks || [];
     values.plantTable = values.plantTable || [];
     onSitePlant(date).forEach(p=>{ if(!values.plantTable.some(r=>r.id===p.id))
       values.plantTable.push({ id:p.id, item:p.item, fleetNo:p.fleetNo,
@@ -724,7 +722,7 @@ function startForm(date){
     values.labourTable = values.labourTable || [];
     onSiteLabour(date).forEach(l=>{ if(!values.labourTable.some(r=>r.id===l.id))
       values.labourTable.push({ id:l.id, name:l.name, trade:l.trade,
-        onSite:undefined, normal:undefined, start:"", finish:"" }); });
+        onSite:undefined, normal:undefined, start:"", finish:"", reason:"" }); });
   }
   formState = { date, values, errors:{}, touched:false, id: rec?rec.id:null };
   go("form",{date});
@@ -745,7 +743,7 @@ function prefill(date){
   }));
   v.labourTable = onSiteLabour(date).map(l => ({
     id:l.id, name:l.name, trade:l.trade,
-    onSite:undefined, normal:undefined, start:"", finish:""
+    onSite:undefined, normal:undefined, start:"", finish:"", reason:""
   }));
   return v;
 }
@@ -769,6 +767,8 @@ function validate(){
           { e[f.id]=(r.name||"Someone")+": normal hours?"; return; }
         if(r.onSite===true && r.normal===false && (!r.start||!r.finish))
           { e[f.id]=(r.name||"Someone")+": start and finish time needed"; return; }
+        if(r.onSite===true && r.normal===false && !(r.reason||"").trim())
+          { e[f.id]=(r.name||"Someone")+": give a reason for the different hours"; return; }
       }
       return;
     }
@@ -839,6 +839,25 @@ function fieldHtml(f, v, err, path){
         </div>`;
       break;
     }
+    case "peoplepick":
+    case "plantpick":{
+      const arr = val||[];
+      const opts = f.type==="peoplepick" ? availablePeople() : availablePlant();
+      if(!opts.length){
+        c = `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
+          ${f.type==="peoplepick"
+            ? "Tick who was on site further up the form first."
+            : "Nothing on the plant register for this job."}</div>`;
+        break;
+      }
+      c = `<div style="display:flex;flex-wrap:wrap;gap:8px">`+
+        opts.map(o=>`<button type="button" class="cb ${arr.includes(o)?"on":""}"
+          style="min-height:46px;width:auto;padding:0 14px"
+          data-chk="${id}" data-val="${esc(o)}">
+          <span class="b">${arr.includes(o)?"&#10003;":""}</span>${esc(o)}</button>`).join("")+
+        `</div>`;
+      break;
+    }
     case "planttable":{
       const rows = val||[];
       c = `<div class="ttable">
@@ -868,17 +887,21 @@ function fieldHtml(f, v, err, path){
               <button type="button" class="${r.onSite===false?"n":""}" data-tbl="labourTable" data-i="${i}" data-k="onSite" data-v="0">No</button>
             </span></div>
             ${r.onSite===true ? `<div class="more">
-              <span class="lbl">Normal working hours (${esc(cfg().hours.start)}–${esc(cfg().hours.finish)})?</span>
+              <span class="lbl">Normal hours — ${esc(cfg().hours.start)} to ${esc(cfg().hours.finish)}, ${normalHours()} hours?</span>
               <span class="yn" style="width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 <button type="button" class="${r.normal===true?"y":""}" data-tbl="labourTable" data-i="${i}" data-k="normal" data-v="1">Yes</button>
                 <button type="button" class="${r.normal===false?"n":""}" data-tbl="labourTable" data-i="${i}" data-k="normal" data-v="0">No</button>
               </span>
-              ${r.normal===false ? `<div class="timegrid" style="margin-top:10px">
+              ${r.normal===false ? `
+                <div class="timegrid" style="margin-top:10px">
                   <input type="time" value="${esc(r.start||"")}" data-tin="labourTable" data-i="${i}" data-k="start" aria-label="Start time">
                   <input type="time" value="${esc(r.finish||"")}" data-tin="labourTable" data-i="${i}" data-k="finish" aria-label="Finish time">
                   <span class="calc">${hrs?hrs+" hrs":"—"}</span>
-                </div>` : `<div style="margin-top:8px;font-size:13px;color:var(--ink-2)">
-                  ${normalHours()} hours, break deducted</div>`}
+                </div>
+                <input class="in" style="min-height:46px;margin-top:8px" placeholder="Reason — e.g. left early for an appointment"
+                  value="${esc(r.reason||"")}" data-tin="labourTable" data-i="${i}" data-k="reason" aria-label="Reason">
+                ` : `<div style="margin-top:8px;font-size:13px;color:var(--ink-2)">
+                  ${normalHours()} hours, ${esc(cfg().hours.breakMins)} minute break deducted</div>`}
             </div>` : ""}
           </div>`;
         }).join("") : `<div class="tempty">Nobody on the labour register for this job yet.</div>`)+
@@ -960,18 +983,24 @@ function tableRows(f, val){
   return `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <tr><th style="text-align:left">Name</th><th style="text-align:left">Trade</th>
     <th style="text-align:left">On site</th><th style="text-align:left">Start</th>
-    <th style="text-align:left">Finish</th><th style="text-align:left">Hours</th></tr>`+
+    <th style="text-align:left">Finish</th><th style="text-align:left">Hours</th>
+    <th style="text-align:left">Reason if different</th></tr>`+
     rows.map(r=>{
       const h = rowHours(r);
       return `<tr><td>${esc(r.name||"")}</td><td>${esc(r.trade||"")}</td>
         <td>${r.onSite===true?"Yes":r.onSite===false?"No":"—"}</td>
         <td>${esc(r.onSite&&r.normal===false?r.start:(r.onSite?cfg().hours.start:"—"))}</td>
         <td>${esc(r.onSite&&r.normal===false?r.finish:(r.onSite?cfg().hours.finish:"—"))}</td>
-        <td>${r.onSite?h:"—"}</td></tr>`;
+        <td>${r.onSite?h:"—"}</td>
+        <td>${esc(r.reason||"")}</td></tr>`;
     }).join("")+`</table>`;
 }
 
 function readRow(f, val){
+  if(f.type==="peoplepick"||f.type==="plantpick"){
+    return `<div class="kv"><span class="k">${esc(f.label)}</span>
+      <span class="v">${val&&val.length?esc(val.join(", ")):"—"}</span></div>`;
+  }
   if(f.type==="planttable"||f.type==="labourtable"){
     return `<div class="kv" style="display:block"><span class="k">${esc(f.label)}</span>
       <div style="margin-top:6px;overflow-x:auto">${tableRows(f,val)}</div></div>`;
@@ -1229,7 +1258,8 @@ function timesheetWeek(ws){
       if(!people[key]) people[key] = { name:row.name, trade:row.trade, days:{}, total:0 };
       const h = rowHours(row);
       people[key].days[d] = { hours:h, start: row.normal===false?row.start:cfg().hours.start,
-        finish: row.normal===false?row.finish:cfg().hours.finish, normal: row.normal!==false };
+        finish: row.normal===false?row.finish:cfg().hours.finish, normal: row.normal!==false,
+        reason: row.reason||"" };
       people[key].total += h;
     });
   });
@@ -1414,6 +1444,19 @@ function pickPhoto(fieldId, useCamera){
   };
   inp.click();
 }
+/* Stamp burned into the pixels, so it survives the file being copied out of
+   SharePoint and dropped into a report: time top right, logo bottom right. */
+const MONS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function photoStampText(t){
+  const d = new Date(t);
+  const two = n => String(n).padStart(2,"0");
+  return d.getDate()+" "+MONS[d.getMonth()]+" "+d.getFullYear()+" at "
+    + two(d.getHours())+":"+two(d.getMinutes())+":"+two(d.getSeconds());
+}
+function loadImage(src){
+  return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src; });
+}
+
 function stampPhoto(file){
   return new Promise((res,rej)=>{
     const fr = new FileReader();
@@ -1421,23 +1464,47 @@ function stampPhoto(file){
     fr.onload = () => {
       const img = new Image();
       img.onerror = ()=>rej();
-      img.onload = () => {
-        const max=1100, sc=Math.min(1, max/Math.max(img.width,img.height));
-        const cv=document.createElement("canvas");
-        cv.width=Math.round(img.width*sc); cv.height=Math.round(img.height*sc);
-        const g=cv.getContext("2d");
-        g.drawImage(img,0,0,cv.width,cv.height);
-        const takenAt=Date.now();
-        const bar=Math.max(30,Math.round(cv.height*.078)), pad=Math.round(bar*.34), fs=Math.round(bar*.34);
-        const grd=g.createLinearGradient(0,cv.height-bar*1.6,0,cv.height);
-        grd.addColorStop(0,"rgba(8,22,13,0)"); grd.addColorStop(1,"rgba(8,22,13,.82)");
-        g.fillStyle=grd; g.fillRect(0,cv.height-bar*1.6,cv.width,bar*1.6);
-        g.fillStyle="#fff"; g.textBaseline="middle";
-        g.font="600 "+fs+"px system-ui, sans-serif";
-        g.fillText(stamp(takenAt), pad, cv.height-bar*.62);
-        g.globalAlpha=.8; g.font="400 "+Math.round(fs*.86)+"px system-ui, sans-serif";
-        g.fillText(DB.job, pad, cv.height-bar*.22); g.globalAlpha=1;
-        res({ src:cv.toDataURL("image/jpeg",.6), takenAt });
+      img.onload = async () => {
+        const max = 1400;
+        const sc = Math.min(1, max/Math.max(img.width,img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width*sc);
+        cv.height = Math.round(img.height*sc);
+        const g = cv.getContext("2d");
+        g.drawImage(img, 0, 0, cv.width, cv.height);
+
+        const W = cv.width, H = cv.height;
+        const unit = Math.min(W, H);
+        const margin = Math.round(unit*0.022);
+        const takenAt = Date.now();
+
+        /* time, top right, on a grey panel */
+        const fs = Math.max(15, Math.round(unit*0.045));
+        g.font = "700 "+fs+"px -apple-system, 'Segoe UI', system-ui, sans-serif";
+        const text = photoStampText(takenAt);
+        const tw = g.measureText(text).width;
+        const padX = Math.round(fs*0.5), padY = Math.round(fs*0.34);
+        const boxW = tw + padX*2, boxH = fs + padY*2;
+        const boxX = W - margin - boxW, boxY = margin;
+        g.fillStyle = "rgba(96,101,98,.62)";
+        g.fillRect(boxX, boxY, boxW, boxH);
+        g.fillStyle = "#fff";
+        g.textBaseline = "middle";
+        g.textAlign = "left";
+        g.fillText(text, boxX + padX, boxY + boxH/2 + 1);
+
+        /* logo, bottom right, on white so it reads over any background */
+        try{
+          const logo = await loadImage(LOGO);
+          const lw = Math.round(W*0.24);
+          const lh = Math.round(lw * (logo.height/logo.width));
+          const lp = Math.round(lw*0.07);
+          g.fillStyle = "#fff";
+          g.fillRect(W - margin - lw - lp*2, H - margin - lh - lp*2, lw + lp*2, lh + lp*2);
+          g.drawImage(logo, W - margin - lw - lp, H - margin - lh - lp, lw, lh);
+        }catch(e){ /* carry on without it rather than lose the photo */ }
+
+        res({ src: cv.toDataURL("image/jpeg",.72), takenAt });
       };
       img.src = fr.result;
     };
@@ -1466,6 +1533,13 @@ function wireSignature(cv, fieldId){
 }
 
 /* ------------------------------------------------------------------ events -- */
+function getVal(path){
+  const parts = String(path).split(".");
+  if(parts.length===1) return formState.values[parts[0]];
+  const [fid, idx, cid] = parts;
+  const row = (formState.values[fid]||[])[Number(idx)];
+  return row ? row[cid] : undefined;
+}
 function setVal(path, value){
   const parts = String(path).split(".");
   if(parts.length===1){ formState.values[parts[0]] = value; return; }
@@ -1502,8 +1576,8 @@ function bind(){
     const fid=el.dataset.tbl, i=Number(el.dataset.i), k=el.dataset.k, v=el.dataset.v==="1";
     const row = formState.values[fid][i];
     row[k] = v;
-    if(k==="onSite" && v===false){ row.normal=undefined; row.start=""; row.finish=""; }
-    if(k==="normal" && v===true){ row.start=""; row.finish=""; }
+    if(k==="onSite" && v===false){ row.normal=undefined; row.start=""; row.finish=""; row.reason=""; }
+    if(k==="normal" && v===true){ row.start=""; row.finish=""; row.reason=""; }
     after();
   });
   app.querySelectorAll("[data-tin]").forEach(el=>{
@@ -1521,13 +1595,19 @@ function bind(){
   app.querySelectorAll("[data-yes]").forEach(el=>el.onclick=()=>{ setVal(el.dataset.yes,true); after(); });
   app.querySelectorAll("[data-no]").forEach(el=>el.onclick=()=>{ setVal(el.dataset.no,false); after(); });
   app.querySelectorAll("[data-chk]").forEach(el=>el.onclick=()=>{
-    const id=el.dataset.chk, v=el.dataset.val;
-    const arr = formState.values[id]||[];
-    formState.values[id] = arr.includes(v)?arr.filter(x=>x!==v):arr.concat([v]);
+    const path=el.dataset.chk, v=el.dataset.val;
+    const arr = getVal(path)||[];
+    setVal(path, arr.includes(v) ? arr.filter(x=>x!==v) : arr.concat([v]));
     after();
   });
   app.querySelectorAll("[data-add]").forEach(el=>el.onclick=()=>{
-    const id=el.dataset.add; formState.values[id]=(formState.values[id]||[]).concat([{}]); after(); });
+    const id=el.dataset.add;
+    const f = getField(id);
+    const blank = {};
+    (f&&f.columns||[]).forEach(c=>{ if(c.type==="peoplepick"||c.type==="plantpick") blank[c.id]=[]; });
+    formState.values[id]=(formState.values[id]||[]).concat([blank]);
+    after();
+  });
   app.querySelectorAll("[data-del]").forEach(el=>el.onclick=()=>{
     const id=el.dataset.del, i=Number(el.dataset.i);
     formState.values[id]=formState.values[id].filter((_,ix)=>ix!==i); after(); });
@@ -1750,10 +1830,15 @@ function printRecord(id){
         const rows = r.data[f.id]||[];
         body += `<div style="font-weight:600;margin:6px 0 3px">${esc(f.label)}</div>`;
         body += rows.length ? `<table><tr>`+f.columns.map(cl=>`<th style="width:auto">${esc(cl.label)}</th>`).join("")+`</tr>`+
-          rows.map(row=>`<tr>`+f.columns.map(cl=>`<td>${esc(fmt(cl,row[cl.id]))}</td>`).join("")+`</tr>`).join("")+`</table>`
+          rows.map(row=>`<tr>`+f.columns.map(cl=>{
+            const cv = row[cl.id];
+            return `<td>${esc(Array.isArray(cv)?(cv.length?cv.join(", "):"—"):fmt(cl,cv))}</td>`;
+          }).join("")+`</tr>`).join("")+`</table>`
           : `<div style="color:#666;margin-bottom:6px">None recorded</div>`;
       } else {
-        body += `<table><tr><th>${esc(f.label)}</th><td>${esc(fmt(f,r.data[f.id]))}</td></tr></table>`;
+        const raw = r.data[f.id];
+        const shown = Array.isArray(raw) ? (raw.length?raw.join(", "):"—") : fmt(f,raw);
+        body += `<table><tr><th>${esc(f.label)}</th><td>${esc(shown)}</td></tr></table>`;
       }
     });
   });
@@ -1821,11 +1906,13 @@ function printTimesheet(ws){
     <h2>Start and finish times</h2>
     <table><tr><th style="width:auto">Name</th><th style="width:auto">Day</th>
       <th style="width:auto">Start</th><th style="width:auto">Finish</th>
-      <th style="width:auto">Break</th><th style="width:auto">Hours</th></tr>
+      <th style="width:auto">Break</th><th style="width:auto">Hours</th>
+      <th style="width:auto">Reason if different</th></tr>
       ${people.map(p=>days.filter(d=>p.days[d]).map(d=>`<tr>
         <td>${esc(p.name)}</td><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d)}</td>
         <td>${esc(p.days[d].start)}</td><td>${esc(p.days[d].finish)}</td>
-        <td>${c.hours.breakMins} min</td><td>${p.days[d].hours}</td></tr>`).join("")).join("")}
+        <td>${c.hours.breakMins} min</td><td>${p.days[d].hours}</td>
+        <td>${esc(p.days[d].reason||"")}</td></tr>`).join("")).join("")}
     </table>
     <div class="foot"><span>${esc(c.company)} · timesheet w/c ${shortDate(ws)}</span>
       <span>Built from the site diaries · ${stamp(Date.now())}</span></div>`;
