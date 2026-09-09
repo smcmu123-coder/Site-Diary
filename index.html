@@ -462,6 +462,7 @@ const CONFIG = {
      user. It can also be switched off from the Settings screen. */
   allowDelete: true,
 
+  fitter: { name:"", email:"" },
   sharepoint: {
     /* Taken from the share link supplied. NOTE: this is a personal OneDrive
        (…-my.sharepoint.com/personal/…), not a SharePoint team site. See the
@@ -578,58 +579,122 @@ const DIARY = [
    Excavator Daily & Weekly Inspections (CGCivils-003), as the paper sheet.
    Header details come from the machine, the job and whoever is signed in.
    -------------------------------------------------------------------------*/
-const EXC_DAILY = [
-  "Engine oil level",
-  "Fuel level / leaks",
-  "Coolant level",
-  "Hydraulic oil level",
-  "Hydraulic system leaks",
-  "Grease attachments and check nipples",
-  "Grease machine and check nipples",
-  "Inspect seat belts",
-  "Inspect for cracks (dipper)",
-  "Check operation of switches",
-  "Check operation of console",
-  "Quick hitch check",
-  "Safety pins / correct pins in place",
-  "Flashing beacon / lights",
-  "Mirrors / cracks in windows"
-];
-const EXC_WEEKLY = [
-  "Water level check",
-  "Battery condition",
-  "Transmission levels",
-  "Slew motor oil level",
-  "Drain fuel sediment bowl",
-  "Drain fuel tank of water",
-  "Check fan belt",
-  "Check track tension",
-  "Track and pad rubbers",
-  "Bucket and dipper arm pins",
-  "Vandal guards",
-  "Operators manual in cab"
-];
+/* One entry per type of plant. The excavator list is the company sheet
+   (CGCivils-003). DUMPER AND ROLLER ARE DRAFTS — swap them for the real
+   sheets when they arrive; nothing else needs changing. */
+const CHECKSHEETS = {
+  Excavator: {
+    daily: [
+      "Engine oil level",
+      "Fuel level / leaks",
+      "Coolant level",
+      "Hydraulic oil level",
+      "Hydraulic system leaks",
+      "Grease attachments and check nipples",
+      "Grease machine and check nipples",
+      "Inspect seat belts",
+      "Inspect for cracks (dipper)",
+      "Check operation of switches",
+      "Check operation of console",
+      "Quick hitch check",
+      "Safety pins / correct pins in place",
+      "Flashing beacon / lights",
+      "Mirrors / cracks in windows"
+    ],
+    weekly: [
+      "Water level check",
+      "Battery condition",
+      "Transmission levels",
+      "Slew motor oil level",
+      "Drain fuel sediment bowl",
+      "Drain fuel tank of water",
+      "Check fan belt",
+      "Check track tension",
+      "Track and pad rubbers",
+      "Bucket and dipper arm pins",
+      "Vandal guards",
+      "Operators manual in cab"
+    ]
+  },
+
+  Dumper: {   /* CGCivils-004 */
+    daily: [
+      "Engine oil level",
+      "Fuel level / leaks",
+      "Coolant level",
+      "Hydraulic oil level",
+      "Hydraulic system leaks",
+      "Brake operation",
+      "Condition of operating levers",
+      "Inspect seat belts and anchor points",
+      "Flashing beacon / lights",
+      "Tyre pressure / inflation check"
+    ],
+    weekly: [
+      "Tyre condition check",
+      "Wheel nut tightness check",
+      "Fan belt tension and condition",
+      "Battery and terminals condition",
+      "Wiring for chaffing / damage",
+      "Engine mounting brackets",
+      "ROPS condition and operation",
+      "Grease and check nipples"
+    ]
+  },
+
+  Roller: {   /* CGCivils-008 */
+    daily: [
+      "Engine oil level",
+      "Fuel level / leaks",
+      "Coolant level",
+      "Hydraulic oil level",
+      "Hydraulic system leaks",
+      "Brake operation",
+      "Condition of operating levers",
+      "Inspect seat belts and anchor points",
+      "Flashing beacon / lights"
+    ],
+    weekly: [
+      "Drain fuel sediment bowl",
+      "Fan belt tension and condition",
+      "Battery and terminals condition",
+      "Wiring for chaffing / damage",
+      "Engine mounting brackets",
+      "ROPS condition and operation",
+      "Grease and check nipples"
+    ]
+  }
+};
+
+const PLANT_TYPES = Object.keys(CHECKSHEETS).concat(["Telehandler","Other"]);
+const sheetFor = type => CHECKSHEETS[type] || null;
+
 const slug = t => t.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
 
 /* Has a weekly check already been done for this machine this week? */
 function weeklyDone(date, plantId){
   const wc = weekStart(date);
-  return DB.records.some(r => r.form==="excavator" && r.plantId===plantId
+  return DB.records.some(r => r.form==="plantcheck" && r.plantId===plantId
     && r.status==="submitted" && weekStart(r.date)===wc && r.data && r.data.__weekly===true);
 }
 
+function machineType(plantId){
+  const m = (DB.plant||[]).find(x=>x.id===plantId);
+  return (m && m.type) || "Excavator";
+}
 function plantCheckSections(){
   const date = formState ? formState.date : todayISO();
   const pid = formState ? formState.plantId : null;
+  const sheet = sheetFor(machineType(pid)) || CHECKSHEETS.Excavator;
   const showWeekly = !weeklyDone(date, pid) || (formState && formState.values.__weekly===true);
 
   const secs = [
     { title:"Daily pre-use checks",
-      fields: EXC_DAILY.map(t=>({ id:"d_"+slug(t), type:"check", label:t, required:true })) }
+      fields: sheet.daily.map(t=>({ id:"d_"+slug(t), type:"check", label:t, required:true })) }
   ];
-  if(showWeekly){
+  if(showWeekly && sheet.weekly.length){
     secs.push({ title:"Weekly checks", note:"Due once a week for this machine.",
-      fields: EXC_WEEKLY.map(t=>({ id:"w_"+slug(t), type:"check", label:t, required:true })) });
+      fields: sheet.weekly.map(t=>({ id:"w_"+slug(t), type:"check", label:t, required:true })) });
   }
   secs.push({ title:"Declaration", fields:[
     { id:"safe", type:"yesno", label:"Is the machine fit for use?", required:true },
@@ -646,7 +711,7 @@ const FORMS = {
   diary: { key:"diary", name:"Site diary", short:"Diary", prefix:"DD",
     sections:()=>DIARY, perMachine:false,
     blurb:"Conditions, labour, plant, work done and dayworks." },
-  excavator: { key:"excavator", name:"Excavator inspection", short:"Plant check", prefix:"PC",
+  plantcheck: { key:"plantcheck", name:"Plant inspection", short:"Plant check", prefix:"PC",
     sections:plantCheckSections, perMachine:true,
     blurb:"Daily pre-use checks, plus the weekly ones when they fall due." }
 };
@@ -716,7 +781,7 @@ function recordFor(date, job){
   return DB.records.find(r => r.date===date && r.job===(job||DB.job) && (r.form||"diary")==="diary");
 }
 function checksFor(date){
-  return DB.records.filter(r => r.date===date && r.job===DB.job && r.form==="excavator");
+  return DB.records.filter(r => r.date===date && r.job===DB.job && r.form==="plantcheck");
 }
 function checkFor(date, plantId){
   return checksFor(date).find(r => r.plantId===plantId) || null;
@@ -780,24 +845,274 @@ function lolerAlerts(){
     .filter(x=>x.st.key==="expired" || x.st.key==="soon");
 }
 
-/* Any "No" on the latest check for a machine is a defect until it is checked
-   again and comes back clear. */
-function defectsFor(plantId){
-  const checks = DB.records.filter(r=>r.form==="excavator" && r.plantId===plantId
-    && r.status==="submitted").sort((a,b)=>(b.submittedAt||0)-(a.submittedAt||0));
-  const latest = checks[0];
-  if(!latest) return null;
-  const items = [];
-  sectionsFor("excavator").forEach(()=>{});
-  Object.keys(latest.data||{}).forEach(k=>{
-    const val = latest.data[k];
-    if(val && typeof val==="object" && val.v===false){
-      const label = (EXC_DAILY.concat(EXC_WEEKLY)).find(t=>("d_"+slug(t)===k)||("w_"+slug(t)===k)) || k;
-      items.push({ label, defect: val.defect||"", photos: val.photos||[] });
-    }
+/* ------------------------------------------------------------- defects -- */
+/* A "No" on a check raises a defect that lives on its own until somebody closes
+   it out with evidence. Closed ones stay against the machine as its history, so
+   the same fault is not chased twice. */
+const daysSince = ts => Math.floor((Date.now() - ts) / 86400000);
+function ageText(ts){
+  const d = daysSince(ts);
+  return d<=0 ? "today" : d===1 ? "1 day ago" : d+" days ago";
+}
+
+function checkLabels(plantId){
+  const sheet = sheetFor(machineType(plantId)) || CHECKSHEETS.Excavator;
+  const map = {};
+  sheet.daily.forEach(t=>map["d_"+slug(t)] = t);
+  sheet.weekly.forEach(t=>map["w_"+slug(t)] = t);
+  return map;
+}
+
+function raiseDefects(rec){
+  if(rec.form!=="plantcheck") return;
+  DB.defects = DB.defects || [];
+  const labels = checkLabels(rec.plantId);
+  Object.keys(rec.data||{}).forEach(k=>{
+    const val = rec.data[k];
+    if(!val || typeof val!=="object" || val.v!==false) return;
+    if(DB.defects.some(d=>d.checkId===rec.id && d.key===k)) return;
+    DB.defects.push({
+      id: "df_"+Date.now()+"_"+k, plantId: rec.plantId, job: rec.job, key: k,
+      item: labels[k] || k, description: val.defect || "", photos: val.photos || [],
+      checkId: rec.id, checkRef: rec.ref, date: rec.date,
+      reportedBy: rec.by, reportedAt: rec.submittedAt || Date.now(),
+      unsafe: rec.data.safe === false, status: "open"
+    });
   });
+}
+
+const openDefects  = pid => (DB.defects||[]).filter(d=>d.plantId===pid && d.status==="open")
+  .sort((a,b)=>a.reportedAt-b.reportedAt);
+const closedDefects = pid => (DB.defects||[]).filter(d=>d.plantId===pid && d.status==="closed")
+  .sort((a,b)=>(b.fixedAt||0)-(a.fixedAt||0));
+
+function defectsFor(plantId){
+  const items = openDefects(plantId);
   if(!items.length) return null;
-  return { record: latest, items, unsafe: latest.data.safe===false };
+  return {
+    items,
+    unsafe: items.some(d=>d.unsafe),
+    oldest: items[0].reportedAt,
+    record: { ref: items[0].checkRef, date: items[0].date, job: items[0].job,
+      by: items[0].reportedBy, data: {} }
+  };
+}
+
+/* The week's checks for one machine on a single sheet, laid out like the paper
+   form. Produce it any day — the days not yet done are simply blank. */
+function weekChecks(plantId, ws){
+  const days = weekDays(ws);
+  const map = {};
+  days.forEach(d=>{
+    map[d] = DB.records.find(r=>r.form==="plantcheck" && r.plantId===plantId
+      && r.date===d && r.status==="submitted") || null;
+  });
+  return { days, map };
+}
+
+function printWeeklyPlantSheet(plantId, ws){
+  const m = (DB.plant||[]).find(x=>x.id===plantId);
+  if(!m){ toast("Machine not found"); return; }
+  const c = cfg();
+  ws = ws || weekStart(todayISO());
+  const { days, map } = weekChecks(plantId, ws);
+  const sheet = sheetFor(m.type||"Excavator") || CHECKSHEETS.Excavator;
+  const done = days.filter(d=>map[d]);
+  if(!done.length){ toast("No checks recorded for that week yet"); return; }
+
+  const DL = ["M","T","W","T","F","S","S"];
+  const mark = (rec, key) => {
+    if(!rec) return `<td style="text-align:center;background:#F4F6F4"></td>`;
+    const v = (rec.data||{})[key];
+    if(!v || v.v===undefined) return `<td style="text-align:center"></td>`;
+    if(v.v===true)  return `<td style="text-align:center;font-weight:700">&#10003;</td>`;
+    if(v.v==="na")  return `<td style="text-align:center;color:#666;font-size:9px">N/A</td>`;
+    return `<td style="text-align:center;color:#A72B22;font-weight:700">&#10007;</td>`;
+  };
+
+  /* the weekly column is filled in on whichever day it was done */
+  const weeklyRec = days.map(d=>map[d]).find(r=>r && r.data && r.data.__weekly===true) || null;
+
+  const defects = (DB.defects||[]).filter(d=>d.plantId===plantId && days.includes(d.date));
+
+  document.getElementById("sheet").innerHTML = `
+    <div class="ph-head">
+      <img src="${LOGO}" alt="${esc(c.company)}">
+      <div style="text-align:right"><h1>${esc(m.type||"Excavator")} Daily &amp; Weekly Inspections</h1>
+        <div style="font-size:10.5px;color:#555">Week commencing ${shortDate(ws)}</div></div>
+    </div>
+
+    <table>
+      <tr><th style="width:24%">Competent person</th><td>${esc((done[0]&&map[done[0]].by)||c.user.name)}</td>
+        <th style="width:18%">Fleet number</th><td>${esc(m.fleetNo||"—")}</td></tr>
+      <tr><th>Week commencing</th><td>${shortDate(ws)}</td>
+        <th>Model</th><td>${esc(m.model||m.item||"—")}</td></tr>
+      <tr><th>Site / depot</th><td colspan="3">${esc(DB.job)}</td></tr>
+    </table>
+
+    <h2>Daily pre-use recorded checks</h2>
+    <table>
+      <tr><th style="width:46%">Check</th>
+        ${days.map((d,i)=>`<th style="width:7.7%;text-align:center">${DL[i]}<br>
+          <span style="font-weight:400;font-size:9px">${parse(d).getDate()}</span></th>`).join("")}</tr>
+      ${sheet.daily.map(t=>`<tr><td>${esc(t)}</td>
+        ${days.map(d=>mark(map[d], "d_"+slug(t))).join("")}</tr>`).join("")}
+    </table>
+
+    <h2>Weekly recorded checks${weeklyRec?` — completed ${shortDate(weeklyRec.date)}`:" — not yet done"}</h2>
+    <table>
+      <tr><th style="width:70%">Check</th><th style="text-align:center">Result</th></tr>
+      ${sheet.weekly.map(t=>`<tr><td>${esc(t)}</td>${mark(weeklyRec, "w_"+slug(t))}</tr>`).join("")}
+    </table>
+
+    <h2>Fleet engineer to be advised of defects</h2>
+    ${defects.length ? `<table>
+      <tr><th style="width:28%">Check</th><th>Defect</th><th style="width:26%">Response and date</th></tr>
+      ${defects.map(d=>`<tr><td>${esc(d.item)}</td>
+        <td>${esc(d.description||"—")}<br><span style="color:#666;font-size:10px">
+          ${shortDate(d.date)}${d.unsafe?" · not fit for use":""}</span></td>
+        <td>${d.status==="closed"
+          ? esc(d.fixNote||"")+"<br><span style='color:#666;font-size:10px'>"+esc(d.fixedBy||"")+" — "+shortDate(iso(d.fixedAt))+"</span>"
+          : ""}</td></tr>`).join("")}
+    </table>` : `<table><tr><td style="height:52px;color:#666">No defects recorded this week.</td></tr></table>`}
+
+    <h2>Declaration</h2>
+    <p style="margin:0 0 8px"><i>Upon inspecting, I confirm that the inspection results are accurate
+    and where deemed as safe are fit for purpose.</i></p>
+    <table>
+      <tr><th style="width:16%">Day</th><th style="width:30%">Inspected by</th>
+        <th style="width:22%">Date and time</th><th>Signature</th></tr>
+      ${days.filter(d=>map[d]).map((d,i)=>{
+        const r = map[d];
+        const sig = (r.data||{}).signature;
+        return `<tr><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]}</td>
+          <td>${esc(r.by||"")}</td>
+          <td>${shortDate(d)} ${timeOnly(r.submittedAt)}</td>
+          <td style="height:40px">${sig&&sig.src?`<img src="${sig.src}" style="height:32px">`:""}</td></tr>`;
+      }).join("")}
+    </table>
+
+    <div class="foot"><span>${esc(c.company)} · ${esc(m.fleetNo||m.item||"")} · w/c ${shortDate(ws)}
+      · ${done.length} of ${days.filter(d=>isWorking(d)).length} working days recorded</span>
+      <span>Produced ${stamp(Date.now())}</span></div>`;
+
+  document.getElementById("sheetTitle").textContent =
+    (m.fleetNo || m.item || "Machine") + " — w/c " + shortDate(ws);
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
+}
+
+/* A printable report of everything currently outstanding on a machine. */
+function printDefectReport(plantId){
+  const m = (DB.plant||[]).find(x=>x.id===plantId);
+  const df = defectsFor(plantId);
+  if(!m || !df){ toast("No open defects on this machine"); return; }
+  const c = cfg();
+
+  const photos = [];
+  df.items.forEach(x=>(x.photos||[]).forEach(ph=>photos.push({ ph, label:x.item })));
+
+  document.getElementById("sheet").innerHTML = `
+    <div class="ph-head">
+      <img src="${LOGO}" alt="${esc(c.company)}">
+      <div style="text-align:right"><h1>Plant Defect Report</h1>
+        <div style="font-size:10.5px;color:#555">${esc(m.fleetNo||m.item||"")} · ${shortDate(todayISO())}</div></div>
+    </div>
+
+    ${df.unsafe ? `<div style="border:2px solid #A72B22;color:#A72B22;font-weight:700;
+      padding:8px 10px;margin-bottom:12px;border-radius:3px">
+      MACHINE MARKED NOT FIT FOR USE</div>` : ""}
+
+    <table>
+      <tr><th>Machine</th><td>${esc(m.item||"—")}</td></tr>
+      <tr><th>Fleet number</th><td>${esc(m.fleetNo||"—")}</td></tr>
+      <tr><th>Model</th><td>${esc(m.model||"—")}</td></tr>
+      <tr><th>Type</th><td>${esc(m.type||"Excavator")}</td></tr>
+      <tr><th>Site</th><td>${esc(DB.job)}</td></tr>
+      <tr><th>Reported by</th><td>${esc(df.items[0].reportedBy||c.user.name)}</td></tr>
+      <tr><th>Oldest defect</th><td>${ageText(df.oldest)}</td></tr>
+      ${(c.fitter&&c.fitter.name)?`<tr><th>Fleet engineer</th><td>${esc(c.fitter.name)}</td></tr>`:""}
+    </table>
+
+    <h2>Defects outstanding</h2>
+    <table>
+      <tr><th style="width:32%">Check</th><th>Defect</th><th style="width:22%">Reported</th></tr>
+      ${df.items.map(x=>`<tr><td>${esc(x.item)}</td><td>${esc(x.description||"—")}</td>
+        <td>${shortDate(x.date)}<br><span style="color:#666;font-size:10px">${ageText(x.reportedAt)}</span>
+        <br><span style="color:#666;font-size:10px">${esc(x.checkRef||"")}</span></td></tr>`).join("")}
+    </table>
+
+    ${photos.length ? `<h2>Photographs</h2><div class="imgs">`+
+      photos.map(x=>`<figure style="margin:0"><img src="${x.ph.src}">
+        <figcaption style="font-size:9.5px;color:#555">${esc(x.label)} · ${stamp(x.ph.takenAt)}</figcaption>
+      </figure>`).join("")+`</div>` : ""}
+
+    <h2>Fleet engineer response</h2>
+    <table>
+      <tr><th style="width:22%">Action taken</th><td style="height:70px"></td></tr>
+      <tr><th>Date</th><td style="height:34px"></td></tr>
+      <tr><th>Signed</th><td style="height:44px"></td></tr>
+    </table>
+
+    <div class="foot"><span>${esc(c.company)} · defect report · ${esc(m.fleetNo||m.item||"")}</span>
+      <span>Produced ${stamp(Date.now())}</span></div>`;
+
+  document.getElementById("sheetTitle").textContent = "Defect report — " + (m.fleetNo || m.item || "machine");
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
+}
+
+function defectReportText(m, df){
+  const lines = [];
+  lines.push("Plant defect — " + (m.item||"machine") + (m.fleetNo ? " ("+m.fleetNo+")" : ""));
+  lines.push("");
+  lines.push("Site: " + DB.job);
+  if(m.model) lines.push("Model: " + m.model);
+  lines.push("Type: " + (m.type||"Excavator"));
+  lines.push("Reported by: " + (df.items[0].reportedBy || cfg().user.name));
+  if(df.unsafe) lines.push("MACHINE MARKED NOT FIT FOR USE");
+  lines.push("");
+  lines.push("Defects outstanding:");
+  df.items.forEach(x => lines.push("- " + x.item + (x.description ? ": " + x.description : "")
+    + " (reported " + ageText(x.reportedAt) + ")"));
+  return lines.join("\n");
+}
+
+/* Share it if the phone can, without ever navigating the app away. */
+async function reportDefect(plantId){
+  const m = (DB.plant||[]).find(x=>x.id===plantId);
+  const df = defectsFor(plantId);
+  if(!m || !df){ toast("No open defects on this machine"); return; }
+  const subject = "Plant defect — " + (m.fleetNo || m.item || "machine") + " — " + DB.job;
+  const body = defectReportText(m, df);
+
+  const files = [];
+  df.items.forEach((x,i)=>(x.photos||[]).forEach((ph,pi)=>{
+    try{
+      const b = atob(ph.src.split(",")[1]);
+      const arr = new Uint8Array(b.length);
+      for(let j=0;j<b.length;j++) arr[j] = b.charCodeAt(j);
+      files.push(new File([arr], "defect-"+(i+1)+"-"+(pi+1)+".jpg", { type:"image/jpeg" }));
+    }catch(e){}
+  }));
+
+  if(navigator.share){
+    try{
+      if(files.length && navigator.canShare && navigator.canShare({ files }))
+        await navigator.share({ files, title: subject, text: body });
+      else
+        await navigator.share({ title: subject, text: body });
+      toast("Report sent");
+    }catch(e){ /* cancelled */ }
+    return;
+  }
+
+  const to = (cfg().fitter && cfg().fitter.email) || "";
+  const a = document.createElement("a");
+  a.href = "mailto:" + encodeURIComponent(to) + "?subject=" + encodeURIComponent(subject)
+    + "&body=" + encodeURIComponent(body);
+  a.target = "_blank"; a.rel = "noopener";
+  document.body.appendChild(a); a.click(); a.remove();
 }
 
 function refreshPlantPill(id){
@@ -953,6 +1268,7 @@ function go(name, opts){
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="leave"){ leaveDraft = null; leaveDay = null; }
   if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; }
+  if(name!=="defect"){ fixDraft = null; }
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
   render();
@@ -1071,6 +1387,8 @@ function render(){
   else if(view.name==="list") app.innerHTML = listView();
   else if(view.name==="plant") app.innerHTML = plantView();
   else if(view.name==="pickplant") app.innerHTML = pickPlantView();
+  else if(view.name==="defect") app.innerHTML = defectView();
+  else if(view.name==="planthistory") app.innerHTML = plantHistoryView();
   else if(view.name==="labour") app.innerHTML = labourView();
   else if(view.name==="leave") app.innerHTML = leaveView();
   else if(view.name==="vos") app.innerHTML = voListView();
@@ -1163,6 +1481,9 @@ function homeView(){
         <div class="count">${doneChecks.length} of ${machines.length} done ${isToday?"today":"that day"}</div>
         <button class="begin" data-pick="${sel}">Begin</button></div>`;
 
+  /* any machine currently carrying a defect */
+  const faulty = currentPlant().map(m=>({ m, df: defectsFor(m.id) })).filter(x=>x.df);
+
   const missed = missedDays();
   const missedCard = missed.length ? `<button class="card" style="width:100%;text-align:left;
     background:${missed.some(m=>m.level==="red")?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"
@@ -1188,6 +1509,17 @@ function homeView(){
        ${plantHero}
      </div>
      <div class="cdots"><i class="on"></i><i></i></div>
+     ${faulty.length ? `<button class="card" style="width:100%;text-align:left;
+       background:var(--bad-bg);box-shadow:none" data-go="plant">
+       <h3 style="color:var(--bad)">${faulty.reduce((n,x)=>n+x.df.items.length,0)} plant defect${
+         faulty.reduce((n,x)=>n+x.df.items.length,0)===1?"":"s"}</h3>
+       ${faulty.map(x=>`<p style="color:var(--ink-2);margin-top:2px">
+         <b style="font-weight:640">${esc(x.m.item||"Machine")}${x.m.fleetNo?" ("+esc(x.m.fleetNo)+")":""}</b>
+         — ${x.df.items.map(i=>esc(i.item)).join(", ")}${x.df.unsafe?" · not fit for use":""}
+         <span style="color:var(--bad);font-weight:640">· oldest ${ageText(x.df.oldest)}</span></p>`).join("")}
+       <span style="display:block;font-size:12.5px;color:var(--bad);font-weight:640;margin-top:8px">
+         Open the plant register to send a defect report &rsaquo;</span>
+     </button>` : ""}
      ${missedCard}
      <div class="card">
        <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -1574,7 +1906,8 @@ function formView(){
       <button class="chip" data-go="home">&lsaquo; Back</button>
       <span class="pill info">${ok}/${total} required</span>
     </div>
-    <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(def.name)}</h1>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">${
+      machine ? esc(machineType(machine.id))+" inspection" : esc(def.name)}</h1>
     <p class="sub">${longDate(formState.date)}</p>
     ${machine ? `<div class="card" style="background:var(--green-50);box-shadow:none">
       <div class="kv"><span class="k">Competent person</span><span class="v">${esc(cfg().user.name)}</span></div>
@@ -1609,7 +1942,12 @@ function recordView(){
       <div class="kv"><span class="k">Will file to</span>
         <span class="v" style="font-size:12px;word-break:break-all">${esc(pathFor(r))}</span></div>
     </div>
-    <button class="btn" data-pdf="${r.id}">Open PDF</button>
+    ${r.form==="plantcheck"
+      ? `<button class="btn" data-weeksheet="${r.plantId}" data-ws="${weekStart(r.date)}">
+           Open the week's sheet</button>
+         <p class="sub" style="margin:-2px 0 12px;font-size:12.5px;color:var(--ink-3)">
+           Checks are issued as one sheet per machine per week, not one per day.</p>`
+      : `<button class="btn" data-pdf="${r.id}">Open PDF</button>`}
     <button class="btn ghost" data-reopen="${r.id}">Amend</button>
     ${cfg().allowDelete ? `<button class="btn line" style="color:var(--bad)"
       data-del-rec="${r.id}">Delete this diary</button>` : ""}
@@ -1709,7 +2047,8 @@ let plantDraft = null;
 let plantEditId = null;
 
 function blankPlant(){
-  return { item:"", fleetNo:"", model:"", owner:"Hired", onDate:todayISO(), offDate:"", examDate:"" };
+  return { item:"", fleetNo:"", model:"", type:"Excavator", owner:"Hired",
+    onDate:todayISO(), offDate:"", examDate:"" };
 }
 
 function plantFields(p, attr){
@@ -1717,6 +2056,11 @@ function plantFields(p, attr){
   return `
     <div class="f"><label>Plant item</label>
       <input class="in" ${attr}="item" value="${esc(p.item)}" placeholder="e.g. 13T 360 excavator"></div>
+    <div class="f"><label>Type</label>
+      <div class="hint">Decides which check sheet this machine gets.</div>
+      <select class="in" ${attr}="type">
+        ${PLANT_TYPES.map(t=>`<option ${(p.type||"Excavator")===t?"selected":""}>${esc(t)}</option>`).join("")}
+      </select></div>
     <div class="g2">
       <div class="f"><label>Fleet number</label>
         <input class="in" ${attr}="fleetNo" value="${esc(p.fleetNo||"")}"></div>
@@ -1740,9 +2084,110 @@ function plantFields(p, attr){
     else. Leave blank if neither applies.</div>`;
 }
 
+let fixDraft = null;
+
+function defectView(){
+  const d = (DB.defects||[]).find(x=>x.id===view.id);
+  if(!d) return `<div class="card"><h3>Not found</h3></div>`;
+  const m = (DB.plant||[]).find(x=>x.id===d.plantId) || {};
+  const open = d.status==="open";
+
+  const closeBlock = !open
+    ? `<div class="card" style="background:var(--ok-bg);box-shadow:none">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <h3 style="color:var(--ok)">Fixed</h3>
+          <span class="pill ok">Closed</span></div>
+        <p style="margin-top:4px">${esc(d.fixedBy||"")} — ${stamp(d.fixedAt)}
+          · open for ${Math.max(0,Math.round((d.fixedAt-d.reportedAt)/86400000))} day(s)</p>
+        <p style="margin-top:8px;white-space:pre-wrap"><b>What was done:</b><br>${esc(d.fixNote||"—")}</p>
+        ${(d.fixPhotos||[]).length ? `<div class="pg" style="margin-top:10px">`+
+          d.fixPhotos.map(ph=>`<div class="ph"><img src="${ph.src}" data-taken="${ph.takenAt||""}"></div>`).join("")+
+          `</div>` : ""}
+        <button class="btn line sm" style="margin:12px 0 0" data-reopen-def="${d.id}">Reopen</button>
+      </div>`
+    : fixDraft
+    ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+        <h3 style="margin-bottom:12px">Close this out</h3>
+        <div class="f"><label>What was done to fix it?</label>
+          <textarea class="in" data-fixnote="1" placeholder="Parts, adjustment, who did it">${esc(fixDraft.note)}</textarea></div>
+        <div class="f" style="margin:0"><label>Proof it is fixed</label>
+          ${(fixDraft.photos||[]).length ? `<div class="pg" style="margin-bottom:10px">`+
+            fixDraft.photos.map((ph,i)=>`<div class="ph"><img src="${ph.src}">
+              <button type="button" data-fixrm="${i}" aria-label="Remove">&times;</button></div>`).join("")+
+            `</div>` : ""}
+          <div class="g2">
+            <button class="btn line" style="margin:0" data-fixcam="1">Photo</button>
+            <button class="btn line" style="margin:0" data-fixlib="1">Upload</button>
+          </div></div>
+        <button class="btn" style="margin:16px 0 8px" data-fixsave="1">Mark as fixed</button>
+        <button class="btn ghost" style="margin:0" data-fixcancel="1">Cancel</button>
+      </div>`
+    : `<button class="btn" data-fixstart="1">Mark as fixed</button>`;
+
+  return `<div class="top"><button class="chip" data-go="plant">&lsaquo; Back</button>
+      <span class="pill ${open?"red":"ok"}">${open?"Open":"Closed"}</span></div>
+    <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(d.item)}</h1>
+    <p class="sub">${esc(m.item||"Machine")}${m.fleetNo?" · "+esc(m.fleetNo):""}</p>
+
+    ${open ? `<div class="card" style="background:var(--bad-bg);box-shadow:none">
+      <h3 style="color:var(--bad)">Reported ${ageText(d.reportedAt)}</h3>
+      <p style="color:var(--ink-2)">${shortDate(d.date)} by ${esc(d.reportedBy||"—")}${
+        d.unsafe?" · machine marked not fit for use":""}</p>
+    </div>` : ""}
+
+    <div class="card">
+      <div class="kv"><span class="k">Defect</span><span class="v">${esc(d.description||"—")}</span></div>
+      <div class="kv"><span class="k">From inspection</span><span class="v">${esc(d.checkRef||"—")}</span></div>
+      <div class="kv"><span class="k">Reported</span><span class="v">${stamp(d.reportedAt)}</span></div>
+      ${(d.photos||[]).length ? `<div style="margin-top:10px">
+        <span style="font-size:13px;color:var(--ink-2)">Photographs at the time</span>
+        <div class="pg" style="margin-top:8px">`+
+        d.photos.map(ph=>`<div class="ph"><img src="${ph.src}" data-taken="${ph.takenAt||""}"></div>`).join("")+
+        `</div></div>` : ""}
+    </div>
+
+    <div class="sect">${open?"Close out":"Fix"}</div>
+    ${closeBlock}
+
+    <div class="sect">This defect</div>
+    <button class="btn ghost" data-defpdf="${d.plantId}">Defect report</button>
+    <button class="btn line" style="color:var(--bad)" data-defdel="${d.id}">Delete this defect</button>`;
+}
+
+function plantHistoryView(){
+  const pid = view.plantId;
+  const m = (DB.plant||[]).find(x=>x.id===pid) || {};
+  const closed = closedDefects(pid);
+  const open = openDefects(pid);
+  const checks = DB.records.filter(r=>r.form==="plantcheck" && r.plantId===pid && r.status==="submitted").length;
+
+  const card = d => `<button class="card" style="width:100%;text-align:left" data-defopen="${d.id}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:15.5px;font-weight:650;display:block">${esc(d.item)}</b>
+          <span style="font-size:13px;color:var(--ink-2)">${esc(d.description||"")}</span>
+          <span style="display:block;font-size:12.5px;color:var(--ink-3);margin-top:3px">
+            ${shortDate(d.date)}${d.status==="closed"?" · fixed "+shortDate(iso(d.fixedAt)):" · "+ageText(d.reportedAt)}</span>
+        </div>
+        <span class="pill ${d.status==="open"?"red":"ok"}">${d.status==="open"?"Open":"Fixed"}</span>
+      </div>
+      ${d.status==="closed"&&d.fixNote?`<p style="margin-top:8px;font-size:13.5px;color:var(--ink-2)">
+        <b style="font-weight:640">Fix:</b> ${esc(d.fixNote)}</p>`:""}
+    </button>`;
+
+  return `<div class="top"><button class="chip" data-go="plant">&lsaquo; Back</button></div>
+    <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(m.item||"Machine")}</h1>
+    <p class="sub">${esc(m.fleetNo||"")} · ${checks} inspection${checks===1?"":"s"} recorded</p>
+    ${open.length ? `<div class="sect">Open (${open.length})</div>`+open.map(card).join("") : ""}
+    ${closed.length ? `<div class="sect">Previous faults (${closed.length})</div>`+closed.map(card).join("")
+      : `<div class="card"><h3>No history yet</h3>
+        <p>Faults that have been fixed appear here, with what was done about them.</p></div>`}`;
+}
+
 function pickPlantView(){
   const d = view.date || todayISO();
   const machines = onSitePlant(d);
+  const ws = weekStart(d);
   return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Plant inspection</h1>
     <p class="sub">${longDate(d)}</p>
@@ -1751,12 +2196,21 @@ function pickPlantView(){
     ${machines.map(m=>{
       const rec = checkFor(d, m.id);
       const done = rec && rec.status==="submitted";
-      return `<button class="task" data-check="${m.id}">
-        <span class="n"><b>${esc(m.item||"Unnamed")}</b>
-          <span>${esc(m.fleetNo||"No fleet no.")}${done?" · checked "+timeOnly(rec.submittedAt):
-            rec?" · draft saved":""}</span></span>
-        ${done?`<span class="pill ok">Done</span>`:`<span class="pill grey">To do</span>`}
-      </button>`;
+      const wk = weekChecks(m.id, ws);
+      const inWeek = wk.days.filter(x=>wk.map[x]).length;
+      return `<div class="card" style="padding:0 14px">
+        <button class="row" style="width:100%;border:0" data-check="${m.id}">
+          <span class="n"><b>${esc(m.item||"Unnamed")}</b>
+            <span>${esc(m.type||"Excavator")} · ${esc(m.fleetNo||"No fleet no.")}${
+              done?" · checked "+timeOnly(rec.submittedAt) : rec?" · draft saved":""}</span></span>
+          ${done?`<span class="pill ok">Done</span>`:`<span class="pill grey">To do</span>`}
+        </button>
+        ${inWeek ? `<div style="border-top:1px solid var(--line-2);padding:10px 0;display:flex;
+          align-items:center;gap:10px">
+          <span style="flex:1;font-size:13px;color:var(--ink-3)">${inWeek} day${inWeek===1?"":"s"} recorded this week</span>
+          <button class="btn line sm" style="margin:0" data-weeksheet="${m.id}" data-ws="${ws}">Week's sheet</button>
+        </div>` : ""}
+      </div>`;
     }).join("")}`;
 }
 
@@ -1785,29 +2239,40 @@ function plantView(){
       </div>`;
     }
     const ls = lolerState(p);
-    const tint = ls.key==="expired" ? "background:var(--bad-bg);box-shadow:none"
+    const df = defectsFor(p.id);
+    const tint = (ls.key==="expired" || df) ? "background:var(--bad-bg);box-shadow:none"
       : ls.key==="soon" ? "background:var(--warn-bg);box-shadow:none" : "";
     return `<div class="card" style="${tint}">
       <div style="display:flex;align-items:flex-start;gap:10px">
         <div style="flex:1;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(p.item||"Unnamed item")}</b>
           <span style="font-size:13px;color:var(--ink-2)">
-            ${esc(p.fleetNo||"No fleet no.")} · ${esc(p.owner)} · on site ${p.onDate?shortDate(p.onDate):"—"}
+            ${esc(p.type||"Excavator")} · ${esc(p.fleetNo||"No fleet no.")} · on site ${p.onDate?shortDate(p.onDate):"—"}
           </span>
         </div>
         <span class="pill ${ls.cls}" id="pill_${p.id}">${esc(ls.label)}</span>
       </div>
       ${df ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.08)">
-        <b style="color:var(--bad);font-size:14px;display:block;margin-bottom:4px">
-          ${df.items.length} defect${df.items.length===1?"":"s"}${df.unsafe?" · not fit for use":""}</b>
-        ${df.items.map(x=>`<div style="font-size:13.5px;color:var(--ink-2);padding:2px 0">
-          <b style="font-weight:640">${esc(x.label)}</b>${x.defect?" — "+esc(x.defect):""}</div>`).join("")}
-        <span style="display:block;font-size:12px;color:var(--ink-3);margin-top:6px">
-          From ${esc(df.record.ref||"the last check")}, ${shortDate(df.record.date)}</span>
+        <b style="color:var(--bad);font-size:14px;display:block;margin-bottom:6px">
+          ${df.items.length} open defect${df.items.length===1?"":"s"}${df.unsafe?" · not fit for use":""}
+          · oldest ${ageText(df.oldest)}</b>
+        ${df.items.map(x=>`<button class="row" style="width:100%;padding:9px 0;border:0"
+          data-defopen="${x.id}">
+          <span class="n"><b style="font-size:14.5px">${esc(x.item)}</b>
+            <span>${esc(x.description||"")} · ${ageText(x.reportedAt)}</span></span>
+          <span style="color:var(--ink-3)">&rsaquo;</span>
+        </button>`).join("")}
+        <div class="g2" style="margin-top:12px">
+          <button class="btn line sm" style="margin:0" data-defpdf="${p.id}">Defect report</button>
+          <button class="btn line sm" style="margin:0" data-report="${p.id}">Send to fitter</button>
+        </div>
       </div>` : ""}
       <div style="display:flex;gap:8px;margin-top:14px">
         <button class="btn line sm" style="flex:1;margin:0" data-pledit="${p.id}">Edit</button>
-        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-ploff="${p.id}">Plant off site</button>
+        <button class="btn line sm" style="flex:1;margin:0" data-history="${p.id}">History${
+          closedDefects(p.id).length?" ("+closedDefects(p.id).length+")":""}</button>
+        <button class="btn line sm" style="flex:1;margin:0" data-weeksheet="${p.id}">Sheet</button>
+        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-ploff="${p.id}">Off site</button>
       </div>
     </div>`;
   }).join("");
@@ -2378,6 +2843,16 @@ function settingsView(){
         <input class="in" data-job="1" value="${esc(DB.job)}"></div>
     </div>
 
+    <div class="sect">Fleet engineer</div>
+    <div class="card">
+      <p style="margin-bottom:14px">Where plant defect reports go when there is no share sheet
+      to pick from.</p>
+      <div class="f"><label>Name</label>
+        <input class="in" data-cfg="fitter.name" value="${esc((c.fitter||{}).name||"")}"></div>
+      <div class="f" style="margin:0"><label>Email</label>
+        <input class="in" type="email" data-cfg="fitter.email" value="${esc((c.fitter||{}).email||"")}"></div>
+    </div>
+
     <div class="sect">SharePoint</div>
     <div class="card">
       <p style="margin-bottom:14px">Set the path now and it will be used the moment the connection is switched on.</p>
@@ -2579,7 +3054,7 @@ function bind(){
   app.querySelectorAll("[data-start]").forEach(el=>el.onclick=()=>startForm(el.dataset.start,"diary"));
   app.querySelectorAll("[data-pick]").forEach(el=>el.onclick=()=>go("pickplant",{date:el.dataset.pick}));
   app.querySelectorAll("[data-check]").forEach(el=>el.onclick=()=>
-    startForm(view.date||todayISO(), "excavator", el.dataset.check));
+    startForm(view.date||todayISO(), "plantcheck", el.dataset.check));
 
   /* carousel position dots */
   const car = document.getElementById("heroCar");
@@ -2735,7 +3210,11 @@ function bind(){
   });
   const reo = app.querySelector("[data-reopen]"); if(reo) reo.onclick = ()=>{
     const r = DB.records.find(x=>x.id===reo.dataset.reopen);
-    formState = { date:r.date, values:JSON.parse(JSON.stringify(r.data)), errors:{}, touched:false, id:r.id };
+    if(!r) return;
+    /* carry the form and the machine over, or it reopens as a diary */
+    formState = { date:r.date, values:JSON.parse(JSON.stringify(r.data)),
+      errors:{}, touched:false, id:r.id,
+      form: r.form || "diary", plantId: r.plantId || null };
     go("form",{date:r.date});
   };
 
@@ -2777,6 +3256,75 @@ function bind(){
       el.oninput = () => { p[key] = el.value; save(); refreshPlantPill(p.id); };
       el.onchange = el.oninput;
     });
+  });
+  app.querySelectorAll("[data-weeksheet]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    printWeeklyPlantSheet(el.getAttribute("data-weeksheet"), el.getAttribute("data-ws") || null);
+  });
+  app.querySelectorAll("[data-defopen]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation(); go("defect",{id:el.getAttribute("data-defopen")});
+  });
+  app.querySelectorAll("[data-history]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation(); go("planthistory",{plantId:el.getAttribute("data-history")});
+  });
+
+  const fxs = app.querySelector("[data-fixstart]");
+  if(fxs) fxs.onclick = ()=>{ fixDraft = { note:"", photos:[] }; render(); };
+  const fxc = app.querySelector("[data-fixcancel]");
+  if(fxc) fxc.onclick = ()=>{ fixDraft = null; render(); };
+  const fxn = app.querySelector("[data-fixnote]");
+  if(fxn) fxn.oninput = ()=>{ if(fixDraft) fixDraft.note = fxn.value; };
+  const addFixPhoto = cam => {
+    const inp = document.createElement("input");
+    inp.type="file"; inp.accept="image/*"; inp.multiple=true;
+    if(cam) inp.setAttribute("capture","environment");
+    inp.onchange = async () => {
+      for(const file of Array.from(inp.files).slice(0,6)){
+        try{ fixDraft.photos.push(await stampPhoto(file)); }catch(e){}
+      }
+      render();
+    };
+    inp.click();
+  };
+  const fxcam = app.querySelector("[data-fixcam]");
+  if(fxcam) fxcam.onclick = ()=>addFixPhoto(true);
+  const fxlib = app.querySelector("[data-fixlib]");
+  if(fxlib) fxlib.onclick = ()=>addFixPhoto(false);
+  app.querySelectorAll("[data-fixrm]").forEach(el=>el.onclick=()=>{
+    const i = Number(el.dataset.fixrm);
+    fixDraft.photos = fixDraft.photos.filter((_,ix)=>ix!==i); render();
+  });
+  const fxsave = app.querySelector("[data-fixsave]");
+  if(fxsave) fxsave.onclick = ()=>{
+    if(!fixDraft.note.trim()){ toast("Say what was done to fix it"); return; }
+    const d = DB.defects.find(x=>x.id===view.id);
+    d.status="closed"; d.fixNote=fixDraft.note.trim(); d.fixPhotos=fixDraft.photos;
+    d.fixedBy=cfg().user.name; d.fixedAt=Date.now();
+    fixDraft=null; save(); render(); toast("Defect closed out");
+  };
+  const rop = app.querySelector("[data-reopen-def]");
+  if(rop) rop.onclick = ()=>{
+    const d = DB.defects.find(x=>x.id===view.id);
+    askConfirm("Reopen this defect?","It goes back on the machine as an open fault.","Reopen",()=>{
+      d.status="open"; delete d.fixedAt; save(); render(); toast("Reopened");
+    });
+  };
+  app.querySelectorAll("[data-defdel]").forEach(el=>el.onclick=()=>{
+    const id = el.getAttribute("data-defdel");
+    const d = (DB.defects||[]).find(x=>x.id===id);
+    askConfirm("Delete this defect?",
+      (d?d.item:"It")+" will be removed from the machine and its history. The inspection it came from is not changed.",
+      "Delete", ()=>{ DB.defects = DB.defects.filter(x=>x.id!==id); save(); go("plant"); toast("Defect deleted"); });
+  });
+
+  app.querySelectorAll("[data-defpdf]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    printDefectReport(el.getAttribute("data-defpdf"));
+  });
+  app.querySelectorAll("[data-report]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    try{ reportDefect(el.getAttribute("data-report")); }
+    catch(err){ toast("Could not open sharing — use Defect report instead"); }
   });
   app.querySelectorAll("[data-pledit]").forEach(el=>el.onclick=()=>{
     plantEditId = el.dataset.pledit; render(); });
@@ -3031,8 +3579,8 @@ function submitForm(){
     if(first) first.scrollIntoView({behavior:"smooth",block:"center"});
     return;
   }
-  if(formState.form==="excavator"){
-    formState.values.__weekly = sectionsFor("excavator").some(x=>x.title==="Weekly checks");
+  if(formState.form==="plantcheck"){
+    formState.values.__weekly = sectionsFor("plantcheck").some(x=>x.title==="Weekly checks");
   }
   const rec = saveDraft();
   if(rec.status!=="submitted"){ rec.ref = nextRef(formDef(rec.form).prefix); }
@@ -3043,9 +3591,11 @@ function submitForm(){
   rec.synced = false;
   rec.version = (rec.version||0)+1;
   syncVo(rec);
+  raiseDefects(rec);
   save();
   const vo = voForRecord(rec.id);
-  toast(vo ? "Diary submitted · "+vo.ref+" raised" : "Diary submitted");
+  const what = formDef(rec.form).name;
+  toast(vo ? what+" submitted · "+vo.ref+" raised" : what+" submitted — thank you");
   go("record",{id:rec.id});
 }
 
@@ -3104,7 +3654,7 @@ function printRecord(id){
   }
   const sig = r.data.signature;
   if(sig){
-    body += `<h2>Declaration</h2><p style="margin:0 0 6px">${r.form==="excavator"
+    body += `<h2>Declaration</h2><p style="margin:0 0 6px">${r.form==="plantcheck"
       ? "Upon inspecting, I confirm that the inspection results are accurate and where deemed as safe are fit for purpose."
       : "I confirm this is a true account of activity on site on "+longDate(r.date)+"."}</p><img src="${sig.src}" style="height:58px;border:1px solid #CBD3CD;padding:3px">
       <div style="font-size:10px;color:#555;margin-top:3px">${esc(r.by)} · ${esc(r.byEmail||"")} · ${stamp(r.submittedAt)}</div>`;
@@ -3112,20 +3662,20 @@ function printRecord(id){
   document.getElementById("sheet").innerHTML = `
     <div class="ph-head">
       <img src="${LOGO}" alt="${esc(c.company)}">
-      <div style="text-align:right"><h1>${r.form==="excavator"?"Excavator Inspection":"Daily Diary"}</h1>
+      <div style="text-align:right"><h1>${r.form==="plantcheck"?"Excavator Inspection":"Daily Diary"}</h1>
       <div style="font-size:10.5px;color:#555">${esc(r.ref||"")} · v${r.version||1}</div></div>
     </div>
     <table>
       <tr><th>Site / depot</th><td>${esc(r.job)}</td></tr>
       ${(function(){
-        if(r.form!=="excavator") return "";
+        if(r.form!=="plantcheck") return "";
         const m = (DB.plant||[]).find(x=>x.id===r.plantId) || {};
         return `<tr><th>Fleet number</th><td>${esc(m.fleetNo||"—")}</td></tr>
           <tr><th>Model</th><td>${esc(m.model||m.item||"—")}</td></tr>
           <tr><th>Week commencing</th><td>${shortDate(weekStart(r.date))}</td></tr>`;
       })()}
       <tr><th>Inspection date</th><td>${longDate(r.date)}</td></tr>
-      <tr><th>${r.form==="excavator"?"Competent person":"Completed by"}</th>
+      <tr><th>${r.form==="plantcheck"?"Competent person":"Completed by"}</th>
         <td>${esc(r.by)} — ${stamp(r.submittedAt)}</td></tr>
     </table>
     ${body}
@@ -3333,7 +3883,15 @@ if(!DB.plant) DB.plant = [];
 if(!DB.labour) DB.labour = [];
 if(!DB.leave) DB.leave = [];
 if(!DB.vos) DB.vos = [];
+(DB.records||[]).forEach(r=>{ if(r.form==="excavator") r.form = "plantcheck"; });
+(DB.plant||[]).forEach(p=>{ if(!p.type) p.type = "Excavator"; });
+if(!DB.defects) DB.defects = [];
+if(!DB.defectsBackfilled){
+  (DB.records||[]).filter(r=>r.form==="plantcheck" && r.status==="submitted").forEach(raiseDefects);
+  DB.defectsBackfilled = true;
+}
 delete DB.voCounter;          /* numbering is derived from the sheets themselves now */
+if(!DB.config.fitter) DB.config.fitter = { name:"", email:"" };
 if(!DB.jobHours) DB.jobHours = {};
 if(!DB.jobHours[DB.job]){
   /* carry across anything set on the old app-wide setting, otherwise use the default */
