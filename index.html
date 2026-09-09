@@ -67,6 +67,10 @@ input,select,textarea{font:inherit;color:inherit}
   .sect{margin:32px 0 12px}
   .thead .c2{display:block;flex:none}
   .trow .c2{display:block} .trow .subfleet{display:none}
+  .tsgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tsgrid .tsperson{margin-bottom:0}
+  .tstotal .big{font-size:40px}
+  .tsday{padding:10px 2px}
   .timegrid{grid-template-columns:1fr 1fr auto}
   .timegrid .calc{grid-column:auto;text-align:left}
 }
@@ -197,6 +201,40 @@ input[type=date].in,input[type=time].in,
 /* iOS ignores width on these unless the container is also constrained */
 .f,.rep,.card{min-width:0}
 @media(max-width:360px){ .g2{grid-template-columns:1fr} }
+
+/* timesheet */
+.tstotal{background:var(--green-50);border-radius:var(--r);padding:18px 20px;margin-bottom:12px;
+  display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.tstotal .big{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1;
+  color:var(--green-700);font-variant-numeric:tabular-nums}
+.tstotal .lab{font-size:12.5px;color:var(--ink-2);font-weight:600;margin-top:4px}
+.tstotal .side{text-align:right;font-size:13px;color:var(--ink-2);font-weight:600}
+
+.tsperson{background:var(--paper);border-radius:var(--r);box-shadow:var(--sh);
+  padding:14px 14px 12px;margin-bottom:10px}
+.tshead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  margin-bottom:10px}
+.tshead .nm{font-size:16px;font-weight:650;letter-spacing:-.01em;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tshead .tr{font-size:12.5px;color:var(--ink-3);font-weight:500;display:block}
+.tshead .tot{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
+.tshead .tot span{font-size:12px;color:var(--ink-3);font-weight:600}
+
+.tsdays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.tsday{display:grid;gap:3px;justify-items:center;padding:8px 1px;border-radius:11px;
+  background:var(--canvas)}
+.tsday .dl{font-size:9.5px;font-weight:700;color:var(--ink-3);letter-spacing:.03em}
+.tsday .dv{font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.tsday.none{background:transparent;box-shadow:inset 0 0 0 1px var(--line-2)}
+.tsday.none .dv{color:#C3CCC6}
+.tsday.norm .dv{color:var(--ink)}
+.tsday.extra{background:var(--warn-bg)} .tsday.extra .dv{color:var(--warn)}
+.tsday.hol{background:var(--info-bg)} .tsday.hol .dv{color:var(--info);font-size:11px}
+.tsday.we .dl{color:#C3CCC6}
+.tskey{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ink-3);
+  padding:2px 4px 0}
+.tskey i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;
+  vertical-align:-1px}
 
 /* diary tables */
 .ttable{border:1.5px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
@@ -468,7 +506,7 @@ function load(){
     if(raw) return JSON.parse(raw);
   }catch(e){}
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
-    job:CONFIG.jobs[0], plant:[], labour:[] };
+    job:CONFIG.jobs[0], plant:[], labour:[], leave:[], vos:[], voCounter:0 };
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
@@ -563,14 +601,16 @@ function currentPlant(){
   const t = todayISO();
   return (DB.plant||[]).filter(p => p.job===DB.job && (!p.offDate || p.offDate>t));
 }
-/* LOLER: a thorough examination certificate lapses after 6 or 12 months. The
-   register warns a month out, and refuses to let an expired item go quietly. */
+/* Thorough examination — LOLER for anything that lifts, PUWER for the rest, so
+   the register just calls it what it is. Warns a month out. */
+function examDateOf(p){ return p.examDate || p.lolerDate || ""; }
 function lolerState(p){
-  if(!p.lolerDate) return { key:"none", label:"No LOLER date", cls:"grey" };
-  const days = Math.round((parse(p.lolerDate) - parse(todayISO())) / 86400000);
-  if(days < 0) return { key:"expired", label:"LOLER expired "+shortDate(p.lolerDate), cls:"red", days };
-  if(days <= 30) return { key:"soon", label:"LOLER due in "+days+" day"+(days===1?"":"s"), cls:"amber", days };
-  return { key:"ok", label:"LOLER to "+shortDate(p.lolerDate), cls:"ok", days };
+  const dt = examDateOf(p);
+  if(!dt) return { key:"none", label:"No examination date", cls:"grey" };
+  const days = Math.round((parse(dt) - parse(todayISO())) / 86400000);
+  if(days < 0) return { key:"expired", label:"Thorough examination overdue — "+shortDate(dt), cls:"red", days };
+  if(days <= 30) return { key:"soon", label:"Thorough examination due in "+days+" day"+(days===1?"":"s"), cls:"amber", days };
+  return { key:"ok", label:"Thorough examination due "+shortDate(dt), cls:"ok", days };
 }
 function lolerAlerts(){
   return currentPlant().map(p=>({p, st:lolerState(p)}))
@@ -584,7 +624,7 @@ function refreshPlantPill(id){
   const st = lolerState(p);
   el.className = "pill " + st.cls;
   el.textContent = st.label;
-  const inp = document.querySelector('[data-pl="'+id+'.lolerDate"]');
+  const inp = document.querySelector('[data-pl-'+id+'="examDate"]');
   if(inp) inp.classList.toggle("err", st.key==="expired");
 }
 
@@ -592,7 +632,7 @@ function refreshPlantPill(id){
    if nobody has been ticked yet, everyone on the register. */
 function availablePeople(){
   const rows = (formState && formState.values.labourTable) || [];
-  const on = rows.filter(r=>r.onSite===true).map(r=>r.name).filter(Boolean);
+  const on = rows.filter(r=>r.onSite===true && !r.leave).map(r=>r.name).filter(Boolean);
   if(on.length) return on;
   return onSiteLabour(formState ? formState.date : null).map(l=>l.name).filter(Boolean);
 }
@@ -610,6 +650,67 @@ function onSiteLabour(date){
 function currentLabour(){
   const t = todayISO();
   return (DB.labour||[]).filter(l => l.job===DB.job && (!l.offDate || l.offDate>t));
+}
+
+/* ------------------------------------------------------- dayworks / VOs -- */
+/* Every diary with dayworks on it raises a numbered variation sheet — VO1,
+   VO2 and so on, in the order they happen — for the Principal Contractor to
+   sign, either on the screen or on paper. */
+function nextVoRef(){
+  DB.voCounter = (DB.voCounter||0) + 1;
+  return "VO" + DB.voCounter;
+}
+function voForRecord(recId){ return (DB.vos||[]).find(v=>v.recordId===recId) || null; }
+
+function syncVo(rec){
+  DB.vos = DB.vos || [];
+  const d = rec.data || {};
+  const has = d.dayworks === true;
+  const existing = voForRecord(rec.id);
+
+  if(!has){
+    /* dayworks answer changed to no — drop it, unless it has been signed */
+    if(existing && existing.status !== "signed")
+      DB.vos = DB.vos.filter(v=>v.id!==existing.id);
+    return;
+  }
+  const snapshot = {
+    ref: d.dwRef||"", instructedBy: d.dwBy||"", what: d.dwWhat||"",
+    labour: d.dwLabour||[], plant: d.dwPlant||[], smallPlant: d.dwSmallPlant||"",
+    hours: d.dwHours||"", materials: d.dwMaterials||"", comments: d.dwComments||"",
+    signedOnSite: d.dwSigned
+  };
+  if(existing){
+    if(existing.status !== "signed"){ existing.data = snapshot; existing.updatedAt = Date.now(); }
+    return;
+  }
+  DB.vos.push({
+    id:"vo_"+Date.now(), ref: nextVoRef(), recordId: rec.id, job: rec.job, date: rec.date,
+    raisedBy: rec.by, createdAt: Date.now(), status:"unsigned", data: snapshot
+  });
+}
+
+/* ------------------------------------------------------------------ leave -- */
+/* Booked against a person, not a job — someone on holiday is off everywhere.
+   Codes are what shows on the timesheet. */
+const LEAVE_TYPES = [
+  { key:"HOL",  label:"Annual leave" },
+  { key:"SICK", label:"Sick" },
+  { key:"TRN",  label:"Training" },
+  { key:"OFF",  label:"Other" }
+];
+const leaveLabel = k => (LEAVE_TYPES.find(t=>t.key===k)||{}).label || k;
+
+function leaveOn(personId, date){
+  return (DB.leave||[]).find(l => l.personId===personId && l.from<=date && l.to>=date) || null;
+}
+function leaveToday(date){
+  const d = date || todayISO();
+  return (DB.leave||[]).filter(l => l.from<=d && l.to>=d);
+}
+function leaveThisWeek(){
+  const days = weekDays(weekStart(todayISO()));
+  return (DB.leave||[]).filter(l => days.some(d => l.from<=d && l.to>=d));
 }
 
 /* Hours worked = finish minus start, less the break. */
@@ -636,6 +737,8 @@ let viewWeek = weekStart(todayISO());
 function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
+  if(name!=="leave"){ leaveDraft = null; }
+  if(name!=="vo"){ voSign = null; }
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
   render();
@@ -689,6 +792,9 @@ function render(){
   else if(view.name==="list") app.innerHTML = listView();
   else if(view.name==="plant") app.innerHTML = plantView();
   else if(view.name==="labour") app.innerHTML = labourView();
+  else if(view.name==="leave") app.innerHTML = leaveView();
+  else if(view.name==="vos") app.innerHTML = voListView();
+  else if(view.name==="vo") app.innerHTML = voView();
   else if(view.name==="timesheet") app.innerHTML = timesheetView();
   else if(view.name==="settings") app.innerHTML = settingsView();
   bind();
@@ -795,9 +901,9 @@ function homeView(){
        const bg = level==="red" ? "var(--bad-bg)" : level==="amber" ? "var(--warn-bg)" : "";
        const fg = level==="red" ? "var(--bad)" : level==="amber" ? "var(--warn)" : "var(--ink-3)";
        const line = expired.length
-         ? expired.length+" LOLER expired"+(soon.length?", "+soon.length+" due soon":"")
+         ? expired.length+" examination"+(expired.length===1?"":"s")+" overdue"+(soon.length?", "+soon.length+" due soon":"")
          : soon.length
-         ? soon.length+" LOLER inspection"+(soon.length===1?"":"s")+" due within a month"
+         ? soon.length+" thorough examination"+(soon.length===1?"":"s")+" due within a month"
          : n+" item"+(n===1?"":"s")+" — added to every diary";
        return `<button class="card" style="width:100%;text-align:left;
          ${bg?`background:${bg};box-shadow:none`:""}" data-go="plant">
@@ -813,10 +919,22 @@ function homeView(){
      <button class="card" style="width:100%;text-align:left" data-go="labour">
        <div style="display:flex;align-items:center;gap:12px">
          <span style="flex:1"><b style="font-size:16px;font-weight:640;display:block">Site labour</b>
-           <span style="font-size:13px;color:var(--ink-3)">${currentLabour().length} on the register</span></span>
+           <span style="font-size:13px;color:var(--ink-3)">${currentLabour().length} on the register${
+             leaveToday().length ? " · "+leaveToday().length+" off today" : ""}</span></span>
          <span style="color:var(--ink-3)">&rsaquo;</span>
        </div>
      </button>
+     ${(function(){
+       const vos = DB.vos||[];
+       const uns = vos.filter(v=>v.status!=="signed").length;
+       return `<button class="card" style="width:100%;text-align:left;${uns?"background:var(--warn-bg);box-shadow:none":""}" data-go="vos">
+         <div style="display:flex;align-items:center;gap:12px">
+           <span style="flex:1"><b style="font-size:16px;font-weight:640;display:block;${uns?"color:var(--warn)":""}">Dayworks</b>
+             <span style="font-size:13px;color:${uns?"var(--warn)":"var(--ink-3)"}">${
+               vos.length ? (uns?uns+" waiting to be signed":vos.length+" all signed") : "Raised from the diary"}</span></span>
+           <span style="color:var(--ink-3)">&rsaquo;</span>
+         </div></button>`;
+     })()}
      <button class="card" style="width:100%;text-align:left" data-go="timesheet">
        <div style="display:flex;align-items:center;gap:12px">
          <span style="flex:1"><b style="font-size:16px;font-weight:640;display:block">Timesheet</b>
@@ -846,11 +964,19 @@ function startForm(date){
     values.plantTable = values.plantTable || [];
     onSitePlant(date).forEach(p=>{ if(!values.plantTable.some(r=>r.id===p.id))
       values.plantTable.push({ id:p.id, item:p.item, fleetNo:p.fleetNo,
-        loler:p.lolerDate?shortDate(p.lolerDate):"n/a", inUse:undefined }); });
+        exam:examDateOf(p)?shortDate(examDateOf(p)):"n/a", inUse:undefined }); });
     values.labourTable = values.labourTable || [];
     onSiteLabour(date).forEach(l=>{ if(!values.labourTable.some(r=>r.id===l.id))
-      values.labourTable.push({ id:l.id, name:l.name, trade:l.trade,
-        onSite:undefined, normal:undefined, start:"", finish:"", reason:"" }); });
+      { const lv = leaveOn(l.id, date);
+        values.labourTable.push({ id:l.id, name:l.name, trade:l.trade,
+          leave: lv?lv.type:"", leaveNote: lv?leaveLabel(lv.type):"",
+          onSite: lv?false:undefined, normal:undefined, start:"", finish:"", reason:"" }); } });
+    /* leave booked after a draft was started still shows */
+    values.labourTable.forEach(r=>{
+      const lv = leaveOn(r.id, date);
+      if(lv && !r.leave){ r.leave = lv.type; r.leaveNote = leaveLabel(lv.type); r.onSite = false; }
+      if(!lv && r.leave){ r.leave = ""; r.leaveNote = ""; }
+    });
   }
   formState = { date, values, errors:{}, touched:false, id: rec?rec.id:null };
   go("form",{date});
@@ -867,12 +993,14 @@ function prefill(date){
   /* Plant comes straight off the register, so the only thing to type is hours. */
   v.plantTable = onSitePlant(date).map(p => ({
     id:p.id, item:p.item, fleetNo:p.fleetNo,
-    loler: p.lolerDate ? shortDate(p.lolerDate) : "n/a", inUse:undefined
+    exam: examDateOf(p) ? shortDate(examDateOf(p)) : "n/a", inUse:undefined
   }));
-  v.labourTable = onSiteLabour(date).map(l => ({
-    id:l.id, name:l.name, trade:l.trade,
-    onSite:undefined, normal:undefined, start:"", finish:"", reason:""
-  }));
+  v.labourTable = onSiteLabour(date).map(l => {
+    const lv = leaveOn(l.id, date);
+    return { id:l.id, name:l.name, trade:l.trade,
+      leave: lv ? lv.type : "", leaveNote: lv ? leaveLabel(lv.type) : "",
+      onSite: lv ? false : undefined, normal:undefined, start:"", finish:"", reason:"" };
+  });
   return v;
 }
 function validate(){
@@ -890,6 +1018,7 @@ function validate(){
     if(f.type==="labourtable"){
       for(let i=0;i<val.length;i++){
         const r = val[i];
+        if(r.leave) continue;                       /* booked off, nothing to answer */
         if(r.onSite===undefined){ e[f.id]="Say who was on site"; return; }
         if(r.onSite===true && r.normal===undefined)
           { e[f.id]=(r.name||"Someone")+": normal hours?"; return; }
@@ -1013,6 +1142,13 @@ function fieldHtml(f, v, err, path){
         <div class="thead"><span class="c1">Name</span><span class="c3">On site</span></div>`+
         (rows.length ? rows.map((r,i)=>{
           const hrs = rowHours(r);
+          if(r.leave){
+            return `<div class="trow" style="background:var(--info-bg)"><div class="main">
+              <span class="c1"><b>${esc(r.name||"Unnamed")}</b>
+                <span>${esc(r.trade||"")}</span></span>
+              <span class="pill info" style="flex:none">${esc(r.leave)} · ${esc(leaveLabel(r.leave))}</span>
+            </div></div>`;
+          }
           return `<div class="trow"><div class="main">
             <span class="c1"><b>${esc(r.name||"Unnamed")}</b><span>${esc(r.trade||"")}</span></span>
             <span class="yn">
@@ -1187,7 +1323,7 @@ let plantDraft = null;
 let plantEditId = null;
 
 function blankPlant(){
-  return { item:"", fleetNo:"", owner:"Hired", onDate:todayISO(), offDate:"", lolerDate:"" };
+  return { item:"", fleetNo:"", owner:"Hired", onDate:todayISO(), offDate:"", examDate:"" };
 }
 
 function plantFields(p, attr){
@@ -1206,11 +1342,12 @@ function plantFields(p, attr){
     <div class="g2">
       <div class="f"><label>On site from</label>
         <input class="in" type="date" ${attr}="onDate" value="${esc(p.onDate||"")}"></div>
-      <div class="f"><label>LOLER expiry</label>
-        <input class="in ${ls.key==="expired"?"err":""}" type="date" ${attr}="lolerDate"
-          value="${esc(p.lolerDate||"")}"></div>
+      <div class="f"><label>Thorough examination due</label>
+        <input class="in ${ls.key==="expired"?"err":""}" type="date" ${attr}="examDate"
+          value="${esc(examDateOf(p))}"></div>
     </div>
-    <div class="hint" style="margin:-8px 0 0">LOLER: thorough examination certificate. Leave blank if it does not lift.</div>`;
+    <div class="hint" style="margin:-8px 0 0">LOLER for lifting equipment, PUWER for everything
+    else. Leave blank if neither applies.</div>`;
 }
 
 function plantView(){
@@ -1225,7 +1362,8 @@ function plantView(){
   const alertCard = alerts.length ? (function(){
     const bad = alerts.some(x=>x.st.key==="expired");
     return `<div class="card" style="background:${bad?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none">
-      <h3 style="color:${bad?"var(--bad)":"var(--warn)"}">${bad?"LOLER expired":"LOLER due"}</h3>
+      <h3 style="color:${bad?"var(--bad)":"var(--warn)"}">
+        ${bad?"Thorough examination overdue":"Thorough examination due"}</h3>
       <p>${alerts.map(x=>esc((x.p.item||"Unnamed item")+" — "+x.st.label)).join("<br>")}</p></div>`;
   })() : "";
 
@@ -1378,7 +1516,163 @@ function labourView(){
     ${on.length ? `<div class="sect">On site (${on.length})</div><div class="reggrid">${rows}</div>`
       : `<div class="card"><h3>Nobody added yet</h3><p>Add the gang working on this job.</p></div>`}
     ${add}
+    <button class="card" style="width:100%;text-align:left" data-go="leave">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="flex:1"><b style="font-size:16px;font-weight:640;display:block">Time off</b>
+          <span style="font-size:13px;color:var(--ink-3)">${leaveThisWeek().length} booked this week</span></span>
+        <span style="color:var(--ink-3)">&rsaquo;</span>
+      </div>
+    </button>
     ${off.length ? `<div class="sect">Left site (${off.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
+}
+
+let leaveDraft = null;
+
+function leaveView(){
+  const people = (DB.labour||[]).filter(l=>l.job===DB.job);
+  const all = (DB.leave||[]).slice().sort((a,b)=>a.from.localeCompare(b.from));
+  const t = todayISO();
+  const upcoming = all.filter(l=>l.to>=t);
+  const past = all.filter(l=>l.to<t).reverse();
+  const nameOf = id => (DB.labour||[]).find(x=>x.id===id)?.name || "Unknown";
+
+  const card = (l, faded) => {
+    const days = (function(){ let n=0,d=l.from; while(d<=l.to && n<400){ if(isWorking(d)) n++; d=addDays(d,1);} return n; })();
+    return `<div class="card" style="${faded?"background:var(--canvas);box-shadow:none;opacity:.72":""}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:16.5px;font-weight:650;display:block">${esc(nameOf(l.personId))}</b>
+          <span style="font-size:13px;color:var(--ink-2)">
+            ${shortDate(l.from)}${l.from===l.to?"":" to "+shortDate(l.to)} · ${days} working day${days===1?"":"s"}
+          </span>
+          ${l.note?`<span style="display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px">${esc(l.note)}</span>`:""}
+        </div>
+        <span class="pill ${l.type==="HOL"?"info":"grey"}">${esc(l.type)}</span>
+      </div>
+      <div style="margin-top:12px">
+        <button class="btn line sm" style="margin:0;color:var(--bad)" data-lvrm="${l.id}">Remove</button>
+      </div></div>`;
+  };
+
+  const add = leaveDraft ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+      <h3 style="margin-bottom:14px">Book time off</h3>
+      <div class="f"><label>Who</label>
+        <select class="in" data-lvd="personId">
+          <option value="">Choose…</option>
+          ${people.map(pp=>`<option value="${pp.id}" ${leaveDraft.personId===pp.id?"selected":""}>${esc(pp.name)}</option>`).join("")}
+        </select></div>
+      <div class="f"><label>Type</label>
+        <select class="in" data-lvd="type">
+          ${LEAVE_TYPES.map(tt=>`<option value="${tt.key}" ${leaveDraft.type===tt.key?"selected":""}>${esc(tt.label)}</option>`).join("")}
+        </select></div>
+      <div class="g2">
+        <div class="f"><label>From</label>
+          <input class="in" type="date" data-lvd="from" value="${esc(leaveDraft.from)}"></div>
+        <div class="f"><label>To</label>
+          <input class="in" type="date" data-lvd="to" value="${esc(leaveDraft.to)}"></div>
+      </div>
+      <div class="f" style="margin:0"><label>Note</label>
+        <input class="in" data-lvd="note" value="${esc(leaveDraft.note||"")}" placeholder="Optional"></div>
+      <button class="btn" style="margin:16px 0 8px" data-lvsave="1">Book it</button>
+      <button class="btn ghost" style="margin:0" data-lvcancel="1">Cancel</button>
+    </div>`
+    : `<button class="btn" data-lvadd="1">+ Book time off</button>`;
+
+  return `<div class="top"><button class="chip" data-go="labour">&lsaquo; Back</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Time off</h1>
+    <p class="sub">${esc(DB.job)}</p>
+    <div class="card" style="background:var(--green-50);box-shadow:none">
+      <p>Book someone off and the diary marks them automatically — no need to answer for them —
+      and the timesheet shows the code instead of hours.</p>
+    </div>
+    ${people.length ? "" : `<div class="card"><h3>Nobody on the labour register</h3>
+      <p>Add the gang under Site labour first.</p></div>`}
+    ${upcoming.length ? `<div class="sect">Booked</div>`+upcoming.map(l=>card(l,false)).join("") : ""}
+    ${add}
+    ${past.length ? `<div class="sect">Past</div>`+past.slice(0,10).map(l=>card(l,true)).join("") : ""}`;
+}
+
+function voListView(){
+  const vos = (DB.vos||[]).slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const unsigned = vos.filter(v=>v.status!=="signed").length;
+  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button>
+      ${unsigned?`<span class="pill amber">${unsigned} unsigned</span>`:""}</div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Dayworks</h1>
+    <p class="sub">${esc(DB.job)}</p>
+    ${vos.length?"":`<div class="card"><h3>Nothing yet</h3>
+      <p>Answer yes to dayworks on a diary and a numbered sheet is raised here automatically.</p></div>`}
+    ${vos.map(v=>`<button class="card" style="width:100%;text-align:left" data-vo="${v.id}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:16.5px;font-weight:650;display:block">${esc(v.ref)}${v.data.ref?" · "+esc(v.data.ref):""}</b>
+          <span style="font-size:13px;color:var(--ink-2)">${longDate(v.date)}</span>
+          <span style="display:block;font-size:13px;color:var(--ink-3);margin-top:3px;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(v.data.what||"")}</span>
+        </div>
+        <span class="pill ${v.status==="signed"?"ok":"amber"}">${v.status==="signed"?"Signed":"Unsigned"}</span>
+      </div></button>`).join("")}`;
+}
+
+let voSign = null;   /* the signature being captured */
+
+function voView(){
+  const v = (DB.vos||[]).find(x=>x.id===view.id);
+  if(!v) return `<div class="card"><h3>Not found</h3></div>`;
+  const d = v.data;
+  const row = (k,val) => val ? `<div class="kv"><span class="k">${esc(k)}</span>
+    <span class="v">${esc(Array.isArray(val)?val.join(", "):val)}</span></div>` : "";
+
+  const signBlock = v.status==="signed"
+    ? `<div class="card" style="background:var(--ok-bg);box-shadow:none">
+        <h3 style="color:var(--ok)">Signed</h3>
+        <p>${esc(v.signedBy)}${v.signedCompany?", "+esc(v.signedCompany):""} — ${stamp(v.signedAt)}</p>
+        ${v.signature?`<img src="${v.signature}" alt="Signature"
+          style="height:70px;margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px">`:""}
+      </div>`
+    : voSign
+    ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+        <h3 style="margin-bottom:12px">Signature — Principal Contractor</h3>
+        <div class="f"><label>Name</label>
+          <input class="in" data-vs="name" value="${esc(voSign.name)}" placeholder="Who is signing"></div>
+        <div class="f"><label>Company</label>
+          <input class="in" data-vs="company" value="${esc(voSign.company)}"></div>
+        <div class="f"><label>Sign below</label>
+          <canvas class="sig" id="voSig"></canvas>
+          <div style="display:flex;justify-content:flex-end;padding-top:8px">
+            <button data-vsclear="1" style="color:var(--bad);font-weight:650;font-size:13px">Clear</button>
+          </div></div>
+        <button class="btn" style="margin:0 0 8px" data-vsdone="1">Save signature</button>
+        <button class="btn ghost" style="margin:0" data-vscancel="1">Cancel</button>
+      </div>`
+    : `<button class="btn" data-vsstart="1">Sign on screen</button>`;
+
+  return `<div class="top"><button class="chip" data-go="vos">&lsaquo; Back</button>
+      <span class="pill ${v.status==="signed"?"ok":"amber"}">${v.status==="signed"?"Signed":"Unsigned"}</span></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(v.ref)}</h1>
+    <p class="sub">${esc(v.job)} · ${longDate(v.date)}</p>
+
+    <div class="card">
+      ${row("Instruction ref", d.ref)}
+      ${row("Instructed by", d.instructedBy)}
+      ${row("Raised by", v.raisedBy)}
+      ${row("Time taken", d.hours?d.hours+" hours":"")}
+    </div>
+
+    <div class="sect">What was instructed</div>
+    <div class="card"><p>${esc(d.what||"—")}</p></div>
+
+    <div class="sect">Resources</div>
+    <div class="card">
+      ${row("Labour", d.labour&&d.labour.length?d.labour:"")}
+      ${row("Plant", d.plant&&d.plant.length?d.plant:"")}
+      ${row("Small plant", d.smallPlant)}
+      ${row("Materials", d.materials)}
+      ${row("Comments", d.comments)}
+    </div>
+
+    <div class="sect">Sign off</div>
+    ${signBlock}
+    <button class="btn ghost" data-voprint="${v.id}">Open sheet to print</button>`;
 }
 
 /* ------------------------------------------------------------- timesheet -- */
@@ -1389,8 +1683,13 @@ function timesheetWeek(ws){
   days.forEach(d=>{
     const rec = DB.records.find(r=>r.date===d && r.job===DB.job && r.status==="submitted");
     (rec && rec.data.labourTable || []).forEach(row=>{
-      if(row.onSite!==true) return;
       const key = row.id || row.name;
+      if(row.leave){
+        if(!people[key]) people[key] = { name:row.name, trade:row.trade, days:{}, total:0 };
+        people[key].days[d] = { leave:row.leave, hours:0 };
+        return;
+      }
+      if(row.onSite!==true) return;
       if(!people[key]) people[key] = { name:row.name, trade:row.trade, days:{}, total:0 };
       const h = rowHours(row);
       people[key].days[d] = { hours:h, start: row.normal===false?row.start:hoursFor().start,
@@ -1406,42 +1705,60 @@ function timesheetView(){
   const ws = view.week || weekStart(todayISO());
   const { days, people } = timesheetWeek(ws);
   const grand = people.reduce((n,p)=>n+p.total,0);
-  const cols = days.map(d=>`<th style="text-align:center;font-size:10.5px">${["M","T","W","T","F","S","S"][days.indexOf(d)]}<br>${parse(d).getDate()}</th>`).join("");
+  const round = n => Math.round(n*100)/100;
+  const LETTERS = ["M","T","W","T","F","S","S"];
 
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button>
-      <span class="pill info">${Math.round(grand*100)/100} hrs</span></div>
+  const dayCell = (p, d, i) => {
+    const c = p.days[d];
+    const weekend = i > 4;
+    let cls = "none", val = "–";
+    if(c && c.leave){ cls = "hol"; val = c.leave; }
+    else if(c){ cls = c.normal ? "norm" : "extra"; val = round(c.hours); }
+    return `<div class="tsday ${cls}${weekend?" we":""}">
+      <span class="dl">${LETTERS[i]}</span><span class="dv">${esc(val)}</span></div>`;
+  };
+
+  const body = people.map(p=>`
+    <div class="tsperson">
+      <div class="tshead">
+        <span class="nm">${esc(p.name)}<span class="tr">${esc(p.trade||"")}</span></span>
+        <span class="tot">${round(p.total)}<span> hrs</span></span>
+      </div>
+      <div class="tsdays">${days.map((d,i)=>dayCell(p,d,i)).join("")}</div>
+    </div>`).join("");
+
+  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Timesheet</h1>
-    <p class="sub">${esc(DB.job)} · week commencing ${shortDate(ws)}</p>
+    <p class="sub">${esc(DB.job)}</p>
 
-    <div class="card" style="display:flex;align-items:center;gap:10px;padding:8px">
-      <button class="btn line sm" style="margin:0" data-ts="-1">&lsaquo;</button>
-      <span style="flex:1;text-align:center;font-weight:640">${shortDate(ws)} – ${shortDate(addDays(ws,6))}</span>
-      <button class="btn line sm" style="margin:0" data-ts="1" ${ws>=weekStart(todayISO())?"disabled":""}>&rsaquo;</button>
+    <div class="card" style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:12px">
+      <button class="btn line sm" style="margin:0" data-ts="-1" aria-label="Previous week">&lsaquo;</button>
+      <span style="flex:1;text-align:center">
+        <b style="display:block;font-weight:650">${ws===weekStart(todayISO())?"This week":"Week commencing "+shortDate(ws)}</b>
+        <span style="font-size:12.5px;color:var(--ink-3)">${shortDate(ws)} – ${shortDate(addDays(ws,6))}</span>
+      </span>
+      <button class="btn line sm" style="margin:0" data-ts="1"
+        ${ws>=weekStart(todayISO())?"disabled":""} aria-label="Next week">&rsaquo;</button>
     </div>
 
-    ${people.length ? `<div class="card" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <tr><th style="text-align:left;font-size:11px;color:var(--ink-3)">Name</th>${cols}
-          <th style="text-align:right;font-size:11px;color:var(--ink-3)">Total</th></tr>
-        ${people.map(p=>`<tr>
-          <td style="padding:9px 4px;border-top:1px solid var(--line-2)">
-            <b style="font-weight:620">${esc(p.name)}</b>
-            <span style="display:block;font-size:11.5px;color:var(--ink-3)">${esc(p.trade||"")}</span></td>
-          ${days.map(d=>`<td style="padding:9px 2px;border-top:1px solid var(--line-2);text-align:center;
-            font-variant-numeric:tabular-nums;${p.days[d]&&!p.days[d].normal?"color:var(--warn);font-weight:700":""}">
-            ${p.days[d]?p.days[d].hours:"—"}</td>`).join("")}
-          <td style="padding:9px 4px;border-top:1px solid var(--line-2);text-align:right;
-            font-weight:700;font-variant-numeric:tabular-nums">${Math.round(p.total*100)/100}</td></tr>`).join("")}
-        <tr><td style="padding:10px 4px;border-top:2px solid var(--line)"><b>Total</b></td>
-          <td colspan="${days.length}" style="border-top:2px solid var(--line)"></td>
-          <td style="padding:10px 4px;border-top:2px solid var(--line);text-align:right;font-weight:700">
-            ${Math.round(grand*100)/100}</td></tr>
-      </table>
-      <p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
-        Hours are finish minus start, less a ${hoursFor().breakMins} minute break.
-        Amber figures were outside normal hours.</p>
-    </div>
-    <button class="btn" data-tsprint="${ws}">Open timesheet PDF</button>`
+    ${people.length ? `
+      <div class="tstotal">
+        <div><div class="big">${round(grand)}</div><div class="lab">hours this week</div></div>
+        <div class="side">${people.length} ${people.length===1?"person":"people"}<br>
+          ${people.filter(p=>p.total>0).length} worked</div>
+      </div>
+
+      <div class="tsgrid">${body}</div>
+
+      <div class="tskey">
+        <span><i style="background:var(--canvas);box-shadow:inset 0 0 0 1px var(--line)"></i>Normal hours</span>
+        <span><i style="background:var(--warn-bg)"></i>Outside normal hours</span>
+        <span><i style="background:var(--info-bg)"></i>Booked off</span>
+      </div>
+      <p style="font-size:12.5px;color:var(--ink-3);padding:8px 4px 0">
+        Hours are finish minus start, less a ${hoursFor().breakMins} minute break.</p>
+
+      <button class="btn" style="margin-top:16px" data-tsprint="${ws}">Open timesheet PDF</button>`
     : `<div class="card"><h3>Nothing yet</h3><p>Submit a diary with labour on it and the
         timesheet appears here.</p></div>`}`;
 }
@@ -1655,6 +1972,23 @@ function stampPhoto(file){
     };
     fr.readAsDataURL(file);
   });
+}
+
+function wireVoSignature(cv){
+  const dpr = window.devicePixelRatio||1;
+  const rect = cv.getBoundingClientRect();
+  cv.width = rect.width*dpr; cv.height = rect.height*dpr;
+  const g = cv.getContext("2d"); g.scale(dpr,dpr);
+  g.lineWidth=2.2; g.lineCap="round"; g.lineJoin="round"; g.strokeStyle="#16261C";
+  if(voSign && voSign.src){ const im=new Image(); im.onload=()=>g.drawImage(im,0,0,rect.width,rect.height); im.src=voSign.src; }
+  let drawing=false, last=null;
+  const pos = e => { const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; };
+  cv.addEventListener("pointerdown", e=>{ e.preventDefault(); drawing=true; last=pos(e); cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e=>{ if(!drawing)return; const p=pos(e);
+    g.beginPath(); g.moveTo(last.x,last.y); g.lineTo(p.x,p.y); g.stroke(); last=p; });
+  const end = () => { if(!drawing)return; drawing=false; if(voSign) voSign.src = cv.toDataURL("image/png"); };
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointerleave", end);
 }
 
 /* --------------------------------------------------------------- signature -- */
@@ -1921,6 +2255,53 @@ function bind(){
       "Remove", ()=>{ DB.labour = DB.labour.filter(x=>x.id!==id); save(); render(); toast("Removed"); });
   });
 
+  app.querySelectorAll("[data-vo]").forEach(el=>el.onclick=()=>go("vo",{id:el.dataset.vo}));
+  const vss = app.querySelector("[data-vsstart]");
+  if(vss) vss.onclick = ()=>{ voSign = { name:"", company:"", src:null }; render(); };
+  const vsc = app.querySelector("[data-vscancel]");
+  if(vsc) vsc.onclick = ()=>{ voSign = null; render(); };
+  app.querySelectorAll("[data-vs]").forEach(el=>{
+    el.oninput = () => { if(voSign) voSign[el.dataset.vs] = el.value; };
+    el.onchange = el.oninput;
+  });
+  const voCanvas = app.querySelector("#voSig");
+  if(voCanvas) wireVoSignature(voCanvas);
+  const vsclear = app.querySelector("[data-vsclear]");
+  if(vsclear) vsclear.onclick = ()=>{ if(voSign) voSign.src = null; render(); };
+  const vsdone = app.querySelector("[data-vsdone]");
+  if(vsdone) vsdone.onclick = ()=>{
+    if(!voSign.name.trim()){ toast("Enter the name of who is signing"); return; }
+    if(!voSign.src){ toast("A signature is needed"); return; }
+    const v = DB.vos.find(x=>x.id===view.id);
+    v.status="signed"; v.signedBy=voSign.name.trim(); v.signedCompany=voSign.company.trim();
+    v.signature=voSign.src; v.signedAt=Date.now();
+    voSign=null; save(); render(); toast(v.ref+" signed");
+  };
+  const vop = app.querySelector("[data-voprint]");
+  if(vop) vop.onclick = ()=>printVo(vop.dataset.voprint);
+
+  app.querySelectorAll("[data-lvd]").forEach(el=>{
+    el.oninput = () => { if(leaveDraft) leaveDraft[el.dataset.lvd] = el.value; };
+    el.onchange = el.oninput;
+  });
+  const lva = app.querySelector("[data-lvadd]");
+  if(lva) lva.onclick = ()=>{ leaveDraft = { personId:"", type:"HOL", from:todayISO(), to:todayISO(), note:"" }; render(); };
+  const lvc = app.querySelector("[data-lvcancel]");
+  if(lvc) lvc.onclick = ()=>{ leaveDraft = null; render(); };
+  const lvs = app.querySelector("[data-lvsave]");
+  if(lvs) lvs.onclick = ()=>{
+    if(!leaveDraft.personId){ toast("Choose who is off"); return; }
+    if(leaveDraft.to < leaveDraft.from){ toast("The end date is before the start"); return; }
+    DB.leave = DB.leave || [];
+    DB.leave.push(Object.assign({ id:"lv_"+Date.now() }, leaveDraft));
+    leaveDraft = null; save(); render(); toast("Booked");
+  };
+  app.querySelectorAll("[data-lvrm]").forEach(el=>el.onclick=()=>{
+    const id = el.getAttribute("data-lvrm");
+    askConfirm("Remove this booking?","Diaries already submitted keep what they recorded.",
+      "Remove", ()=>{ DB.leave = DB.leave.filter(x=>x.id!==id); save(); render(); toast("Removed"); });
+  });
+
   app.querySelectorAll("[data-ts]").forEach(el=>el.onclick=()=>{
     const ws = view.week || weekStart(todayISO());
     go("timesheet", { week: addDays(ws, 7*Number(el.dataset.ts)) });
@@ -1965,8 +2346,10 @@ function submitForm(){
   rec.byEmail = cfg().user.email;
   rec.synced = false;
   rec.version = (rec.version||0)+1;
+  syncVo(rec);
   save();
-  toast("Diary submitted");
+  const vo = voForRecord(rec.id);
+  toast(vo ? "Diary submitted · "+vo.ref+" raised" : "Diary submitted");
   go("record",{id:rec.id});
 }
 
@@ -2060,17 +2443,28 @@ function printTimesheet(ws){
         ${days.map(d=>`<th style="width:auto;text-align:center">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]}<br>${parse(d).getDate()}</th>`).join("")}
         <th style="width:auto;text-align:right">Total</th></tr>
       ${people.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.trade||"")}</td>
-        ${days.map(d=>`<td style="text-align:center">${p.days[d]?p.days[d].hours:"—"}</td>`).join("")}
+        ${days.map(d=>{ const c=p.days[d];
+          return `<td style="text-align:center">${c ? (c.leave||c.hours) : "—"}</td>`; }).join("")}
         <td style="text-align:right"><b>${Math.round(p.total*100)/100}</b></td></tr>`).join("")}
       <tr><td colspan="${days.length+2}"><b>Total hours</b></td>
         <td style="text-align:right"><b>${Math.round(grand*100)/100}</b></td></tr>
     </table>
+    ${(function(){
+      const rows=[];
+      people.forEach(p=>days.forEach(d=>{ const c=p.days[d];
+        if(c&&c.leave) rows.push(`<tr><td>${esc(p.name)}</td>
+          <td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d)}</td>
+          <td>${esc(c.leave)}</td><td>${esc(leaveLabel(c.leave))}</td></tr>`); }));
+      return rows.length ? `<h2>Absence</h2><table>
+        <tr><th style="width:auto">Name</th><th style="width:auto">Day</th>
+        <th style="width:auto">Code</th><th style="width:auto">Reason</th></tr>${rows.join("")}</table>` : "";
+    })()}
     <h2>Start and finish times</h2>
     <table><tr><th style="width:auto">Name</th><th style="width:auto">Day</th>
       <th style="width:auto">Start</th><th style="width:auto">Finish</th>
       <th style="width:auto">Break</th><th style="width:auto">Hours</th>
       <th style="width:auto">Reason if different</th></tr>
-      ${people.map(p=>days.filter(d=>p.days[d]).map(d=>`<tr>
+      ${people.map(p=>days.filter(d=>p.days[d]&&!p.days[d].leave).map(d=>`<tr>
         <td>${esc(p.name)}</td><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d)}</td>
         <td>${esc(p.days[d].start)}</td><td>${esc(p.days[d].finish)}</td>
         <td>${hoursFor().breakMins} min</td><td>${p.days[d].hours}</td>
@@ -2079,6 +2473,60 @@ function printTimesheet(ws){
     <div class="foot"><span>${esc(c.company)} · timesheet w/c ${shortDate(ws)}</span>
       <span>Built from the site diaries · ${stamp(Date.now())}</span></div>`;
   document.getElementById("sheetTitle").textContent = "Timesheet — w/c " + shortDate(ws);
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
+}
+
+function printVo(id){
+  const v = (DB.vos||[]).find(x=>x.id===id);
+  const c = cfg(), d = v.data;
+  const line = (k,val) => val ? `<tr><th>${esc(k)}</th><td>${esc(Array.isArray(val)?val.join(", "):val)}</td></tr>` : "";
+  const signed = v.status==="signed";
+  document.getElementById("sheet").innerHTML = `
+    <div class="ph-head">
+      <img src="${LOGO}" alt="${esc(c.company)}">
+      <div style="text-align:right"><h1>Daywork Sheet</h1>
+        <div style="font-size:13px;font-weight:700;color:#1F5A2D">${esc(v.ref)}</div></div>
+    </div>
+    <table>
+      <tr><th>Job</th><td>${esc(v.job)}</td></tr>
+      <tr><th>Date of works</th><td>${longDate(v.date)}</td></tr>
+      ${line("Instruction reference", d.ref)}
+      ${line("Instructed by", d.instructedBy)}
+      <tr><th>Raised by</th><td>${esc(v.raisedBy||c.user.name)}</td></tr>
+    </table>
+    <h2>Work instructed</h2>
+    <table><tr><td style="white-space:pre-wrap">${esc(d.what||"")}</td></tr></table>
+    <h2>Resources used</h2>
+    <table>
+      ${line("Labour", d.labour&&d.labour.length?d.labour:"None recorded")}
+      ${line("Plant", d.plant&&d.plant.length?d.plant:"None recorded")}
+      ${line("Small plant and tools", d.smallPlant)}
+      ${line("Time taken", d.hours?d.hours+" hours":"")}
+      ${line("Materials", d.materials)}
+      ${line("Comments", d.comments)}
+    </table>
+    <h2>Agreement</h2>
+    <p style="margin:0 0 10px">The works described above were instructed on site and carried out
+    as recorded. Signing confirms the resources and time shown are a true record. This sheet does
+    not confirm agreement of rates or value.</p>
+    <table>
+      <tr><th style="width:20%">Signed for</th><th style="width:30%">Name</th>
+        <th style="width:30%">Signature</th><th style="width:20%">Date</th></tr>
+      <tr>
+        <td>${esc(c.company)}</td><td>${esc(v.raisedBy||c.user.name)}</td>
+        <td style="height:56px"></td><td>${shortDate(v.date)}</td>
+      </tr>
+      <tr>
+        <td>Principal Contractor</td>
+        <td>${signed?esc(v.signedBy)+(v.signedCompany?"<br>"+esc(v.signedCompany):""):""}</td>
+        <td style="height:56px">${signed&&v.signature?`<img src="${v.signature}" style="height:48px">`:""}</td>
+        <td>${signed?shortDate(iso(v.signedAt)):""}</td>
+      </tr>
+    </table>
+    <div class="foot"><span>${esc(c.company)} · ${esc(v.ref)}${signed?" · signed "+stamp(v.signedAt):" · awaiting signature"}</span>
+      <span>Printed ${stamp(Date.now())}</span></div>`;
+  document.getElementById("sheetTitle").textContent = v.ref + " — Daywork Sheet";
   document.getElementById("sheetwrap").classList.add("open");
   window.scrollTo(0,0);
 }
@@ -2156,6 +2604,9 @@ if(!DB.startDate){
 }
 if(!DB.plant) DB.plant = [];
 if(!DB.labour) DB.labour = [];
+if(!DB.leave) DB.leave = [];
+if(!DB.vos) DB.vos = [];
+if(DB.voCounter === undefined) DB.voCounter = 0;
 if(!DB.jobHours) DB.jobHours = {};
 if(!DB.jobHours[DB.job]){
   /* carry across anything set on the old app-wide setting, otherwise use the default */
