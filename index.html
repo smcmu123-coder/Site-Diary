@@ -774,7 +774,7 @@ function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="leave"){ leaveDraft = null; }
-  if(name!=="vo"){ voSign = null; }
+  if(name!=="vo"){ voSign = null; voEdit = null; }
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
   render();
@@ -1739,25 +1739,82 @@ function voListView(){
       </div></button>`).join("")}`;
 }
 
-let voSign = null;   /* the signature being captured */
+let voSign = null;   /* the PC signature being captured */
+let voEdit = null;   /* a sheet being amended */
 
 function voView(){
   const v = (DB.vos||[]).find(x=>x.id===view.id);
   if(!v) return `<div class="card"><h3>Not found</h3></div>`;
   const d = v.data;
+  const signed = v.status==="signed";
   const row = (k,val) => val ? `<div class="kv"><span class="k">${esc(k)}</span>
     <span class="v">${esc(Array.isArray(val)?val.join(", "):val)}</span></div>` : "";
 
-  const signBlock = v.status==="signed"
+  /* ---- amending ---- */
+  if(voEdit){
+    return `<div class="top"><button class="chip" data-vecancel="1">&lsaquo; Cancel</button></div>
+      <h1 class="greet" style="font-size:22px;margin-top:12px">Amend ${esc(v.ref)}</h1>
+      <p class="sub">${longDate(v.date)}</p>
+      <div class="card">
+        <div class="f"><label>Instruction reference</label>
+          <input class="in" data-ve="ref" value="${esc(voEdit.ref||"")}"></div>
+        <div class="f"><label>Instructed by</label>
+          <input class="in" data-ve="instructedBy" value="${esc(voEdit.instructedBy||"")}"></div>
+        <div class="f"><label>What was instructed</label>
+          <textarea class="in" data-ve="what">${esc(voEdit.what||"")}</textarea></div>
+        <div class="f"><label>Time taken</label>
+          <div class="g2">
+            <div style="position:relative">
+              <input class="in" type="number" min="0" inputmode="numeric" data-veh="h"
+                value="${esc((voEdit.hours&&voEdit.hours.h)||"")}" placeholder="0">
+              <span style="position:absolute;right:12px;top:16px;color:var(--ink-3);font-size:13.5px;
+                font-weight:600;pointer-events:none">hours</span></div>
+            <div style="position:relative">
+              <input class="in" type="number" min="0" max="59" inputmode="numeric" data-veh="m"
+                value="${esc((voEdit.hours&&voEdit.hours.m)||"")}" placeholder="0">
+              <span style="position:absolute;right:12px;top:16px;color:var(--ink-3);font-size:13.5px;
+                font-weight:600;pointer-events:none">mins</span></div>
+          </div></div>
+        <div class="f"><label>Materials</label>
+          <textarea class="in" data-ve="materials">${esc(voEdit.materials||"")}</textarea></div>
+        <div class="f" style="margin:0"><label>Comments</label>
+          <textarea class="in" data-ve="comments">${esc(voEdit.comments||"")}</textarea></div>
+      </div>
+      <div class="card" style="background:var(--canvas);box-shadow:none">
+        <p>Labour, plant and small plant come from the diary for ${shortDate(v.date)}.
+        Amend the diary to change those.</p>
+      </div>
+      <button class="btn" data-vesave="1">Save changes</button>
+      <button class="btn ghost" data-vecancel="1">Cancel</button>`;
+  }
+
+  /* ---- signatures ---- */
+  const mine = v.cgcSignature
+    ? `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <h3>Cheltenham Green Civils</h3><span class="pill ok">Signed</span></div>
+        <p style="margin-top:2px">${esc(v.cgcSignedBy)} — ${stamp(v.cgcSignedAt)}</p>
+        <img src="${v.cgcSignature}" alt="Signature" style="height:64px;margin-top:10px;
+          border:1px solid var(--line);border-radius:8px;padding:4px">
+        <button class="btn line sm" style="margin:12px 0 0" data-mysign="1">Sign again</button>
+      </div>`
+    : `<div class="card">
+        <h3>Cheltenham Green Civils</h3>
+        <p style="margin-bottom:12px">Your signature, as the person raising the sheet.</p>
+        <button class="btn line" style="margin:0" data-mysign="1">Sign as ${esc(cfg().user.name)}</button>
+      </div>`;
+
+  const theirs = signed
     ? `<div class="card" style="background:var(--ok-bg);box-shadow:none">
-        <h3 style="color:var(--ok)">Signed</h3>
-        <p>${esc(v.signedBy)}${v.signedCompany?", "+esc(v.signedCompany):""} — ${stamp(v.signedAt)}</p>
-        ${v.signature?`<img src="${v.signature}" alt="Signature"
-          style="height:70px;margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px">`:""}
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <h3 style="color:var(--ok)">Principal Contractor</h3><span class="pill ok">Signed</span></div>
+        <p style="margin-top:2px">${esc(v.signedBy)}${v.signedCompany?", "+esc(v.signedCompany):""} — ${stamp(v.signedAt)}</p>
+        ${v.signature?`<img src="${v.signature}" alt="Signature" style="height:64px;margin-top:10px;
+          background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px">`:""}
       </div>`
     : voSign
     ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
-        <h3 style="margin-bottom:12px">Signature — Principal Contractor</h3>
+        <h3 style="margin-bottom:12px">Principal Contractor</h3>
         <div class="f"><label>Name</label>
           <input class="in" data-vs="name" value="${esc(voSign.name)}" placeholder="Who is signing"></div>
         <div class="f"><label>Company</label>
@@ -1771,10 +1828,14 @@ function voView(){
         <button class="btn" style="margin:0 0 8px" data-vsdone="1">Save signature</button>
         <button class="btn ghost" style="margin:0" data-vscancel="1">Cancel</button>
       </div>`
-    : `<button class="btn" data-vsstart="1">Sign on screen</button>`;
+    : `<div class="card">
+        <h3>Principal Contractor</h3>
+        <p style="margin-bottom:12px">Hand them the phone, or print the sheet and get it signed by hand.</p>
+        <button class="btn" style="margin:0" data-vsstart="1">Sign on screen</button>
+      </div>`;
 
   return `<div class="top"><button class="chip" data-go="vos">&lsaquo; Back</button>
-      <span class="pill ${v.status==="signed"?"ok":"amber"}">${v.status==="signed"?"Signed":"Unsigned"}</span></div>
+      <span class="pill ${signed?"ok":"amber"}">${signed?"Signed":"Unsigned"}</span></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(v.ref)}</h1>
     <p class="sub">${esc(v.job)} · ${longDate(v.date)}</p>
 
@@ -1792,14 +1853,23 @@ function voView(){
     <div class="card">
       ${row("Labour", d.labour&&d.labour.length?d.labour:"")}
       ${row("Plant", d.plant&&d.plant.length?d.plant:"")}
-      ${row("Small plant and tools", smallPlantText(d.smallPlant))}
+      ${row("Small plant", smallPlantText(d.smallPlant))}
       ${row("Materials", d.materials)}
       ${row("Comments", d.comments)}
     </div>
 
-    <div class="sect">Sign off</div>
-    ${signBlock}
-    <button class="btn ghost" data-voprint="${v.id}">Open sheet to print</button>`;
+    <div class="sect">Signatures</div>
+    ${mine}
+    ${theirs}
+
+    <div class="sect">Sheet</div>
+    <button class="btn" data-voprint="${v.id}">Open sheet to print</button>
+    ${signed
+      ? `<div class="card" style="background:var(--canvas);box-shadow:none">
+          <p>Signed sheets cannot be amended. That is deliberate — nobody should be able to
+          change something the Principal Contractor has put their name to.</p></div>`
+      : `<button class="btn ghost" data-voamend="1">Amend this sheet</button>`}
+    <button class="btn line" style="color:var(--bad)" data-vodel="${v.id}">Delete this sheet</button>`;
 }
 
 /* ------------------------------------------------------------- timesheet -- */
@@ -2375,6 +2445,59 @@ function bind(){
     el.oninput = () => { if(voSign) voSign[el.dataset.vs] = el.value; };
     el.onchange = el.oninput;
   });
+  /* amending */
+  const voam = app.querySelector("[data-voamend]");
+  if(voam) voam.onclick = ()=>{
+    const v = DB.vos.find(x=>x.id===view.id);
+    voEdit = JSON.parse(JSON.stringify(v.data||{}));
+    if(!voEdit.hours || typeof voEdit.hours!=="object") voEdit.hours = { h:"", m:"" };
+    render();
+  };
+  app.querySelectorAll("[data-ve]").forEach(el=>{
+    el.oninput = () => { if(voEdit) voEdit[el.dataset.ve] = el.value; };
+    el.onchange = el.oninput;
+  });
+  app.querySelectorAll("[data-veh]").forEach(el=>{
+    el.oninput = () => {
+      if(!voEdit) return;
+      voEdit.hours = voEdit.hours || { h:"", m:"" };
+      voEdit.hours[el.dataset.veh] = el.value===""?"":Number(el.value);
+    };
+    el.onchange = el.oninput;
+  });
+  app.querySelectorAll("[data-vecancel]").forEach(el=>el.onclick=()=>{ voEdit = null; render(); });
+  const vesave = app.querySelector("[data-vesave]");
+  if(vesave) vesave.onclick = ()=>{
+    const v = DB.vos.find(x=>x.id===view.id);
+    v.data = Object.assign({}, v.data, voEdit);
+    v.amendedAt = Date.now();
+    voEdit = null; save(); render(); toast(v.ref+" amended");
+  };
+
+  /* deleting */
+  app.querySelectorAll("[data-vodel]").forEach(el=>el.onclick=()=>{
+    const id = el.getAttribute("data-vodel");
+    const v = (DB.vos||[]).find(x=>x.id===id);
+    askConfirm("Delete "+(v?v.ref:"this sheet")+"?",
+      "The number is not reused, so the sequence will show a gap. The diary it came from is not affected.",
+      "Delete", ()=>{
+        DB.vos = DB.vos.filter(x=>x.id!==id);
+        save(); go("vos"); toast("Sheet deleted");
+      });
+  });
+
+  /* our own signature */
+  const mysign = app.querySelector("[data-mysign]");
+  if(mysign) mysign.onclick = ()=>{
+    const v = DB.vos.find(x=>x.id===view.id);
+    openSignaturePad(v.cgcSignature, src=>{
+      v.cgcSignature = src;
+      v.cgcSignedBy = cfg().user.name;
+      v.cgcSignedAt = Date.now();
+      save(); render(); toast("Signed");
+    });
+  };
+
   const vsopen = app.querySelector("[data-vsopen]");
   if(vsopen) vsopen.onclick = ()=>openSignaturePad(voSign && voSign.src, src=>{
     if(voSign){ voSign.src = src; render(); }
@@ -2633,8 +2756,10 @@ function printVo(id){
       <tr><th style="width:20%">Signed for</th><th style="width:30%">Name</th>
         <th style="width:30%">Signature</th><th style="width:20%">Date</th></tr>
       <tr>
-        <td>${esc(c.company)}</td><td>${esc(v.raisedBy||c.user.name)}</td>
-        <td style="height:56px"></td><td>${shortDate(v.date)}</td>
+        <td>${esc(c.company)}</td>
+        <td>${esc(v.cgcSignedBy||v.raisedBy||c.user.name)}</td>
+        <td style="height:56px">${v.cgcSignature?`<img src="${v.cgcSignature}" style="height:48px">`:""}</td>
+        <td>${v.cgcSignedAt?shortDate(iso(v.cgcSignedAt)):shortDate(v.date)}</td>
       </tr>
       <tr>
         <td>Principal Contractor</td>
@@ -2643,7 +2768,7 @@ function printVo(id){
         <td>${signed?shortDate(iso(v.signedAt)):""}</td>
       </tr>
     </table>
-    <div class="foot"><span>${esc(c.company)} · ${esc(v.ref)}${signed?" · signed "+stamp(v.signedAt):" · awaiting signature"}</span>
+    <div class="foot"><span>${esc(c.company)} · ${esc(v.ref)}${signed?" · signed "+stamp(v.signedAt):" · awaiting signature"}${v.amendedAt?" · amended "+stamp(v.amendedAt):""}</span>
       <span>Printed ${stamp(Date.now())}</span></div>`;
   document.getElementById("sheetTitle").textContent = v.ref + " — Daywork Sheet";
   document.getElementById("sheetwrap").classList.add("open");
