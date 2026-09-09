@@ -845,6 +845,198 @@ function lolerAlerts(){
     .filter(x=>x.st.key==="expired" || x.st.key==="soon");
 }
 
+
+/* ------------------------------------------------------------ PDF writer --
+   A small PDF generator so reports can be shared as a file rather than only
+   printed. No libraries — PDF is a text format, and the photographs are JPEG
+   already, so they drop straight in.
+   -------------------------------------------------------------------------*/
+function PdfDoc(){
+  this.pages = [];          /* { ops:[], images:[] } */
+  this.page = null;
+  this.newPage();
+}
+PdfDoc.M = 42;              /* margin, points */
+PdfDoc.W = 595; PdfDoc.H = 842;
+
+PdfDoc.prototype.newPage = function(){
+  this.page = { ops: [], images: [] };
+  this.pages.push(this.page);
+  this.y = PdfDoc.H - PdfDoc.M;
+  return this.page;
+};
+PdfDoc.prototype.room = function(h){
+  if(this.y - h < PdfDoc.M){ this.newPage(); return true; }
+  return false;
+};
+function pdfEsc(t){ return String(t==null?"":t).replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)"); }
+/* Helvetica is close enough to half the point size per character for wrapping */
+function pdfWidth(t, size){ return String(t).length * size * 0.5; }
+
+PdfDoc.prototype.text = function(t, opts){
+  opts = opts || {};
+  const size = opts.size || 10.5;
+  const bold = !!opts.bold;
+  const x = PdfDoc.M + (opts.indent || 0);
+  const maxW = (opts.width || (PdfDoc.W - PdfDoc.M*2)) - (opts.indent||0);
+  const words = String(t==null?"":t).split(/\s+/);
+  const lines = [];
+  let line = "";
+  words.forEach(w=>{
+    const test = line ? line+" "+w : w;
+    if(pdfWidth(test,size) > maxW && line){ lines.push(line); line = w; }
+    else line = test;
+  });
+  if(line) lines.push(line);
+  lines.forEach(l=>{
+    this.room(size + 4);
+    const col = opts.colour || [0,0,0];
+    this.page.ops.push(
+      `BT ${col[0]} ${col[1]} ${col[2]} rg /${bold?"F2":"F1"} ${size} Tf 1 0 0 1 ${x.toFixed(1)} ${(this.y-size).toFixed(1)} Tm (${pdfEsc(l)}) Tj ET`);
+    this.y -= size + (opts.lead || 3.5);
+  });
+  if(opts.after) this.y -= opts.after;
+};
+PdfDoc.prototype.heading = function(t){
+  this.room(26);
+  this.y -= 6;
+  this.page.ops.push(`0.12 0.35 0.18 rg ${PdfDoc.M} ${(this.y-14).toFixed(1)} ${(PdfDoc.W-PdfDoc.M*2).toFixed(1)} 16 re f`);
+  this.page.ops.push(`BT 1 1 1 rg /F2 10 Tf 1 0 0 1 ${(PdfDoc.M+6)} ${(this.y-10.5).toFixed(1)} Tm (${pdfEsc(t)}) Tj ET`);
+  this.y -= 24;
+};
+PdfDoc.prototype.rule = function(){
+  this.room(8);
+  this.page.ops.push(`0.8 0.83 0.81 RG 0.7 w ${PdfDoc.M} ${this.y.toFixed(1)} m ${(PdfDoc.W-PdfDoc.M).toFixed(1)} ${this.y.toFixed(1)} l S`);
+  this.y -= 8;
+};
+PdfDoc.prototype.pair = function(k, v, colour){
+  const size = 10.5;
+  this.room(size+6);
+  const kx = PdfDoc.M, vx = PdfDoc.M + 150;
+  this.page.ops.push(`BT 0.35 0.39 0.36 rg /F1 ${size} Tf 1 0 0 1 ${kx} ${(this.y-size).toFixed(1)} Tm (${pdfEsc(k)}) Tj ET`);
+  const col = colour || [0,0,0];
+  const wrapped = [];
+  let line = "";
+  String(v==null?"":v).split(/\s+/).forEach(w=>{
+    const t = line?line+" "+w:w;
+    if(pdfWidth(t,size) > (PdfDoc.W - PdfDoc.M - vx) && line){ wrapped.push(line); line=w; } else line=t;
+  });
+  if(line) wrapped.push(line);
+  wrapped.forEach((l,i)=>{
+    if(i) this.room(size+4);
+    this.page.ops.push(`BT ${col[0]} ${col[1]} ${col[2]} rg /F2 ${size} Tf 1 0 0 1 ${vx} ${(this.y-size).toFixed(1)} Tm (${pdfEsc(l)}) Tj ET`);
+    if(i < wrapped.length-1) this.y -= size + 3;
+  });
+  this.y -= size + 6;
+};
+PdfDoc.prototype.banner = function(t){
+  this.room(30);
+  this.page.ops.push(`0.65 0.17 0.13 rg ${PdfDoc.M} ${(this.y-20).toFixed(1)} ${(PdfDoc.W-PdfDoc.M*2).toFixed(1)} 22 re f`);
+  this.page.ops.push(`BT 1 1 1 rg /F2 11 Tf 1 0 0 1 ${(PdfDoc.M+8)} ${(this.y-14.5).toFixed(1)} Tm (${pdfEsc(t)}) Tj ET`);
+  this.y -= 32;
+};
+PdfDoc.prototype.image = function(img, maxW){
+  const w = Math.min(maxW || 240, img.w);
+  const h = w * (img.h / img.w);
+  this.room(h + 10);
+  const name = "Im" + (this.page.images.length + 1);
+  this.page.images.push(Object.assign({ name }, img));
+  this.page.ops.push(`q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${PdfDoc.M} ${(this.y-h).toFixed(1)} cm /${name} Do Q`);
+  this.y -= h + 8;
+  return h;
+};
+
+/* JPEG bytes and dimensions, via a canvas so PNGs work too */
+function jpegFromDataUrl(src, maxPx){
+  return new Promise((res, rej)=>{
+    const im = new Image();
+    im.onerror = () => rej(new Error("image"));
+    im.onload = () => {
+      const sc = Math.min(1, (maxPx||900) / Math.max(im.width, im.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(im.width*sc));
+      cv.height = Math.max(1, Math.round(im.height*sc));
+      const g = cv.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0,0,cv.width,cv.height);
+      g.drawImage(im, 0, 0, cv.width, cv.height);
+      const b64 = cv.toDataURL("image/jpeg", 0.75).split(",")[1];
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+      res({ bytes, w: cv.width, h: cv.height });
+    };
+    im.src = src;
+  });
+}
+
+PdfDoc.prototype.blob = function(){
+  const chunks = [];
+  let len = 0;
+  const push = x => {
+    const b = (typeof x === "string")
+      ? Uint8Array.from(x, ch => ch.charCodeAt(0) & 0xff) : x;
+    chunks.push(b); len += b.length; return len;
+  };
+
+  const objs = [];                  /* index 0 unused */
+  const offsets = [];
+  const add = body => { objs.push(body); return objs.length; };   /* 1-based */
+
+  const catalogNum = add(null), pagesNum = add(null);
+  const f1 = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const f2 = add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+
+  const pageNums = [];
+  this.pages.forEach(pg=>{
+    const imgRefs = [];
+    pg.images.forEach(im=>{
+      const n = add({ image: im });
+      imgRefs.push({ name: im.name, num: n });
+    });
+    const content = pg.ops.join("\n");
+    const cNum = add({ stream: content });
+    const res = "<< /Font << /F1 " + f1 + " 0 R /F2 " + f2 + " 0 R >>"
+      + (imgRefs.length ? " /XObject << " + imgRefs.map(r=>"/"+r.name+" "+r.num+" 0 R").join(" ") + " >>" : "")
+      + " >>";
+    const pNum = add("<< /Type /Page /Parent " + pagesNum + " 0 R /MediaBox [0 0 "
+      + PdfDoc.W + " " + PdfDoc.H + "] /Resources " + res + " /Contents " + cNum + " 0 R >>");
+    pageNums.push(pNum);
+  });
+
+  objs[catalogNum-1] = "<< /Type /Catalog /Pages " + pagesNum + " 0 R >>";
+  objs[pagesNum-1] = "<< /Type /Pages /Kids [" + pageNums.map(n=>n+" 0 R").join(" ")
+    + "] /Count " + pageNums.length + " >>";
+
+  push("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  objs.forEach((body, i)=>{
+    offsets[i+1] = len;
+    push((i+1) + " 0 obj\n");
+    if(body && body.stream !== undefined){
+      push("<< /Length " + body.stream.length + " >>\nstream\n");
+      push(body.stream);
+      push("\nendstream\n");
+    } else if(body && body.image){
+      const im = body.image;
+      push("<< /Type /XObject /Subtype /Image /Width " + im.w + " /Height " + im.h
+        + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "
+        + im.bytes.length + " >>\nstream\n");
+      push(im.bytes);
+      push("\nendstream\n");
+    } else {
+      push(body + "\n");
+    }
+    push("endobj\n");
+  });
+
+  const xref = len;
+  push("xref\n0 " + (objs.length+1) + "\n0000000000 65535 f \n");
+  for(let i=1;i<=objs.length;i++)
+    push(String(offsets[i]).padStart(10,"0") + " 00000 n \n");
+  push("trailer\n<< /Size " + (objs.length+1) + " /Root " + catalogNum + " 0 R >>\nstartxref\n" + xref + "\n%%EOF");
+
+  return new Blob(chunks, { type: "application/pdf" });
+};
+
 /* ------------------------------------------------------------- defects -- */
 /* A "No" on a check raises a defect that lives on its own until somebody closes
    it out with evidence. Closed ones stay against the machine as its history, so
@@ -852,7 +1044,7 @@ function lolerAlerts(){
 const daysSince = ts => Math.floor((Date.now() - ts) / 86400000);
 function ageText(ts){
   const d = daysSince(ts);
-  return d<=0 ? "today" : d===1 ? "1 day ago" : d+" days ago";
+  return d <= 0 ? "today" : d === 1 ? "yesterday" : d + " days ago";
 }
 
 function checkLabels(plantId){
@@ -879,6 +1071,22 @@ function raiseDefects(rec){
       unsafe: rec.data.safe === false, status: "open"
     });
   });
+}
+
+/* Our own machines are our problem and go straight to the fitter. Hired plant
+   is the hire company's problem, so it goes to them with the hire reference. */
+function recipientFor(m){
+  const c = cfg();
+  if(!m) return { kind:"internal", name:(c.fitter&&c.fitter.name)||"our fitter",
+    email:(c.fitter&&c.fitter.email)||"", priority:true };
+  if((m.owner||"Hired") === "Owned"){
+    return { kind:"internal", label:"Our fitter",
+      name:(c.fitter&&c.fitter.name)||"our fitter",
+      email:(c.fitter&&c.fitter.email)||"", priority:true };
+  }
+  return { kind:"hire", label: m.owner==="Subcontractor" ? "Subcontractor" : "Hire company",
+    name: m.hireCompany || (m.owner==="Subcontractor" ? "the subcontractor" : "the hire company"),
+    email: m.hireEmail || "", phone: m.hirePhone || "", ref: m.hireRef || "", priority:false };
 }
 
 const openDefects  = pid => (DB.defects||[]).filter(d=>d.plantId===pid && d.status==="open")
@@ -1030,7 +1238,7 @@ function printDefectReport(plantId){
       <tr><th>Type</th><td>${esc(m.type||"Excavator")}</td></tr>
       <tr><th>Site</th><td>${esc(DB.job)}</td></tr>
       <tr><th>Reported by</th><td>${esc(df.items[0].reportedBy||c.user.name)}</td></tr>
-      <tr><th>Oldest defect</th><td>${ageText(df.oldest)}</td></tr>
+      <tr><th>Longest outstanding</th><td>Reported ${ageText(df.oldest)}</td></tr>
       ${(c.fitter&&c.fitter.name)?`<tr><th>Fleet engineer</th><td>${esc(c.fitter.name)}</td></tr>`:""}
     </table>
 
@@ -1070,12 +1278,84 @@ function defectReportText(m, df){
   if(m.model) lines.push("Model: " + m.model);
   lines.push("Type: " + (m.type||"Excavator"));
   lines.push("Reported by: " + (df.items[0].reportedBy || cfg().user.name));
+  const to = recipientFor(m);
+  if(to.kind === "hire" && to.ref) lines.push("Hire reference: " + to.ref);
   if(df.unsafe) lines.push("MACHINE MARKED NOT FIT FOR USE");
   lines.push("");
   lines.push("Defects outstanding:");
   df.items.forEach(x => lines.push("- " + x.item + (x.description ? ": " + x.description : "")
-    + " (reported " + ageText(x.reportedAt) + ")"));
+    + " — reported " + ageText(x.reportedAt)));
   return lines.join("\n");
+}
+
+/* The defect report as a PDF file. */
+async function defectReportPdf(plantId){
+  const m = (DB.plant||[]).find(x=>x.id===plantId);
+  const df = defectsFor(plantId);
+  if(!m || !df) return null;
+  const c = cfg();
+  const doc = new PdfDoc();
+
+  try{
+    const logo = await jpegFromDataUrl(LOGO, 420);
+    doc.image(logo, 150);
+  }catch(e){}
+
+  doc.text("Plant Defect Report", { size:17, bold:true, after:2 });
+  doc.text(c.company + "  ·  " + shortDate(todayISO()), { size:10, colour:[.35,.39,.36], after:6 });
+  doc.rule();
+
+  if(df.unsafe) doc.banner("MACHINE MARKED NOT FIT FOR USE");
+
+  doc.pair("Machine", m.item || "—");
+  doc.pair("Fleet number", m.fleetNo || "—");
+  doc.pair("Model", m.model || "—");
+  doc.pair("Type", m.type || "Excavator");
+  doc.pair("Site", DB.job);
+  doc.pair("Reported by", df.items[0].reportedBy || c.user.name);
+  const to = recipientFor(m);
+  doc.pair("Reported to", to.kind==="internal"
+    ? (to.name ? to.name + " (our fitter)" : "Our fitter")
+    : to.name + (to.label==="Subcontractor" ? " (subcontractor)" : " (hire company)"),
+    to.priority ? [.65,.17,.13] : [0,0,0]);
+  if(to.kind==="hire" && to.ref) doc.pair("Hire reference", to.ref);
+  if(to.priority) doc.pair("Priority", "Company machine — internal repair", [.65,.17,.13]);
+  doc.pair("Longest outstanding", "Reported " + ageText(df.oldest));
+  doc.heading("Defects outstanding");
+  df.items.forEach((x,i)=>{
+    doc.text((i+1) + ".  " + x.item, { bold:true, size:11 });
+    if(x.description) doc.text(x.description, { indent:16, size:10.5 });
+    doc.text("Reported " + ageText(x.reportedAt) + "  ·  " + shortDate(x.date)
+      + (x.checkRef ? "  ·  " + x.checkRef : ""), { indent:16, size:9.5, colour:[.42,.46,.43], after:4 });
+  });
+
+  const shots = [];
+  df.items.forEach(x=>(x.photos||[]).forEach(ph=>shots.push({ ph, label:x.item })));
+  if(shots.length){
+    doc.heading("Photographs");
+    for(const shot of shots){
+      try{
+        const img = await jpegFromDataUrl(shot.ph.src, 1000);
+        doc.image(img, 300);
+        doc.text(shot.label + "  ·  " + stamp(shot.ph.takenAt),
+          { size:9, colour:[.42,.46,.43], after:6 });
+      }catch(e){}
+    }
+  }
+
+  doc.heading(recipientFor(m).kind==="internal" ? "Fleet engineer response" : "Hire company response");
+  doc.text("Action taken", { bold:true, size:10 });
+  doc.y -= 34; doc.rule();
+  doc.text("Date", { bold:true, size:10 });
+  doc.y -= 14; doc.rule();
+  doc.text("Signed", { bold:true, size:10 });
+  doc.y -= 22; doc.rule();
+
+  doc.text("Produced by " + c.company + " on " + stamp(Date.now()),
+    { size:8.5, colour:[.5,.54,.51] });
+
+  return { blob: doc.blob(),
+    name: "Defect report - " + (m.fleetNo || m.item || "machine").replace(/[^\w\- ]+/g,"") + " - " + todayISO() + ".pdf" };
 }
 
 /* Share it if the phone can, without ever navigating the app away. */
@@ -1083,33 +1363,39 @@ async function reportDefect(plantId){
   const m = (DB.plant||[]).find(x=>x.id===plantId);
   const df = defectsFor(plantId);
   if(!m || !df){ toast("No open defects on this machine"); return; }
-  const subject = "Plant defect — " + (m.fleetNo || m.item || "machine") + " — " + DB.job;
+  const to = recipientFor(m);
+  const subject = (to.priority ? "PRIORITY — " : "")
+    + "Plant defect — " + (m.fleetNo || m.item || "machine") + " — " + DB.job;
   const body = defectReportText(m, df);
 
-  const files = [];
-  df.items.forEach((x,i)=>(x.photos||[]).forEach((ph,pi)=>{
-    try{
-      const b = atob(ph.src.split(",")[1]);
-      const arr = new Uint8Array(b.length);
-      for(let j=0;j<b.length;j++) arr[j] = b.charCodeAt(j);
-      files.push(new File([arr], "defect-"+(i+1)+"-"+(pi+1)+".jpg", { type:"image/jpeg" }));
-    }catch(e){}
-  }));
+  toast("Building the report…");
+  let file = null;
+  try{
+    const out = await defectReportPdf(plantId);
+    if(out) file = new File([out.blob], out.name, { type:"application/pdf" });
+  }catch(e){ /* fall through to text */ }
 
   if(navigator.share){
     try{
-      if(files.length && navigator.canShare && navigator.canShare({ files }))
-        await navigator.share({ files, title: subject, text: body });
+      if(file && navigator.canShare && navigator.canShare({ files:[file] }))
+        await navigator.share({ files:[file], title: subject, text: body });
       else
         await navigator.share({ title: subject, text: body });
-      toast("Report sent");
-    }catch(e){ /* cancelled */ }
+      return;
+    }catch(e){ return; }   /* cancelled */
+  }
+
+  /* no share sheet — download the file instead */
+  if(file){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("Report saved — attach it to your email");
     return;
   }
 
-  const to = (cfg().fitter && cfg().fitter.email) || "";
   const a = document.createElement("a");
-  a.href = "mailto:" + encodeURIComponent(to) + "?subject=" + encodeURIComponent(subject)
+  a.href = "mailto:" + encodeURIComponent(to.email || "") + "?subject=" + encodeURIComponent(subject)
     + "&body=" + encodeURIComponent(body);
   a.target = "_blank"; a.rel = "noopener";
   document.body.appendChild(a); a.click(); a.remove();
@@ -1482,7 +1768,9 @@ function homeView(){
         <button class="begin" data-pick="${sel}">Begin</button></div>`;
 
   /* any machine currently carrying a defect */
-  const faulty = currentPlant().map(m=>({ m, df: defectsFor(m.id) })).filter(x=>x.df);
+  const faulty = currentPlant().map(m=>({ m, df: defectsFor(m.id), to: recipientFor(m) }))
+    .filter(x=>x.df)
+    .sort((a,b)=>(b.to.priority?1:0)-(a.to.priority?1:0) || a.df.oldest-b.df.oldest);
 
   const missed = missedDays();
   const missedCard = missed.length ? `<button class="card" style="width:100%;text-align:left;
@@ -1516,7 +1804,8 @@ function homeView(){
        ${faulty.map(x=>`<p style="color:var(--ink-2);margin-top:2px">
          <b style="font-weight:640">${esc(x.m.item||"Machine")}${x.m.fleetNo?" ("+esc(x.m.fleetNo)+")":""}</b>
          — ${x.df.items.map(i=>esc(i.item)).join(", ")}${x.df.unsafe?" · not fit for use":""}
-         <span style="color:var(--bad);font-weight:640">· oldest ${ageText(x.df.oldest)}</span></p>`).join("")}
+         <span style="display:block;color:var(--bad);font-weight:640">Reported ${ageText(x.df.oldest)}
+           · ${x.to.priority ? "our fitter · priority" : "on hire from "+esc(x.to.name)}</span></p>`).join("")}
        <span style="display:block;font-size:12.5px;color:var(--bad);font-weight:640;margin-top:8px">
          Open the plant register to send a defect report &rsaquo;</span>
      </button>` : ""}
@@ -2073,6 +2362,21 @@ function plantFields(p, attr){
           ${["Owned","Hired","Subcontractor"].map(o=>`<option ${p.owner===o?"selected":""}>${esc(o)}</option>`).join("")}
         </select></div>
     </div>
+    ${(p.owner||"Hired")!=="Owned" ? `
+      <div class="f"><label>${p.owner==="Subcontractor"?"Subcontractor":"Hire company"}</label>
+        <div class="hint">Defects on this machine are reported to them, not our fitter.</div>
+        <input class="in" ${attr}="hireCompany" value="${esc(p.hireCompany||"")}"></div>
+      <div class="g2">
+        <div class="f"><label>Their email</label>
+          <input class="in" type="email" ${attr}="hireEmail" value="${esc(p.hireEmail||"")}"></div>
+        <div class="f"><label>Hire reference</label>
+          <input class="in" ${attr}="hireRef" value="${esc(p.hireRef||"")}"></div>
+      </div>
+      <div class="f"><label>Their phone</label>
+        <input class="in" type="tel" ${attr}="hirePhone" value="${esc(p.hirePhone||"")}"></div>
+    ` : `<div class="card" style="background:var(--green-50);box-shadow:none;margin-bottom:16px">
+        <p style="font-size:13.5px">Company machine — defects go straight to our own fitter and
+        are treated as priority.</p></div>`}
     <div class="g2">
       <div class="f"><label>On site from</label>
         <input class="in" type="date" ${attr}="onDate" value="${esc(p.onDate||"")}"></div>
@@ -2149,8 +2453,25 @@ function defectView(){
     <div class="sect">${open?"Close out":"Fix"}</div>
     ${closeBlock}
 
-    <div class="sect">This defect</div>
-    <button class="btn ghost" data-defpdf="${d.plantId}">Defect report</button>
+    <div class="sect">Report it</div>
+    ${(function(){
+      const to = recipientFor(m);
+      return `<div class="card" style="${to.priority?"background:var(--bad-bg);box-shadow:none":""}">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <h3 style="${to.priority?"color:var(--bad)":""}">${to.priority?"Our machine":"On hire"}</h3>
+          ${to.priority?`<span class="pill red">Priority</span>`:`<span class="pill grey">${esc(to.label||"Hire")}</span>`}
+        </div>
+        <p class="sub" style="margin-top:3px">
+          ${to.priority
+            ? "Repaired by our own fitter"+(to.name&&to.name!=="our fitter"?" — "+esc(to.name):"")+"."
+            : "Reported to "+esc(to.name)+(to.ref?" — hire ref "+esc(to.ref):"")+"."}
+        </p>
+        ${to.email?`<p class="sub" style="font-size:12.5px;color:var(--ink-3)">${esc(to.email)}</p>`:
+          `<p class="sub" style="font-size:12.5px;color:var(--warn)">No email set — add one on the plant register.</p>`}
+      </div>`;
+    })()}
+    <button class="btn ghost" data-defpdf="${d.plantId}">View report</button>
+    <button class="btn ghost" data-report="${d.plantId}">Send the PDF</button>
     <button class="btn line" style="color:var(--bad)" data-defdel="${d.id}">Delete this defect</button>`;
 }
 
@@ -2167,7 +2488,9 @@ function plantHistoryView(){
           <b style="font-size:15.5px;font-weight:650;display:block">${esc(d.item)}</b>
           <span style="font-size:13px;color:var(--ink-2)">${esc(d.description||"")}</span>
           <span style="display:block;font-size:12.5px;color:var(--ink-3);margin-top:3px">
-            ${shortDate(d.date)}${d.status==="closed"?" · fixed "+shortDate(iso(d.fixedAt)):" · "+ageText(d.reportedAt)}</span>
+            ${d.status==="closed"
+              ? shortDate(d.date)+" · fixed "+shortDate(iso(d.fixedAt))
+              : "Reported "+ageText(d.reportedAt)}</span>
         </div>
         <span class="pill ${d.status==="open"?"red":"ok"}">${d.status==="open"?"Open":"Fixed"}</span>
       </div>
@@ -2254,17 +2577,24 @@ function plantView(){
       </div>
       ${df ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.08)">
         <b style="color:var(--bad);font-size:14px;display:block;margin-bottom:6px">
-          ${df.items.length} open defect${df.items.length===1?"":"s"}${df.unsafe?" · not fit for use":""}
-          · oldest ${ageText(df.oldest)}</b>
+          ${df.items.length} open defect${df.items.length===1?"":"s"}${df.unsafe?" · not fit for use":""}</b>
         ${df.items.map(x=>`<button class="row" style="width:100%;padding:9px 0;border:0"
           data-defopen="${x.id}">
           <span class="n"><b style="font-size:14.5px">${esc(x.item)}</b>
-            <span>${esc(x.description||"")} · ${ageText(x.reportedAt)}</span></span>
+            <span>${esc(x.description||"")}${x.description?" · ":""}reported ${ageText(x.reportedAt)}</span></span>
           <span style="color:var(--ink-3)">&rsaquo;</span>
         </button>`).join("")}
-        <div class="g2" style="margin-top:12px">
-          <button class="btn line sm" style="margin:0" data-defpdf="${p.id}">Defect report</button>
-          <button class="btn line sm" style="margin:0" data-report="${p.id}">Send to fitter</button>
+        ${(function(){
+          const to = recipientFor(p);
+          return `<div style="margin-top:10px;font-size:12.5px;font-weight:640;
+            color:${to.priority?"var(--bad)":"var(--ink-2)"}">
+            ${to.priority ? "Priority · our fitter" : "Goes to "+esc(to.name)}
+            ${to.kind==="hire"&&to.ref?` · hire ref ${esc(to.ref)}`:""}</div>`;
+        })()}
+        <div class="g2" style="margin-top:10px">
+          <button class="btn line sm" style="margin:0" data-defpdf="${p.id}">View report</button>
+          <button class="btn line sm" style="margin:0" data-report="${p.id}">
+            Send to ${esc(recipientFor(p).kind==="internal" ? "our fitter" : (recipientFor(p).name||"them"))}</button>
         </div>
       </div>` : ""}
       <div style="display:flex;gap:8px;margin-top:14px">
@@ -3333,7 +3663,11 @@ function bind(){
 
   /* the draft being typed before it is added */
   app.querySelectorAll("[data-nd]").forEach(el=>{
-    el.oninput = () => { if(plantDraft) plantDraft[el.dataset.nd] = el.value; };
+    el.oninput = () => {
+      if(!plantDraft) return;
+      plantDraft[el.dataset.nd] = el.value;
+      if(el.dataset.nd==="owner") render();
+    };
     el.onchange = el.oninput;
   });
   const pa = app.querySelector("[data-pladd]");
