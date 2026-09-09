@@ -281,8 +281,7 @@ input[type=date].in,input[type=time].in,
 .ph img{width:100%;height:100%;object-fit:cover;display:block}
 .ph button{position:absolute;top:5px;right:5px;width:28px;height:28px;border-radius:9px;
   background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1}
-canvas.sig{display:block;width:100%;height:160px;background:#fff;border:1.5px solid var(--line);
-  border-radius:13px;touch-action:none}
+
 
 /* progress */
 .bar{height:7px;border-radius:4px;background:var(--line-2);overflow:hidden;display:block;margin-top:10px}
@@ -292,6 +291,19 @@ canvas.sig{display:block;width:100%;height:160px;background:#fff;border:1.5px so
 .kv{flex-wrap:wrap}
 .kv .k{color:var(--ink-2);flex:0 0 42%;min-width:120px}
 .kv .v{font-weight:620;flex:1;text-align:right;min-width:0;overflow-wrap:anywhere}
+
+/* signing */
+.sigbtn{width:100%;border:1.5px dashed var(--line);border-radius:13px;background:#fff;
+  min-height:104px;display:grid;place-items:center;gap:6px;color:var(--ink-3);
+  font-size:14.5px;font-weight:620;padding:12px}
+.sigbtn.signed{border-style:solid;border-color:var(--ok);background:#fff}
+.sigbtn img{max-height:70px;max-width:100%}
+.sigbtn .done{color:var(--ok);font-size:13px;font-weight:650}
+.sigpad{display:block;width:100%;height:230px;background:#fff;border:1.5px solid var(--line);
+  border-radius:13px;touch-action:none;overscroll-behavior:contain;cursor:crosshair}
+.sigline{position:relative;margin-top:-46px;margin-bottom:14px;padding:0 18px;
+  pointer-events:none;color:var(--ink-3);font-size:12.5px}
+.sigline::before{content:"";display:block;border-top:1px solid var(--line);margin-bottom:6px}
 
 /* photo viewer */
 .lightbox{position:fixed;inset:0;background:#0A140E;z-index:96;display:flex;flex-direction:column}
@@ -450,17 +462,21 @@ const DIARY = [
       showIf:{field:"dayworks",equals:true} },
     { id:"dwPlant", type:"plantpick", label:"Plant used",
       showIf:{field:"dayworks",equals:true} },
-    { id:"dwSmallPlant", type:"text", label:"Small plant or tools used",
+    { id:"dwSmallPlant", type:"repeater", label:"Small plant and tools",
+      itemLabel:"Item", addLabel:"Add item",
       showIf:{field:"dayworks",equals:true},
-      hint:"Anything not on the plant register — breaker, disc cutter, whacker." },
-    { id:"dwHours", type:"number", label:"Time taken", suffix:"hours", required:true,
+      hint:"Anything not on the plant register — breaker, disc cutter, whacker.",
+      columns:[
+        { id:"item", type:"text", label:"Item", required:true },
+        { id:"hours", type:"duration", label:"Time used", required:true }
+      ]},
+    { id:"dwHours", type:"duration", label:"Time taken", required:true,
       showIf:{field:"dayworks",equals:true} },
     { id:"dwMaterials", type:"textarea", label:"Materials used",
       showIf:{field:"dayworks",equals:true} },
     { id:"dwComments", type:"textarea", label:"Other comments",
-      showIf:{field:"dayworks",equals:true} },
-    { id:"dwSigned", type:"yesno", label:"Signed off on site by the client or PC?",
-      showIf:{field:"dayworks",equals:true} }
+      showIf:{field:"dayworks",equals:true},
+      hint:"Anything that supports the claim. A daywork sheet is raised for signing once you submit." }
   ]},
 
   { title:"Visitors", fields:[
@@ -656,6 +672,14 @@ function currentLabour(){
 /* Every diary with dayworks on it raises a numbered variation sheet — VO1,
    VO2 and so on, in the order they happen — for the Principal Contractor to
    sign, either on the screen or on paper. */
+function smallPlantText(v){
+  if(!v) return "";
+  if(typeof v === "string") return v;              /* entries made before it was a list */
+  return v.filter(x=>x && x.item)
+    .map(x=>x.item + (durText(x.hours) ? " — "+durText(x.hours) : ""))
+    .join(", ");
+}
+
 function nextVoRef(){
   DB.voCounter = (DB.voCounter||0) + 1;
   return "VO" + DB.voCounter;
@@ -677,8 +701,7 @@ function syncVo(rec){
   const snapshot = {
     ref: d.dwRef||"", instructedBy: d.dwBy||"", what: d.dwWhat||"",
     labour: d.dwLabour||[], plant: d.dwPlant||[], smallPlant: d.dwSmallPlant||"",
-    hours: d.dwHours||"", materials: d.dwMaterials||"", comments: d.dwComments||"",
-    signedOnSite: d.dwSigned
+    hours: d.dwHours||"", materials: d.dwMaterials||"", comments: d.dwComments||""
   };
   if(existing){
     if(existing.status !== "signed"){ existing.data = snapshot; existing.updatedAt = Date.now(); }
@@ -713,6 +736,19 @@ function leaveThisWeek(){
   return (DB.leave||[]).filter(l => days.some(d => l.from<=d && l.to>=d));
 }
 
+/* Durations are entered as hours and minutes, kept as {h,m}. */
+function durText(v){
+  if(v===undefined||v===null||v==="") return "";
+  if(typeof v === "number") return v+" hrs";                 /* entered before the change */
+  const h = Number(v.h)||0, m = Number(v.m)||0;
+  if(!h && !m) return "";
+  const parts = [];
+  if(h) parts.push(h+" hr"+(h===1?"":"s"));
+  if(m) parts.push(m+" min"+(m===1?"":"s"));
+  return parts.join(" ");
+}
+const durEmpty = v => !v || (typeof v==="object" && !(Number(v.h)||0) && !(Number(v.m)||0));
+
 /* Hours worked = finish minus start, less the break. */
 const toMins = t => { if(!t||t.indexOf(":")<0) return null;
   const [h,m]=t.split(":").map(Number); return h*60+m; };
@@ -742,6 +778,71 @@ function go(name, opts){
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
   render();
+}
+
+/* Signing happens in its own panel, so a finger on the canvas can never drag
+   the page underneath it. */
+function openSignaturePad(existing, onSave){
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg">
+      <h3>Sign here</h3>
+      <p>Use your finger. Landscape gives you more room.</p>
+      <canvas class="sigpad" id="padCanvas"></canvas>
+      <div class="sigline">Sign above</div>
+      <div class="g2" style="margin-bottom:10px">
+        <button class="btn line" style="margin:0" data-padclear>Clear</button>
+        <button class="btn line" style="margin:0" data-padcancel>Cancel</button>
+      </div>
+      <button class="btn" style="margin:0" data-padsave>Save signature</button>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const cv = wrap.querySelector("#padCanvas");
+  const rect = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = rect.width*dpr; cv.height = rect.height*dpr;
+  const g = cv.getContext("2d");
+  g.scale(dpr,dpr);
+  g.lineWidth = 2.4; g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = "#16261C";
+  let touched = false;
+  if(existing){
+    const im = new Image();
+    im.onload = () => g.drawImage(im, 0, 0, rect.width, rect.height);
+    im.src = existing; touched = true;
+  }
+
+  let drawing = false, last = null;
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; };
+  cv.addEventListener("pointerdown", e => {
+    e.preventDefault(); drawing = true; touched = true; last = pos(e);
+    cv.setPointerCapture(e.pointerId);
+    g.beginPath(); g.moveTo(last.x,last.y); g.lineTo(last.x+0.1,last.y); g.stroke();
+  });
+  cv.addEventListener("pointermove", e => {
+    if(!drawing) return;
+    e.preventDefault();
+    const p = pos(e);
+    g.beginPath(); g.moveTo(last.x,last.y); g.lineTo(p.x,p.y); g.stroke();
+    last = p;
+  });
+  const stop = e => { if(e) e.preventDefault(); drawing = false; };
+  cv.addEventListener("pointerup", stop);
+  cv.addEventListener("pointercancel", stop);
+  cv.addEventListener("pointerleave", stop);
+  cv.addEventListener("touchmove", e => e.preventDefault(), { passive:false });
+
+  const close = () => wrap.remove();
+  wrap.querySelector("[data-padcancel]").onclick = close;
+  wrap.querySelector("[data-padclear]").onclick = () => {
+    g.clearRect(0,0,cv.width,cv.height); touched = false;
+  };
+  wrap.querySelector("[data-padsave]").onclick = () => {
+    if(!touched){ toast("Nothing signed yet"); return; }
+    const src = cv.toDataURL("image/png");
+    close();
+    onSave(src);
+  };
 }
 
 function openPhoto(src, takenAt){
@@ -1008,7 +1109,8 @@ function validate(){
   DIARY.forEach(s=>s.fields.forEach(f=>{
     if(!visible(f,v) || !f.required) return;
     const val = v[f.id];
-    const empty = val===undefined||val===null||val===""||(Array.isArray(val)&&val.length===0);
+    const empty = f.type==="duration" ? durEmpty(val)
+      : (val===undefined||val===null||val===""||(Array.isArray(val)&&val.length===0));
     if(empty){ e[f.id]="Required"; return; }
     if(f.type==="planttable"){
       for(let i=0;i<val.length;i++) if(val[i].inUse===undefined)
@@ -1054,6 +1156,24 @@ function fieldHtml(f, v, err, path){
       c=`<input id="fl_${id}" class="in${ec}" data-f="${id}" type="number" inputmode="decimal" step="any"
         value="${val===undefined||val===null?"":esc(val)}">`; break;
     case "time": c=`<input id="fl_${id}" class="in${ec}" data-f="${id}" type="time" value="${esc(val||"")}">`; break;
+    case "duration":{
+      const v = (val && typeof val==="object") ? val : { h: (typeof val==="number"?val:""), m:"" };
+      c = `<div class="g2">
+        <div style="position:relative">
+          <input id="fl_${id}" class="in${ec}" type="number" inputmode="numeric" min="0"
+            data-dur="${id}" data-part="h" value="${v.h===undefined?"":esc(v.h)}" placeholder="0">
+          <span style="position:absolute;right:12px;top:16px;color:var(--ink-3);font-size:13.5px;
+            font-weight:600;pointer-events:none">hours</span>
+        </div>
+        <div style="position:relative">
+          <input class="in${ec}" type="number" inputmode="numeric" min="0" max="59"
+            data-dur="${id}" data-part="m" value="${v.m===undefined?"":esc(v.m)}" placeholder="0">
+          <span style="position:absolute;right:12px;top:16px;color:var(--ink-3);font-size:13.5px;
+            font-weight:600;pointer-events:none">mins</span>
+        </div>
+      </div>`;
+      break;
+    }
     case "select":
       c=`<select id="fl_${id}" class="in${ec}" data-f="${id}"><option value="">Choose…</option>`+
         f.options.map(o=>`<option ${val===o?"selected":""}>${esc(o)}</option>`).join("")+`</select>`; break;
@@ -1178,10 +1298,15 @@ function fieldHtml(f, v, err, path){
       break;
     }
     case "signature":
-      c = `<canvas class="sig" id="sig_${id}" data-sig="${id}"></canvas>
-        <div style="display:flex;justify-content:space-between;padding-top:8px;font-size:13px;color:var(--ink-3)">
-          <span>${val?"Signed":"Sign above with your finger"}</span>
-          <button type="button" data-sigclear="${id}" style="color:var(--bad);font-weight:650">Clear</button></div>`;
+      c = `<button type="button" class="sigbtn ${val?"signed":""}" data-sigopen="${id}">
+          ${val && val.src
+            ? `<img src="${val.src}" alt="Signature"><span class="done">Signed — tap to sign again</span>`
+            : `<span>Tap to sign</span>
+               <span style="font-size:12.5px;font-weight:500">Opens a full width signing pad</span>`}
+        </button>
+        ${val?`<div style="display:flex;justify-content:flex-end;padding-top:8px">
+          <button type="button" data-sigclear="${id}" style="color:var(--bad);font-weight:650;font-size:13px">Clear</button>
+        </div>`:""}`;
       break;
   }
   return `<div class="f">${lab}${hint}${c}${err?`<div class="err-msg">${esc(err)}</div>`:""}</div>`;
@@ -1275,6 +1400,7 @@ function readRow(f, val){
       <div style="margin-top:6px;overflow-x:auto">${tableRows(f,val)}</div></div>`;
   }
   const fmt = (fl,v) => v===undefined||v===null||v===""?"—"
+    : fl.type==="duration" ? (durText(v)||"—")
     : fl.type==="yesno" ? (v?"Yes":"No")
     : Array.isArray(v) ? (v.length?v.join(", "):"—")
     : String(v)+(fl.suffix?" "+fl.suffix:"");
@@ -1636,11 +1762,12 @@ function voView(){
           <input class="in" data-vs="name" value="${esc(voSign.name)}" placeholder="Who is signing"></div>
         <div class="f"><label>Company</label>
           <input class="in" data-vs="company" value="${esc(voSign.company)}"></div>
-        <div class="f"><label>Sign below</label>
-          <canvas class="sig" id="voSig"></canvas>
-          <div style="display:flex;justify-content:flex-end;padding-top:8px">
-            <button data-vsclear="1" style="color:var(--bad);font-weight:650;font-size:13px">Clear</button>
-          </div></div>
+        <div class="f"><label>Signature</label>
+          <button type="button" class="sigbtn ${voSign.src?"signed":""}" data-vsopen="1">
+            ${voSign.src
+              ? `<img src="${voSign.src}" alt="Signature"><span class="done">Signed — tap to sign again</span>`
+              : `<span>Tap to sign</span>`}
+          </button></div>
         <button class="btn" style="margin:0 0 8px" data-vsdone="1">Save signature</button>
         <button class="btn ghost" style="margin:0" data-vscancel="1">Cancel</button>
       </div>`
@@ -1655,7 +1782,7 @@ function voView(){
       ${row("Instruction ref", d.ref)}
       ${row("Instructed by", d.instructedBy)}
       ${row("Raised by", v.raisedBy)}
-      ${row("Time taken", d.hours?d.hours+" hours":"")}
+      ${row("Time taken", durText(d.hours))}
     </div>
 
     <div class="sect">What was instructed</div>
@@ -1665,7 +1792,7 @@ function voView(){
     <div class="card">
       ${row("Labour", d.labour&&d.labour.length?d.labour:"")}
       ${row("Plant", d.plant&&d.plant.length?d.plant:"")}
-      ${row("Small plant", d.smallPlant)}
+      ${row("Small plant and tools", smallPlantText(d.smallPlant))}
       ${row("Materials", d.materials)}
       ${row("Comments", d.comments)}
     </div>
@@ -1974,42 +2101,8 @@ function stampPhoto(file){
   });
 }
 
-function wireVoSignature(cv){
-  const dpr = window.devicePixelRatio||1;
-  const rect = cv.getBoundingClientRect();
-  cv.width = rect.width*dpr; cv.height = rect.height*dpr;
-  const g = cv.getContext("2d"); g.scale(dpr,dpr);
-  g.lineWidth=2.2; g.lineCap="round"; g.lineJoin="round"; g.strokeStyle="#16261C";
-  if(voSign && voSign.src){ const im=new Image(); im.onload=()=>g.drawImage(im,0,0,rect.width,rect.height); im.src=voSign.src; }
-  let drawing=false, last=null;
-  const pos = e => { const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; };
-  cv.addEventListener("pointerdown", e=>{ e.preventDefault(); drawing=true; last=pos(e); cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener("pointermove", e=>{ if(!drawing)return; const p=pos(e);
-    g.beginPath(); g.moveTo(last.x,last.y); g.lineTo(p.x,p.y); g.stroke(); last=p; });
-  const end = () => { if(!drawing)return; drawing=false; if(voSign) voSign.src = cv.toDataURL("image/png"); };
-  cv.addEventListener("pointerup", end);
-  cv.addEventListener("pointerleave", end);
-}
 
 /* --------------------------------------------------------------- signature -- */
-function wireSignature(cv, fieldId){
-  const dpr = window.devicePixelRatio||1;
-  const rect = cv.getBoundingClientRect();
-  cv.width = rect.width*dpr; cv.height = rect.height*dpr;
-  const g = cv.getContext("2d"); g.scale(dpr,dpr);
-  g.lineWidth=2.2; g.lineCap="round"; g.lineJoin="round"; g.strokeStyle="#16261C";
-  const saved = formState && formState.values[fieldId];
-  if(saved && saved.src){ const im=new Image(); im.onload=()=>g.drawImage(im,0,0,rect.width,rect.height); im.src=saved.src; }
-  let drawing=false, last=null;
-  const pos = e => { const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; };
-  cv.addEventListener("pointerdown", e=>{ e.preventDefault(); drawing=true; last=pos(e); cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener("pointermove", e=>{ if(!drawing)return; const p=pos(e);
-    g.beginPath(); g.moveTo(last.x,last.y); g.lineTo(p.x,p.y); g.stroke(); last=p; });
-  const end = () => { if(!drawing)return; drawing=false;
-    formState.values[fieldId] = { src:cv.toDataURL("image/png"), signedAt:Date.now() }; };
-  cv.addEventListener("pointerup", end);
-  cv.addEventListener("pointerleave", end);
-}
 
 /* ------------------------------------------------------------------ events -- */
 function getVal(path){
@@ -2071,6 +2164,17 @@ function bind(){
     };
     el.onchange = el.oninput;
   });
+  app.querySelectorAll("[data-dur]").forEach(el=>{
+    el.oninput = () => {
+      const path = el.dataset.dur;
+      const cur = getVal(path);
+      const obj = (cur && typeof cur==="object") ? Object.assign({},cur) : { h:"", m:"" };
+      obj[el.dataset.part] = el.value===""?"":Number(el.value);
+      setVal(path, obj);
+      if(formState.touched){ formState.errors = validate(); }
+    };
+    el.onchange = el.oninput;
+  });
   app.querySelectorAll("[data-yes]").forEach(el=>el.onclick=()=>{ setVal(el.dataset.yes,true); after(); });
   app.querySelectorAll("[data-no]").forEach(el=>el.onclick=()=>{ setVal(el.dataset.no,false); after(); });
   app.querySelectorAll("[data-chk]").forEach(el=>el.onclick=()=>{
@@ -2097,7 +2201,14 @@ function bind(){
     formState.values[id]=formState.values[id].filter((_,ix)=>ix!==i); after(); });
   app.querySelectorAll("[data-sigclear]").forEach(el=>el.onclick=()=>{
     formState.values[el.dataset.sigclear]=null; after(); });
-  app.querySelectorAll("canvas[data-sig]").forEach(cv=>wireSignature(cv, cv.dataset.sig));
+  app.querySelectorAll("[data-sigopen]").forEach(el=>el.onclick=()=>{
+    const path = el.dataset.sigopen;
+    const cur = getVal(path);
+    openSignaturePad(cur && cur.src, src => {
+      setVal(path, { src, signedAt: Date.now() });
+      after();
+    });
+  });
 
   const sub = app.querySelector("[data-submit]"); if(sub) sub.onclick = submitForm;
   const dr = app.querySelector("[data-draft]"); if(dr) dr.onclick = ()=>{ saveDraft(); toast("Draft saved"); go("home"); };
@@ -2264,10 +2375,10 @@ function bind(){
     el.oninput = () => { if(voSign) voSign[el.dataset.vs] = el.value; };
     el.onchange = el.oninput;
   });
-  const voCanvas = app.querySelector("#voSig");
-  if(voCanvas) wireVoSignature(voCanvas);
-  const vsclear = app.querySelector("[data-vsclear]");
-  if(vsclear) vsclear.onclick = ()=>{ if(voSign) voSign.src = null; render(); };
+  const vsopen = app.querySelector("[data-vsopen]");
+  if(vsopen) vsopen.onclick = ()=>openSignaturePad(voSign && voSign.src, src=>{
+    if(voSign){ voSign.src = src; render(); }
+  });
   const vsdone = app.querySelector("[data-vsdone]");
   if(vsdone) vsdone.onclick = ()=>{
     if(!voSign.name.trim()){ toast("Enter the name of who is signing"); return; }
@@ -2358,6 +2469,7 @@ function printRecord(id){
   const r = DB.records.find(x=>x.id===id);
   const c = cfg();
   const fmt = (fl,v) => v===undefined||v===null||v===""?"—"
+    : fl.type==="duration" ? (durText(v)||"—")
     : fl.type==="yesno" ? (v?"Yes":"No")
     : Array.isArray(v) ? (v.length?v.join(", "):"—")
     : String(v)+(fl.suffix?" "+fl.suffix:"");
@@ -2501,8 +2613,15 @@ function printVo(id){
     <table>
       ${line("Labour", d.labour&&d.labour.length?d.labour:"None recorded")}
       ${line("Plant", d.plant&&d.plant.length?d.plant:"None recorded")}
-      ${line("Small plant and tools", d.smallPlant)}
-      ${line("Time taken", d.hours?d.hours+" hours":"")}
+      ${(function(){
+        const v = d.smallPlant;
+        if(!v || (Array.isArray(v) && !v.length)) return "";
+        if(typeof v === "string") return line("Small plant and tools", v);
+        return `<tr><th>Small plant and tools</th><td>`+
+          v.filter(x=>x&&x.item).map(x=>`${esc(x.item)}${durText(x.hours)?" — "+esc(durText(x.hours)):""}`).join("<br>")+
+          `</td></tr>`;
+      })()}
+      ${line("Time taken", durText(d.hours))}
       ${line("Materials", d.materials)}
       ${line("Comments", d.comments)}
     </table>
