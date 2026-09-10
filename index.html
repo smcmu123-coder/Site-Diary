@@ -5722,7 +5722,8 @@ function timesheetWeek(ws){
   const days = weekDays(ws);
   const people = {};
   days.forEach(d=>{
-    const rec = DB.records.find(r=>r.date===d && r.job===DB.job && r.status==="submitted");
+    const rec = DB.records.find(r=>r.date===d && r.job===DB.job
+      && (r.form||"diary")==="diary" && r.status==="submitted");
     (rec && rec.data.labourTable || []).forEach(row=>{
       const key = row.id || row.name;
       if(row.leave){
@@ -5745,7 +5746,8 @@ function timesheetWeek(ws){
 /* Correcting a day: it writes back into that day's diary, so the timesheet and
    the diary never say different things. */
 function editTimesheetDay(date, personKey){
-  const rec = DB.records.find(r=>r.date===date && r.job===DB.job && r.status==="submitted");
+  const rec = DB.records.find(r=>r.date===date && r.job===DB.job
+    && (r.form||"diary")==="diary" && r.status==="submitted");
   if(!rec){ toast("There is no submitted diary for that day."); return; }
   const rows = rec.data.labourTable || [];
   const row = rows.find(r=>(r.id||r.name)===personKey);
