@@ -356,6 +356,25 @@ input[type=date].in,input[type=time].in,
 .tskey i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;
   vertical-align:-1px}
 
+/* HAVs read-outs */
+.havsbox{border-radius:13px;padding:12px 14px;background:var(--canvas);
+  border:1.5px solid var(--line-2)}
+.havsbox.amber{background:var(--warn-bg);border-color:#EBD6B4}
+.havsbox.red{background:var(--bad-bg);border-color:#EBC7C3}
+.havsbox .hrow{display:flex;justify-content:space-between;align-items:baseline;
+  padding:4px 0;font-size:13.5px;color:var(--ink-2)}
+.havsbox .hrow b{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.havsbox .hstat{margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08);
+  font-size:13px;font-weight:660}
+.havsbox.ok .hstat{color:var(--ok)}
+.havsbox.amber .hstat{color:var(--warn)}
+.havsbox.red .hstat{color:var(--bad)}
+.hbarwrap{position:relative;height:7px;border-radius:4px;background:var(--line-2);
+  margin-top:10px;overflow:visible}
+.hbarwrap i{display:block;height:100%;border-radius:4px}
+.hbarwrap em{position:absolute;top:-3px;width:2px;height:13px;background:var(--ink-3);
+  opacity:.5;transform:translateX(-1px)}
+
 /* yes / no / na check rows */
 .chk{border:1.5px solid var(--line-2);border-radius:14px;padding:12px;margin-bottom:8px;
   background:#fff}
@@ -437,6 +456,20 @@ input[type=date].in,input[type=time].in,
 .sigline{position:relative;margin-top:-46px;margin-bottom:14px;padding:0 18px;
   pointer-events:none;color:var(--ink-3);font-size:12.5px}
 .sigline::before{content:"";display:block;border-top:1px solid var(--line);margin-bottom:6px}
+
+/* scanner */
+.scanwrap{position:fixed;inset:0;background:#0D1711;z-index:97;display:flex;flex-direction:column}
+.scanbar{display:flex;align-items:center;gap:12px;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+  color:#fff}
+.scanbar .t{flex:1;text-align:center;font-size:14px;font-weight:600;color:rgba(255,255,255,.8)}
+.scanbar button{background:rgba(255,255,255,.16);color:#fff;border-radius:11px;padding:9px 15px;
+  font-size:14.5px;font-weight:650}
+.scanbar [data-save]{background:var(--green);}
+.scanstage{flex:1;display:grid;place-items:center;min-height:0;padding:12px}
+.scanstage canvas{touch-action:none;max-width:100%;max-height:100%;border-radius:6px}
+.scanfoot{display:flex;gap:10px;padding:12px 16px calc(20px + env(safe-area-inset-bottom));
+  justify-content:center}
+.scanfoot .btn{background:rgba(255,255,255,.12);color:#fff;box-shadow:none}
 
 /* photo viewer */
 .lightbox{position:fixed;inset:0;background:#0A140E;z-index:96;display:flex;flex-direction:column}
@@ -849,8 +882,231 @@ function excFor(date, ref){
   return DB.records.find(r=>r.form==="excavation" && r.job===DB.job && r.date===date
     && (r.excRef||"") === ref) || null;
 }
+/* One a day, or one a week, depending on the form. */
+function dailyRecordFor(formKey, date){
+  return DB.records.find(r=>r.form===formKey && r.job===DB.job && r.date===date) || null;
+}
+function weeklyRecordFor(formKey, date){
+  const wc = weekStart(date);
+  return DB.records.find(r=>r.form===formKey && r.job===DB.job && weekStart(r.date)===wc) || null;
+}
+function isDone(rec){ return !!rec && rec.status==="submitted"; }
+
+/* What the week still owes: the weekly forms that have not been done. */
+function weeklyOutstanding(date){
+  return Object.values(FORMS).filter(f=>f.weekly)
+    .filter(f=>!isDone(weeklyRecordFor(f.key, date)));
+}
+
 function excsFor(date){
   return DB.records.filter(r=>r.form==="excavation" && r.job===DB.job && r.date===date);
+}
+
+/* --------------------------------------------------- daily activities briefing --
+   CGC Daily Activities Briefing, as the paper form.
+   -------------------------------------------------------------------------*/
+const BRIEFING_HAZARDS = ["Work at height","Hand tools","Hot works","Confined space",
+  "Third party interface","Hydraulic systems","Lifting operations","Housekeeping",
+  "Edge protection","Moving plant","Buried services","Temporary works","Manual handling",
+  "Flammable substances","Excavations","Electrical systems","Hazardous substances","Labouring"];
+
+const BRIEFING_CHECKS = [
+  "RAMS reviewed and appropriate for the task",
+  "Tools and equipment correct for the task",
+  "Plant inspections carried out",
+  "Competent personnel",
+  "Excavation inspected",
+  "Lifting equipment inspected",
+  "PPE available",
+  "Stop the job triggers agreed",
+  "Emergency procedures understood"
+];
+
+function briefingSections(){
+  return [
+    { title:"The briefing", fields:[
+      { id:"deliveredBy", type:"text", label:"Delivered by", required:true },
+      { id:"position", type:"text", label:"Position", required:true },
+      { id:"cgcActivities", type:"textarea", label:"CGC activities", required:true },
+      { id:"otherActivities", type:"textarea", label:"Other trades activities" }
+    ]},
+    { title:"Permits required", fields:[
+      { id:"permitHot", type:"yesno", label:"Hot works", required:true },
+      { id:"permitExc", type:"yesno", label:"Excavation", required:true },
+      { id:"permitConfined", type:"yesno", label:"Confined spaces", required:true },
+      { id:"permitOther", type:"text", label:"Any other permit" }
+    ]},
+    { title:"Hazards", fields:[
+      { id:"hazards", type:"checkboxes", label:"Hazards briefed", required:true,
+        options: BRIEFING_HAZARDS }
+    ]},
+    { title:"Pre-start checklist", fields:
+      BRIEFING_CHECKS.map(t=>({ id:"b_"+slug(t), type:"check", label:t, required:true }))
+      .concat([
+        { id:"b_conflicting", type:"yesno", label:"Any conflicting operations?", required:true },
+        { id:"conflictingDetail", type:"textarea", label:"List the conflicting operations",
+          required:true, showIf:{field:"b_conflicting",equals:true} }
+      ]) },
+    { title:"Attendees", fields:[
+      { id:"attendees", type:"attendlist", label:"Who attended the briefing", required:true },
+      { id:"otherAttendees", type:"textarea", label:"Anyone not on the labour register" },
+      { id:"signature", type:"signature", label:"Signature of whoever delivered it", required:true }
+    ]}
+  ];
+}
+
+/* ------------------------------------------------------------ PUWER register --
+   CGCivils-013. One sheet a week covering tools and small plant.
+   -------------------------------------------------------------------------*/
+function puwerSections(){
+  return [
+    { title:"Tools and work equipment", fields:[
+      { id:"tools", type:"repeater", label:"Items inspected", itemLabel:"Item",
+        addLabel:"Add item", required:true, collapsible:true,
+        hint:"Cut-off saws, breakers, vibration plates and the like.",
+        columns:[
+          { id:"tool", type:"text", label:"Tool / ID mark or number", required:true },
+          { id:"ok", type:"yesno", label:"Inspection satisfactory?", required:true },
+          { id:"defects", type:"textarea", label:"Details of found defects", required:true,
+            showIf:{field:"ok",equals:false} },
+          { id:"action", type:"select", label:"Remedial action",
+            showIf:{field:"ok",equals:false},
+            options:["Quarantine","Dispose","Return to head office","Repair on site"] }
+        ]}
+    ]},
+    { title:"Declaration", fields:[
+      { id:"location", type:"text", label:"Location", required:true },
+      { id:"signature", type:"signature", label:"Signature", required:true,
+        hint:"Upon inspecting, I confirm the inspection results are accurate and where deemed as safe are fit for purpose." }
+    ]}
+  ];
+}
+
+/* ------------------------------------------- register of excavator lifting equipment --
+   CGCivils-007. Weekly, and it starts from the lifting register.
+   -------------------------------------------------------------------------*/
+function lolerSections(){
+  return [
+    { title:"Lifting equipment", fields:[
+      { id:"items", type:"repeater", label:"Items inspected", itemLabel:"Item",
+        addLabel:"Add item", required:true, collapsible:true,
+        hint:"Loaded from your lifting register. Add anything else being used.",
+        columns:[
+          { id:"description", type:"text", label:"Description", required:true },
+          { id:"idNo", type:"text", label:"ID number", required:true },
+          { id:"certStart", type:"date", label:"LOLER certificate start" },
+          { id:"certEnd", type:"date", label:"LOLER certificate end", required:true },
+          { id:"ok", type:"yesno", label:"Inspection satisfactory?", required:true },
+          { id:"status", type:"select", label:"Status", required:true,
+            options:["In use","Quarantined","Off site"] },
+          { id:"defects", type:"textarea", label:"Details of found defects", required:true,
+            showIf:{field:"ok",equals:false} }
+        ]}
+    ]},
+    { title:"Declaration", fields:[
+      { id:"location", type:"text", label:"Location", required:true },
+      { id:"signature", type:"signature", label:"Signature", required:true,
+        hint:"Upon inspecting, I confirm the inspection results are accurate and where deemed as safe are fit for purpose." }
+    ]}
+  ];
+}
+
+/* ------------------------------------------------------------ HAVs maths --
+   Control of Vibration at Work Regulations 2005, using the HSE points system.
+     points per hour = 2 x a^2          (a = vibration magnitude, m/s^2)
+     EAV  2.5 m/s^2 A(8) = 100 points
+     ELV  5.0 m/s^2 A(8) = 400 points
+     A(8) = 2.5 x sqrt(points / 100)
+     time to a value = 8 x (value / a)^2 hours
+   -------------------------------------------------------------------------*/
+const HAVS_EAV = 100, HAVS_ELV = 400;
+
+const durHours = v => {
+  if(v===undefined||v===null||v==="") return 0;
+  if(typeof v==="number") return v;
+  return (Number(v.h)||0) + (Number(v.m)||0)/60;
+};
+function havsPoints(a, hours){
+  a = Number(a)||0;
+  return Math.round(2 * a * a * hours);
+}
+function havsTimeTo(a, value){          /* hours until that exposure value */
+  a = Number(a)||0;
+  if(a <= 0) return null;
+  return 8 * Math.pow(value / a, 2);
+}
+function havsA8(points){
+  return Math.round(2.5 * Math.sqrt(Math.max(0,points) / 100) * 100) / 100;
+}
+function hoursText(h){
+  if(h===null||h===undefined) return "—";
+  if(h >= 24) return "over a day";
+  const m = Math.round(h * 60);
+  const hh = Math.floor(m / 60), mm = m % 60;
+  if(!hh) return mm + " min";
+  return hh + " hr" + (hh===1?"":"s") + (mm ? " " + mm + " min" : "");
+}
+function havsStatus(points){
+  if(points >= HAVS_ELV) return { key:"elv", label:"Over the exposure limit value", cls:"red" };
+  if(points >= HAVS_EAV) return { key:"eav", label:"Over the exposure action value", cls:"amber" };
+  return { key:"ok", label:"Below the action value", cls:"ok" };
+}
+/* Totals per operative for a day's entries. */
+function havsTotals(entries){
+  const by = {};
+  (entries||[]).forEach(e=>{
+    if(!e || !e.operative) return;
+    const pts = havsPoints(e.magnitude, durHours(e.triggerTime));
+    if(!by[e.operative]) by[e.operative] = { name:e.operative, points:0, tools:0 };
+    by[e.operative].points += pts;
+    by[e.operative].tools += 1;
+  });
+  return Object.values(by).map(x=>Object.assign(x, {
+    a8: havsA8(x.points), status: havsStatus(x.points)
+  })).sort((a,b)=>b.points-a.points);
+}
+
+/* Typical HSE magnitudes, editable once a tool is chosen. */
+const HAVS_TOOLS = {
+  "Breaker (hand held)": 12, "Breaker (rig mounted)": 5, "Road breaker": 12,
+  "Disc cutter": 5, "Angle grinder": 6, "Chainsaw": 6, "Strimmer": 5,
+  "Hammer drill / SDS": 9, "Drill": 5, "Whacker plate": 9, "Trench rammer": 12,
+  "Vibrating roller (pedestrian)": 6, "Concrete poker": 5, "Floor saw": 5,
+  "Impact wrench": 9, "Needle gun": 18, "Other": ""
+};
+
+/* ------------------------------------------------------------- HAVs record --
+   CGCivils-006. One sheet a day, a row per operative and tool.
+   -------------------------------------------------------------------------*/
+function havsSections(){
+  return [
+    { title:"Exposure log", fields:[
+      { id:"entries", type:"repeater", label:"Entries", itemLabel:"Entry",
+        addLabel:"Add an entry", required:true, collapsible:true,
+        hint:"One entry per operative per tool. The app works out the exposure.",
+        columns:[
+          { id:"operative", type:"peopleselect", label:"Operative", required:true },
+          { id:"tool", type:"select", label:"Tool used", required:true,
+            options:Object.keys(HAVS_TOOLS), sets:{ target:"magnitude", values:HAVS_TOOLS } },
+          { id:"toolOther", type:"text", label:"Which tool?", showIf:{field:"tool",equals:"Other"} },
+          { id:"magnitude", type:"number", label:"Vibration magnitude", suffix:"m/s²", required:true,
+            hint:"Filled in from the tool. Use the figure off the machine if you have it." },
+          { id:"triggerTime", type:"duration", label:"Trigger time — how long it was used", required:true },
+          { id:"calc", type:"havscalc", label:"Exposure" },
+          { id:"actions", type:"textarea", label:"Actions to reduce exposure",
+            hint:"Usage limits, job rotation, operative rotation." },
+          { id:"opSignature", type:"signature", label:"Operative signature" }
+        ]}
+    ]},
+    { title:"Daily totals", fields:[
+      { id:"totals", type:"havstotals", label:"Exposure by operative" }
+    ]},
+    { title:"Supervisor", fields:[
+      { id:"supervisor", type:"text", label:"Supervisor", required:true },
+      { id:"signature", type:"signature", label:"Supervisor signature", required:true,
+        hint:"I confirm the EAV and ELV times have been completed and the operatives have been made aware." }
+    ]}
+  ];
 }
 
 /* Every form the app knows about. Adding another is an entry here. */
@@ -863,7 +1119,19 @@ const FORMS = {
     blurb:"Daily pre-use checks, plus the weekly ones when they fall due." },
   excavation: { key:"excavation", name:"Excavation inspection", short:"Excavation", prefix:"EX",
     sections:excavationSections, perMachine:false,
-    blurb:"Raised by anything left open overnight." }
+    blurb:"Raised by anything left open overnight." },
+  briefing: { key:"briefing", name:"Daily activities briefing", short:"Briefing", prefix:"DB",
+    sections:briefingSections, daily:true, inPack:true,
+    blurb:"Activities, hazards and the pre-start checklist." },
+  havs: { key:"havs", name:"HAVs record", short:"HAVs", prefix:"HV",
+    sections:havsSections, daily:true, inPack:true,
+    blurb:"Vibration exposure, an entry per operative." },
+  puwer: { key:"puwer", name:"PUWER register", short:"PUWER", prefix:"PU",
+    sections:puwerSections, weekly:true, inPack:true,
+    blurb:"Tools and small plant, once a week." },
+  loler: { key:"loler", name:"Register of excavator lifting equipment", short:"LOLER", prefix:"LO",
+    sections:lolerSections, weekly:true, inPack:true,
+    blurb:"Lifting equipment, once a week." }
 };
 const formDef = k => FORMS[k] || FORMS.diary;
 const sectionsFor = k => formDef(k).sections();
@@ -878,7 +1146,7 @@ function load(){
     if(raw) return JSON.parse(raw);
   }catch(e){}
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
-    job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], leave:[], vos:[] };
+    job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], leave:[], vos:[], packs:[] };
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
@@ -1187,6 +1455,48 @@ PdfDoc.prototype.blob = function(){
   return new Blob(chunks, { type: "application/pdf" });
 };
 
+/* ------------------------------------------------- weekly H&S pack -- */
+/* Everything health and safety that was completed in a week, gathered into
+   one document with a cover, a contents page and a section per form. */
+const PACK_ORDER = ["briefing","toolboxtalk","havs","puwer","loler","excavation"];
+
+function packSections(ws){
+  const days = weekDays(ws);
+  return PACK_ORDER
+    .filter(k=>FORMS[k])
+    .map(k=>{
+      const def = FORMS[k];
+      const items = DB.records.filter(r=>r.form===k && r.job===DB.job
+        && r.status==="submitted" && days.includes(r.date))
+        .sort((a,b)=>a.date<b.date?-1:1);
+      const expected = def.daily ? days.filter(isWorking).filter(d=>d<=todayISO()).length
+        : def.weekly ? 1 : items.length;
+      return { key:k, name:def.name, items, expected, def };
+    })
+    .filter(sec=>sec.items.length || sec.expected>0);
+}
+
+function packGaps(ws){
+  const out = [];
+  packSections(ws).forEach(sec=>{
+    if(sec.def.daily){
+      weekDays(ws).filter(isWorking).filter(d=>d<=todayISO()).forEach(d=>{
+        if(!sec.items.some(r=>r.date===d)) out.push({ name:sec.name, date:d });
+      });
+    } else if(sec.def.weekly && !sec.items.length){
+      out.push({ name:sec.name, date:null });
+    }
+  });
+  return out;
+}
+
+function packFor(ws){ return (DB.packs||[]).find(p=>p.job===DB.job && p.weekCommencing===ws) || null; }
+function nextPackRef(ws){
+  const yr = parse(ws).getFullYear();
+  const n = (DB.packs||[]).filter(p=>parse(p.weekCommencing).getFullYear()===yr).length + 1;
+  return "CGC-HSP-" + yr + "-" + String(n).padStart(3,"0");
+}
+
 /* ------------------------------------------------------------- defects -- */
 /* A "No" on a check raises a defect that lives on its own until somebody closes
    it out with evidence. Closed ones stay against the machine as its history, so
@@ -1358,6 +1668,124 @@ function printWeeklyPlantSheet(plantId, ws){
     (m.fleetNo || m.item || "Machine") + " — w/c " + shortDate(ws);
   document.getElementById("sheetwrap").classList.add("open");
   window.scrollTo(0,0);
+}
+
+/* ---------------------------------------------------- the pack as a PDF -- */
+function recordLines(doc, rec){
+  const fmt = (f,v) => {
+    if(v===undefined||v===null||v==="") return "—";
+    if(f.type==="check") return v.v===true?"Yes":v.v===false?"No":v.v==="na"?"N/A":"—";
+    if(f.type==="duration") return durText(v)||"—";
+    if(f.type==="yesno") return v?"Yes":"No";
+    if(Array.isArray(v)) return v.length?v.join(", "):"—";
+    return String(v)+(f.suffix?" "+f.suffix:"");
+  };
+  sectionsFor(rec.form).forEach(sec=>{
+    const fields = sec.fields.filter(f=>visible(f,rec.data) && f.type!=="signature" && f.type!=="photos");
+    if(!fields.length) return;
+    doc.text(sec.title, { bold:true, size:10.5, colour:[.12,.35,.18], after:1 });
+    fields.forEach(f=>{
+      const v = rec.data[f.id];
+      if(f.type==="repeater"){
+        const rows = v||[];
+        doc.text(f.label, { bold:true, size:9.5, indent:8 });
+        if(!rows.length){ doc.text("None recorded", { size:9.5, indent:16, colour:[.42,.46,.43] }); return; }
+        rows.forEach((row,i)=>{
+          const bits = f.columns.filter(c=>c.type!=="signature")
+            .map(c=>c.label+": "+fmt(c,row[c.id]))
+            .filter(x=>!/: —$/.test(x));
+          doc.text((i+1)+".  "+bits.join("   ·   "), { size:9.5, indent:16 });
+        });
+        return;
+      }
+      if(f.type==="check" && v && v.v===false){
+        doc.pair(f.label, "No — " + (v.defect||""), [.65,.17,.13]);
+        return;
+      }
+      doc.pair(f.label, fmt(f,v));
+    });
+    doc.y -= 3;
+  });
+}
+
+async function buildPackPdf(ws){
+  const c = cfg();
+  const secs = packSections(ws).filter(x=>x.items.length);
+  const gaps = packGaps(ws);
+  const existing = packFor(ws);
+  const ref = existing ? existing.ref : nextPackRef(ws);
+  const doc = new PdfDoc();
+
+  /* ---- cover ---- */
+  try{ doc.image(await jpegFromDataUrl(LOGO, 460), 170); }catch(e){}
+  doc.y -= 26;
+  doc.text("Weekly Health and Safety Pack", { size:24, bold:true, after:6 });
+  doc.text("Week commencing " + longDate(ws), { size:14, colour:[.35,.39,.36], after:14 });
+  doc.rule();
+  doc.pair("Site", DB.job);
+  doc.pair("Week", shortDate(ws) + " to " + shortDate(addDays(ws,6)));
+  doc.pair("Prepared by", c.user.name);
+  doc.pair("Produced", stamp(Date.now()));
+  doc.pair("Pack reference", ref);
+  doc.pair("Records enclosed", String(secs.reduce((n,x)=>n+x.items.length,0)));
+  if(gaps.length) doc.pair("Records outstanding", String(gaps.length), [.66,.42,0]);
+
+  /* ---- contents: worked out once the pages are known ---- */
+  doc.newPage();
+  const contentsPage = doc.pages.length - 1;      /* index of the contents page */
+  doc.text("Contents", { size:18, bold:true, after:8 });
+  doc.rule();
+  const contentsAnchor = { page: doc.page, y: doc.y };
+  doc.y -= 18 * (secs.length + (gaps.length?2:0)) + 12;
+
+  /* ---- the sections ---- */
+  const starts = [];
+  secs.forEach((sec, si)=>{
+    doc.newPage();
+    starts.push(doc.pages.length);              /* 1-based page number */
+    doc.heading((si+1) + ".  " + sec.name);
+    doc.text(sec.items.length + " record" + (sec.items.length===1?"":"s") + " this week",
+      { size:9.5, colour:[.42,.46,.43], after:6 });
+
+    sec.items.forEach((rec, ri)=>{
+      if(ri) { doc.rule(); }
+      doc.room(60);
+      const who = rec.by || c.user.name;
+      doc.text(longDate(rec.date) + "   ·   " + (rec.ref||""),
+        { bold:true, size:11.5, colour:[.12,.35,.18] });
+      doc.text("Completed by " + who + (rec.submittedAt ? " at " + timeOnly(rec.submittedAt) : ""),
+        { size:9.5, colour:[.42,.46,.43], after:4 });
+      recordLines(doc, rec);
+    });
+  });
+
+  /* ---- anything missing gets its own page, not a quiet omission ---- */
+  let gapsPage = null;
+  if(gaps.length){
+    doc.newPage();
+    gapsPage = doc.pages.length;
+    doc.heading("Records outstanding");
+    doc.text("These were not completed for the week covered by this pack.",
+      { size:10, colour:[.42,.46,.43], after:6 });
+    gaps.forEach(g=>doc.text("•  " + g.name + (g.date ? " — " + longDate(g.date) : " — not done this week"),
+      { size:10.5, indent:6 }));
+  }
+
+  /* ---- write the contents in, now that the page numbers are known ---- */
+  const total = doc.pages.length;
+  const saveTo = doc.page, saveY = doc.y;
+  doc.page = contentsAnchor.page; doc.y = contentsAnchor.y;
+  secs.forEach((sec, i)=>{
+    doc.pair((i+1) + ".  " + sec.name,
+      sec.items.length + (sec.items.length===1?" record":" records") + "     page " + starts[i]);
+  });
+  if(gapsPage) doc.pair("Records outstanding", gaps.length + "     page " + gapsPage, [.66,.42,0]);
+  doc.pair("Total pages", String(total));
+  doc.page = saveTo; doc.y = saveY;
+
+  return { blob: doc.blob(), ref,
+    name: "Weekly HS Pack - " + DB.job.replace(/[^\w\- ]+/g,"") + " - wc " + ws + ".pdf",
+    count: secs.reduce((n,x)=>n+x.items.length,0), gaps: gaps.length, total };
 }
 
 /* A printable report of everything currently outstanding on a machine. */
@@ -1549,6 +1977,90 @@ async function reportDefect(plantId){
     + "&body=" + encodeURIComponent(body);
   a.target = "_blank"; a.rel = "noopener";
   document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* Paperwork attached to a machine or an item of lifting gear. */
+const DOC_TYPES = ["Thorough examination certificate","LOLER certificate","Test certificate",
+  "Service record","Hire agreement","Operator manual","Other"];
+
+function itemsList(kind){ return kind==="lifting" ? (DB.lifting||[]) : (DB.plant||[]); }
+function findItem(kind, id){ return itemsList(kind).find(x=>x.id===id) || null; }
+
+function addDoc(kind, id, doc){
+  const it = findItem(kind, id);
+  if(!it) return;
+  it.docs = it.docs || [];
+  it.docs.unshift(Object.assign({ id:"doc_"+Date.now() }, doc));
+  save();
+}
+function docCount(it){ return (it.docs||[]).length; }
+
+function docsBlock(kind, it){
+  const docs = it.docs || [];
+  return `<div class="sect" style="margin:18px 0 8px">Documents${docs.length?" ("+docs.length+")":""}</div>
+    ${docs.length ? `<div class="card" style="padding:4px 14px">${docs.map(d=>`
+      <div class="row">
+        <button style="flex:1;text-align:left;display:block" data-docopen="${kind}:${it.id}:${d.id}">
+          <b style="display:block;font-size:15px;font-weight:640">${esc(d.type||"Document")}</b>
+          <span style="display:block;font-size:12.5px;color:var(--ink-3)">
+            ${esc(d.title||"")}${d.title?" · ":""}added ${shortDate(iso(d.scannedAt||d.addedAt||Date.now()))}</span>
+        </button>
+        <button data-docrm="${kind}:${it.id}:${d.id}" aria-label="Delete"
+          style="color:var(--bad);font-size:20px;padding:0 4px">&times;</button>
+      </div>`).join("")}</div>` : ""}
+    <div class="g2">
+      <button class="btn line" style="margin:0" data-docscan="${kind}:${it.id}">Scan a document</button>
+      <button class="btn line" style="margin:0" data-docup="${kind}:${it.id}">Upload</button>
+    </div>`;
+}
+
+/* Recording that an examination has been done. */
+let examDraft = null;
+const addMonthsISO = (d, n) => { const x = parse(d); x.setMonth(x.getMonth()+n); return iso(x); };
+
+function examBlock(kind, it){
+  const st = lolerState(it);
+  if(!examDraft || examDraft.kind!==kind || examDraft.id!==it.id){
+    return `<div class="card" style="${st.key==="expired"?"background:var(--bad-bg);box-shadow:none":
+      st.key==="soon"?"background:var(--warn-bg);box-shadow:none":""}">
+      <div class="spread">
+        <div>
+          <h3 style="${st.key==="expired"?"color:var(--bad)":st.key==="soon"?"color:var(--warn)":""}">
+            ${esc(st.label)}</h3>
+          <p class="sub">${(it.exams||[]).length
+            ? (it.exams||[]).length+" recorded" : "No examinations recorded yet"}</p>
+        </div>
+      </div>
+      <button class="btn" style="margin:14px 0 0" data-examstart="${kind}:${it.id}">
+        Inspection carried out</button>
+      ${(it.exams||[]).length ? `<div style="margin-top:12px;padding-top:12px;
+        border-top:1px solid var(--line-2)">
+        ${(it.exams||[]).slice(0,4).map(e=>`<div style="font-size:13px;color:var(--ink-2);padding:3px 0">
+          Examined ${shortDate(e.done)} · next due ${shortDate(e.next)}${e.by?" · "+esc(e.by):""}
+        </div>`).join("")}</div>` : ""}
+    </div>`;
+  }
+  const d = examDraft;
+  return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+    <h3 style="margin-bottom:12px">Inspection carried out</h3>
+    <div class="g2">
+      <div class="f"><label>Date carried out</label>
+        <input class="in" type="date" data-exf="done" value="${esc(d.done)}"></div>
+      <div class="f"><label>Next inspection due</label>
+        <input class="in" type="date" data-exf="next" value="${esc(d.next)}"></div>
+    </div>
+    <div class="f"><label>Carried out by</label>
+      <input class="in" data-exf="by" value="${esc(d.by||"")}" placeholder="Engineer or company"></div>
+    <div class="f" style="margin:0"><label>Certificate</label>
+      ${d.doc ? `<div class="ph" style="aspect-ratio:auto;max-height:200px;margin-bottom:10px">
+          <img src="${d.doc.src}" alt="Certificate" style="height:auto;max-height:200px;object-fit:contain">
+        </div>` : ""}
+      <div class="g2">
+        <button class="btn line" style="margin:0" data-exscan="1">${d.doc?"Rescan":"Scan certificate"}</button>
+        <button class="btn line" style="margin:0" data-exup="1">Upload</button>
+      </div></div>
+    <button class="btn" style="margin:16px 0 8px" data-exsave="1">Save the inspection</button>
+    <button class="btn ghost" style="margin:0" data-excancel="1">Cancel</button>`;
 }
 
 function refreshLiftPill(id){
@@ -1759,7 +2271,7 @@ const ICONS = {
 /* which section of the app a screen belongs to */
 const SECTION = {
   home:"home",
-  project:"project", plant:"project", lifting:"project", labour:"project", leave:"project",
+  project:"project", pack:"project", plant:"project", item:"project", lifting:"project", labour:"project", leave:"project",
   timesheet:"project", vos:"project", vo:"project", list:"project", record:"project",
   defect:"project", planthistory:"project", pickplant:"project", pickexc:"project",
   settings:"profile"
@@ -1821,6 +2333,7 @@ function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="lifting"){ liftEditId = null; liftDraft = null; }
+  if(name!=="plant" && name!=="lifting"){ examDraft = null; }
   if(name!=="leave"){ leaveDraft = null; leaveDay = null; }
   if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; voEditDate = ""; }
   if(name!=="defect"){ fixDraft = null; }
@@ -1828,6 +2341,244 @@ function go(name, opts){
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
   render();
+}
+
+/* ------------------------------------------------------------- scanner --
+   Photograph a certificate, drag the corners onto the page, and it is warped
+   square and cleaned up — a scan rather than a snapshot of a desk.
+   -------------------------------------------------------------------------*/
+
+/* Solve the 8 unknowns of a projective transform mapping the output rectangle
+   onto the four corners the user picked. */
+function solve8(A, b){
+  const n = 8;
+  for(let i=0;i<n;i++){
+    let piv = i;
+    for(let r=i+1;r<n;r++) if(Math.abs(A[r][i]) > Math.abs(A[piv][i])) piv = r;
+    [A[i],A[piv]] = [A[piv],A[i]]; [b[i],b[piv]] = [b[piv],b[i]];
+    const d = A[i][i] || 1e-9;
+    for(let r=i+1;r<n;r++){
+      const f = A[r][i] / d;
+      for(let c=i;c<n;c++) A[r][c] -= f * A[i][c];
+      b[r] -= f * b[i];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    let sum = b[i];
+    for(let c=i+1;c<n;c++) sum -= A[i][c] * x[c];
+    x[i] = sum / (A[i][i] || 1e-9);
+  }
+  return x;
+}
+function homography(dst, src){          /* both arrays of 4 {x,y} */
+  const A = [], b = [];
+  for(let i=0;i<4;i++){
+    const {x:u,y:v} = dst[i], {x:X,y:Y} = src[i];
+    A.push([u,v,1,0,0,0,-u*X,-v*X]); b.push(X);
+    A.push([0,0,0,u,v,1,-u*Y,-v*Y]); b.push(Y);
+  }
+  const h = solve8(A,b);
+  return [h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1];
+}
+
+/* Rough guess at where the page is: the bright area in the middle. */
+function guessCorners(img, w, h){
+  try{
+    const sc = 160 / Math.max(w,h);
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(w*sc); cv.height = Math.round(h*sc);
+    const g = cv.getContext("2d");
+    g.drawImage(img, 0, 0, cv.width, cv.height);
+    const d = g.getImageData(0,0,cv.width,cv.height).data;
+    let sum = 0;
+    for(let i=0;i<d.length;i+=4) sum += (d[i]+d[i+1]+d[i+2])/3;
+    const mean = sum / (d.length/4);
+    const cut = Math.min(235, mean + 22);
+    let x0=cv.width, y0=cv.height, x1=0, y1=0, found=false;
+    for(let y=0;y<cv.height;y++) for(let x=0;x<cv.width;x++){
+      const i=(y*cv.width+x)*4;
+      if((d[i]+d[i+1]+d[i+2])/3 > cut){
+        found=true;
+        if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+      }
+    }
+    if(!found || (x1-x0) < cv.width*0.25 || (y1-y0) < cv.height*0.25) throw 0;
+    const k = 1/sc;
+    return [{x:x0*k,y:y0*k},{x:x1*k,y:y0*k},{x:x1*k,y:y1*k},{x:x0*k,y:y1*k}];
+  }catch(e){
+    const mx = w*0.06, my = h*0.06;
+    return [{x:mx,y:my},{x:w-mx,y:my},{x:w-mx,y:h-my},{x:mx,y:h-my}];
+  }
+}
+
+function warpToPage(img, corners, enhance){
+  const d = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+  let W = Math.round(Math.max(d(corners[0],corners[1]), d(corners[3],corners[2])));
+  let H = Math.round(Math.max(d(corners[0],corners[3]), d(corners[1],corners[2])));
+  const cap = 1500;
+  const sc = Math.min(1, cap/Math.max(W,H));
+  W = Math.max(40, Math.round(W*sc)); H = Math.max(40, Math.round(H*sc));
+
+  const out = document.createElement("canvas");
+  out.width = W; out.height = H;
+  const og = out.getContext("2d");
+  const dest = [{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}];
+  const h = homography(dest, corners);
+
+  const src = document.createElement("canvas");
+  src.width = img.width; src.height = img.height;
+  src.getContext("2d").drawImage(img,0,0);
+  const sd = src.getContext("2d").getImageData(0,0,img.width,img.height).data;
+  const od = og.createImageData(W,H);
+
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const den = h[6]*x + h[7]*y + h[8];
+      const sx = Math.round((h[0]*x + h[1]*y + h[2]) / den);
+      const sy = Math.round((h[3]*x + h[4]*y + h[5]) / den);
+      const o = (y*W + x) * 4;
+      if(sx<0 || sy<0 || sx>=img.width || sy>=img.height){
+        od.data[o]=od.data[o+1]=od.data[o+2]=255; od.data[o+3]=255; continue;
+      }
+      const i = (sy*img.width + sx) * 4;
+      od.data[o]=sd[i]; od.data[o+1]=sd[i+1]; od.data[o+2]=sd[i+2]; od.data[o+3]=255;
+    }
+  }
+
+  if(enhance){                                   /* lift the paper, deepen the ink */
+    const p = od.data;
+    let lo = 255, hi = 0;
+    for(let i=0;i<p.length;i+=4){
+      const v = (p[i]+p[i+1]+p[i+2])/3;
+      if(v<lo) lo=v; if(v>hi) hi=v;
+    }
+    const range = Math.max(30, hi-lo);
+    for(let i=0;i<p.length;i+=4){
+      for(let c=0;c<3;c++){
+        let v = (p[i+c]-lo) * (255/range);
+        v = (v - 128) * 1.25 + 138;              /* contrast, slightly bright */
+        p[i+c] = v<0?0:v>255?255:v;
+      }
+    }
+  }
+  og.putImageData(od,0,0);
+  return out.toDataURL("image/jpeg", 0.82);
+}
+
+function openScanner(onDone){
+  const pick = document.createElement("input");
+  pick.type = "file"; pick.accept = "image/*";
+  pick.onchange = () => {
+    const file = pick.files[0];
+    if(!file) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => scanEditor(img, onDone);
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  };
+  pick.click();
+}
+
+function scanEditor(img, onDone){
+  let corners = guessCorners(img, img.width, img.height);
+  let enhance = true;
+
+  const wrap = document.createElement("div");
+  wrap.className = "scanwrap";
+  wrap.innerHTML = `
+    <div class="scanbar">
+      <button data-cancel>Cancel</button>
+      <span class="t">Drag the corners onto the page</span>
+      <button data-save>Use it</button>
+    </div>
+    <div class="scanstage"><canvas id="scanCv"></canvas></div>
+    <div class="scanfoot">
+      <button class="btn line sm" style="margin:0" data-full>Whole photo</button>
+      <button class="btn line sm" style="margin:0" data-enh>Clean up: on</button>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const cv = wrap.querySelector("#scanCv");
+  const g = cv.getContext("2d");
+  const stage = wrap.querySelector(".scanstage");
+  let scale = 1;
+
+  function layout(){
+    const maxW = stage.clientWidth - 24, maxH = stage.clientHeight - 24;
+    scale = Math.min(maxW/img.width, maxH/img.height);
+    cv.width = Math.round(img.width*scale);
+    cv.height = Math.round(img.height*scale);
+    draw();
+  }
+  function draw(){
+    g.clearRect(0,0,cv.width,cv.height);
+    g.drawImage(img,0,0,cv.width,cv.height);
+    g.save();
+    g.beginPath();
+    corners.forEach((c,i)=> i ? g.lineTo(c.x*scale,c.y*scale) : g.moveTo(c.x*scale,c.y*scale));
+    g.closePath();
+    g.fillStyle = "rgba(0,0,0,.35)";
+    g.fillRect(0,0,cv.width,cv.height);
+    g.globalCompositeOperation = "destination-out";
+    g.fill();
+    g.restore();
+    g.strokeStyle = "#2A7440"; g.lineWidth = 2;
+    g.beginPath();
+    corners.forEach((c,i)=> i ? g.lineTo(c.x*scale,c.y*scale) : g.moveTo(c.x*scale,c.y*scale));
+    g.closePath(); g.stroke();
+    corners.forEach(c=>{
+      g.beginPath(); g.arc(c.x*scale, c.y*scale, 11, 0, Math.PI*2);
+      g.fillStyle = "#fff"; g.fill();
+      g.lineWidth = 3; g.strokeStyle = "#1F5A2D"; g.stroke();
+    });
+  }
+  let drag = -1;
+  const at = e => { const r = cv.getBoundingClientRect();
+    return { x:(e.clientX-r.left)/scale, y:(e.clientY-r.top)/scale }; };
+  cv.addEventListener("pointerdown", e=>{
+    e.preventDefault();
+    const p = at(e);
+    let best = -1, bd = 1e9;
+    corners.forEach((c,i)=>{ const d = Math.hypot(c.x-p.x, c.y-p.y); if(d<bd){ bd=d; best=i; } });
+    if(bd * scale < 44){ drag = best; cv.setPointerCapture(e.pointerId); }
+  });
+  cv.addEventListener("pointermove", e=>{
+    if(drag<0) return;
+    e.preventDefault();
+    const p = at(e);
+    corners[drag] = { x: Math.max(0, Math.min(img.width, p.x)),
+                      y: Math.max(0, Math.min(img.height, p.y)) };
+    draw();
+  });
+  const stop = ()=>{ drag = -1; };
+  cv.addEventListener("pointerup", stop);
+  cv.addEventListener("pointercancel", stop);
+
+  wrap.querySelector("[data-cancel]").onclick = () => wrap.remove();
+  wrap.querySelector("[data-full]").onclick = () => {
+    corners = [{x:0,y:0},{x:img.width,y:0},{x:img.width,y:img.height},{x:0,y:img.height}];
+    draw();
+  };
+  const eb = wrap.querySelector("[data-enh]");
+  eb.onclick = () => { enhance = !enhance; eb.textContent = "Clean up: " + (enhance?"on":"off"); };
+  wrap.querySelector("[data-save]").onclick = () => {
+    const btn = wrap.querySelector("[data-save]");
+    btn.textContent = "Working…";
+    setTimeout(()=>{
+      let src;
+      try{ src = warpToPage(img, corners, enhance); }
+      catch(e){ toast("That scan could not be processed."); wrap.remove(); return; }
+      wrap.remove();
+      onDone({ src, scannedAt: Date.now() });
+    }, 30);
+  };
+
+  layout();
+  window.addEventListener("resize", layout);
 }
 
 /* Signing happens in its own panel, so a finger on the canvas can never drag
@@ -1909,6 +2660,44 @@ function openPhoto(src, takenAt){
   document.body.appendChild(wrap);
 }
 
+function askDocType(onPick){
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg">
+      <h3>What is it?</h3>
+      <p>So it can be found again later.</p>
+      ${DOC_TYPES.map(t=>`<button class="btn line" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+      <button class="btn ghost" style="margin:0" data-x>Cancel</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{ wrap.remove(); onPick(b.dataset.t); });
+  wrap.querySelector("[data-x]").onclick = () => wrap.remove();
+  wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
+}
+
+/* An uploaded document, sized down but kept readable. */
+function compressDoc(file){
+  return new Promise((res,rej)=>{
+    const fr = new FileReader();
+    fr.onerror = ()=>rej();
+    fr.onload = () => {
+      const im = new Image();
+      im.onerror = ()=>rej();
+      im.onload = () => {
+        const sc = Math.min(1, 1500/Math.max(im.width, im.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(im.width*sc); cv.height = Math.round(im.height*sc);
+        const g = cv.getContext("2d");
+        g.fillStyle="#fff"; g.fillRect(0,0,cv.width,cv.height);
+        g.drawImage(im,0,0,cv.width,cv.height);
+        res({ src: cv.toDataURL("image/jpeg", 0.82), scannedAt: Date.now() });
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
 function askConfirm(title, message, confirmLabel, onYes){
   const wrap = document.createElement("div");
   wrap.className = "scrim";
@@ -1948,7 +2737,9 @@ function render(){
   else if(view.name==="planthistory") app.innerHTML = plantHistoryView();
   else if(view.name==="labour") app.innerHTML = labourView();
   else if(view.name==="project") app.innerHTML = projectView();
+  else if(view.name==="pack") app.innerHTML = packView();
   else if(view.name==="lifting") app.innerHTML = liftingView();
+  else if(view.name==="item") app.innerHTML = itemView();
   else if(view.name==="leave") app.innerHTML = leaveView();
   else if(view.name==="vos") app.innerHTML = voListView();
   else if(view.name==="vo") app.innerHTML = voView();
@@ -2042,6 +2833,22 @@ function homeView(){
     .filter(x=>x.df)
     .sort((a,b)=>(b.to.priority?1:0)-(a.to.priority?1:0) || a.df.oldest-b.df.oldest);
 
+  /* the other daily health and safety forms */
+  const dailyCard = (key) => {
+    const def = FORMS[key];
+    const rec = dailyRecordFor(key, sel);
+    if(isDone(rec)) return `<div class="hero calm">
+        <div class="lab">${isToday?"Today":shortDate(sel)}</div>
+        <div class="ttl">${esc(def.name)}</div>
+        <div class="count">Done at ${timeOnly(rec.submittedAt)}</div>
+        <button class="begin" data-open="${rec.id}">View it</button></div>`;
+    return `<div class="hero">
+        <div class="lab">${isToday?"Today":shortDate(sel)}</div>
+        <div class="ttl">${esc(def.name)}</div>
+        <div class="why">${esc(def.blurb)}</div>
+        <button class="begin" data-startf="${key}" data-d="${sel}">${rec?"Continue":"Begin"}</button></div>`;
+  };
+
   /* excavations left open on the last working day */
   const excDue = excavationsDue(sel);
   const excDone = excsFor(sel).filter(r=>r.status==="submitted");
@@ -2084,12 +2891,26 @@ function homeView(){
        ${strip}
        <button class="warrow" data-week="1" ${canFwd?"":"disabled"} aria-label="Next week">&rsaquo;</button>
      </div>
-     <div class="carousel" id="heroCar">
-       ${hero}
-       ${plantHero}
-       ${excHero}
-     </div>
-     <div class="cdots"><i class="on"></i><i></i><i></i></div>
+     ${(function(){
+       const cards = [hero, dailyCard("briefing"), plantHero, dailyCard("havs"), excHero];
+       return `<div class="carousel" id="heroCar">${cards.join("")}</div>
+         <div class="cdots">${cards.map((_,i)=>`<i class="${i?"":"on"}"></i>`).join("")}</div>`;
+     })()}
+     ${(function(){
+       const due = weeklyOutstanding(sel);
+       if(!due.length) return `<div class="card" style="background:var(--green-50);box-shadow:none">
+         <h3 style="color:var(--green-700)">Weekly checks done</h3>
+         <p>PUWER and LOLER registers are in for this week.</p></div>`;
+       return `<div class="card" style="background:var(--warn-bg);box-shadow:none">
+         <h3 style="color:var(--warn)">${due.length} weekly check${due.length===1?"":"s"} to do</h3>
+         <p style="margin-bottom:12px">Due once a week, any day that suits.</p>
+         ${due.map(f=>`<button class="row" style="width:100%;border:0;padding:9px 0"
+           data-startf="${f.key}" data-d="${sel}">
+           <span class="n"><b style="font-size:15px">${esc(f.name)}</b>
+             <span>${esc(f.blurb)}</span></span>
+           <span style="color:var(--ink-3)">&rsaquo;</span></button>`).join("")}
+       </div>`;
+     })()}
      ${faulty.length ? `<button class="card" style="width:100%;text-align:left;
        background:var(--bad-bg);box-shadow:none" data-go="plant">
        <h3 style="color:var(--bad)">${faulty.reduce((n,x)=>n+x.df.items.length,0)} plant defect${
@@ -2120,9 +2941,12 @@ function visible(f, v){ return !f.showIf || v[f.showIf.field] === f.showIf.equal
 
 function startForm(date, formKey, plantId, excRef){
   formKey = formKey || "diary";
+  const def = formDef(formKey);
   const rec = formKey==="diary" ? recordFor(date)
     : formKey==="excavation" ? excFor(date, excRef||"")
-    : checkFor(date, plantId);
+    : formKey==="plantcheck" ? checkFor(date, plantId)
+    : def.weekly ? weeklyRecordFor(formKey, date)
+    : dailyRecordFor(formKey, date);
   if(rec && rec.status==="submitted"){ go("record",{id:rec.id}); return; }
   const values = rec ? JSON.parse(JSON.stringify(rec.data)) : prefill(date, formKey, excRef);
   if(rec){
@@ -2154,6 +2978,30 @@ function prefill(date, formKey, excRef){
   sectionsFor(formKey||"diary").forEach(s=>s.fields.forEach(f=>{
     if(f.type==="repeater"||f.type==="checkboxes"||f.type==="photos") v[f.id]=[];
   }));
+  if(formKey === "briefing"){
+    v.deliveredBy = cfg().user.name;
+    v.hazards = [];
+    v.attendees = [];
+    return v;
+  }
+  if(formKey === "havs"){
+    v.supervisor = cfg().user.name;
+    v.entries = [];
+    return v;
+  }
+  if(formKey === "puwer"){
+    v.tools = [];
+    v.location = DB.job;
+    return v;
+  }
+  if(formKey === "loler"){
+    v.items = onSiteLifting(date).map(l=>({
+      description: l.item || "", idNo: l.idNo || "",
+      certEnd: examDateOf(l) || "", ok: undefined, status: "In use"
+    }));
+    v.location = DB.job;
+    return v;
+  }
   if(formKey === "excavation"){
     /* carry across what the diary already told us about it */
     const src = excavationsDue(date).find(x=>x.ref===excRef);
@@ -2316,6 +3164,92 @@ function fieldHtml(f, v, err, path){
         <div class="hint" style="margin:8px 0 0">${arr.length
           ? arr.length+" attached · tap one to see it full size"
           : "Each photo is stamped with the time and the CGC logo."}</div>`;
+      break;
+    }
+    case "havscalc":{
+      const parts = String(id).split(".");
+      const row = getVal(parts.slice(0,-1).join(".")) || {};
+      const a = Number(row.magnitude)||0;
+      const hrs = durHours(row.triggerTime);
+      const pts = havsPoints(a, hrs);
+      const st = havsStatus(pts);
+      const eav = havsTimeTo(a, 2.5), elv = havsTimeTo(a, 5);
+      if(!a){ c = `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
+        Choose a tool to see the exposure.</div>`; break; }
+      c = `<div class="havsbox ${st.cls}">
+        <div class="hrow"><span>Exposure points</span><b>${pts}</b></div>
+        <div class="hrow"><span>Partial A(8)</span><b>${havsA8(pts)} m/s²</b></div>
+        <div class="hrow"><span>Time to the action value</span><b>${hoursText(eav)}</b></div>
+        <div class="hrow"><span>Time to the limit value</span><b>${hoursText(elv)}</b></div>
+        <div class="hstat">${esc(st.label)}</div>
+      </div>`;
+      break;
+    }
+    case "havstotals":{
+      const rows = havsTotals(formState ? formState.values.entries : []);
+      if(!rows.length){ c = `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
+        Add an entry above and the totals appear here.</div>`; break; }
+      c = `<div class="ttable">
+        <div class="thead"><span class="c1">Operative</span><span class="c2">Points</span>
+          <span class="c3">A(8)</span></div>`+
+        rows.map(r=>`<div class="trow">
+          <div class="main">
+            <span class="c1"><b>${esc(r.name)}</b><span>${r.tools} tool${r.tools===1?"":"s"} · ${esc(r.status.label)}</span></span>
+            <span class="c2" style="color:${r.status.cls==="red"?"var(--bad)":r.status.cls==="amber"?"var(--warn)":"var(--ok)"};font-weight:700">${r.points}</span>
+            <span class="c3" style="text-align:center;font-weight:700">${r.a8}</span>
+          </div>
+          <div class="hbarwrap"><i style="width:${Math.min(100, r.points/4)}%;
+            background:${r.status.cls==="red"?"var(--bad)":r.status.cls==="amber"?"var(--warn)":"var(--ok)"}"></i>
+            <em style="left:25%"></em><em style="left:100%"></em></div>
+        </div>`).join("")+
+        `</div>
+        <div class="hint" style="margin:8px 0 0">100 points is the daily action value,
+        400 is the limit value. The marks on each bar show both.</div>`;
+      break;
+    }
+    case "attendlist":{
+      const arr = val||[];
+      const date = formState ? formState.date : todayISO();
+      const people = onSiteLabour(date);
+      if(!people.length){
+        c = `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
+          Nobody on the labour register yet. Add the gang under Project, Labour.</div>`;
+        break;
+      }
+      c = `<div class="ttable">
+        <div class="thead"><span class="c1">Name</span><span class="c3">Attended</span></div>`+
+        people.map(pn=>{
+          const off = leaveOn(pn.id, date);
+          const on = arr.includes(pn.name);
+          return `<div class="trow"${off?' style="background:var(--info-bg)"':""}>
+            <div class="main">
+              <span class="c1"><b>${esc(pn.name)}</b><span>${esc(pn.trade||"")}</span></span>
+              ${off
+                ? `<span class="pill info" style="flex:none">${esc(off.type)}</span>`
+                : `<span class="yn" style="width:104px">
+                    <button type="button" class="${on?"y":""}" data-att="${id}" data-name="${esc(pn.name)}" data-v="1">Yes</button>
+                    <button type="button" class="${!on&&arr.length?"n":""}" data-att="${id}" data-name="${esc(pn.name)}" data-v="0">No</button>
+                  </span>`}
+            </div></div>`;
+        }).join("")+
+        `</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" class="btn line sm" style="flex:1;margin:0"
+            data-attall="${id}">Everyone on site</button>
+          <button type="button" class="btn line sm" style="flex:1;margin:0"
+            data-attnone="${id}">Clear</button>
+        </div>
+        <div class="hint" style="margin:8px 0 0">${arr.length} attended. Anyone booked off is
+        marked automatically.</div>`;
+      break;
+    }
+    case "peopleselect":{
+      const opts = (currentLabour().map(l=>l.name).filter(Boolean));
+      if(val && !opts.includes(val)) opts.unshift(val);
+      c = `<select id="fl_${id}" class="in${ec}" data-f="${id}">
+        <option value="">Choose…</option>`+
+        opts.map(o=>`<option ${val===o?"selected":""}>${esc(o)}</option>`).join("")+
+        `<option value="__other">Someone else…</option></select>`;
       break;
     }
     case "peoplepick":
@@ -2536,6 +3470,16 @@ function tableRows(f, val){
 }
 
 function readRow(f, val){
+  if(f.type==="havscalc") return "";
+  if(f.type==="havstotals"){
+    const rows = havsTotals((view && DB.records.find(r=>r.id===view.id) || {data:{}}).data.entries);
+    if(!rows.length) return "";
+    return `<div class="kv" style="display:block"><span class="k">${esc(f.label)}</span>
+      <table class="tbl" style="margin-top:6px"><tr><th>Operative</th><th>Points</th><th>A(8)</th><th>Status</th></tr>`+
+      rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.points}</td><td>${r.a8}</td>
+        <td style="color:${r.status.cls==="red"?"var(--bad)":r.status.cls==="amber"?"var(--warn)":"var(--ok)"}">
+        ${esc(r.status.label)}</td></tr>`).join("")+`</table></div>`;
+  }
   if(f.type==="check"){
     const v = val||{};
     const txt = v.v===true?"Yes":v.v===false?"No":v.v==="na"?"N/A":"—";
@@ -2543,7 +3487,7 @@ function readRow(f, val){
       <span class="v" style="color:${v.v===false?"var(--bad)":"inherit"}">${txt}${
         v.v===false&&v.defect?" — "+esc(v.defect):""}</span></div>`;
   }
-  if(f.type==="peoplepick"||f.type==="plantpick"){
+  if(f.type==="peoplepick"||f.type==="plantpick"||f.type==="attendlist"){
     return `<div class="kv"><span class="k">${esc(f.label)}</span>
       <span class="v">${val&&val.length?esc(val.join(", ")):"—"}</span></div>`;
   }
@@ -2583,12 +3527,10 @@ function listView(){
   const all = DB.records.slice().sort((a,b)=>
     a.date===b.date ? (b.submittedAt||b.createdAt||0)-(a.submittedAt||a.createdAt||0)
                     : (a.date<b.date?1:-1));
-  const counts = {
-    all: all.length,
-    diary: all.filter(r=>(r.form||"diary")==="diary").length,
-    plantcheck: all.filter(r=>r.form==="plantcheck").length,
-    excavation: all.filter(r=>r.form==="excavation").length
-  };
+  const counts = { all: all.length };
+  Object.keys(FORMS).forEach(k=>{
+    counts[k] = all.filter(r=>(r.form||"diary")===k).length;
+  });
   let recs = all.filter(r=> listFilter==="all" ? true : (r.form||"diary")===listFilter);
   if(listDate) recs = recs.filter(r=>r.date===listDate);
 
@@ -2622,8 +3564,8 @@ function listView(){
     <p class="sub">${esc(DB.job)}</p>
 
     <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none">
-      ${chip("all","All")}${chip("diary","Site diary")}${chip("plantcheck","Plant inspection")}${
-        chip("excavation","Excavation")}
+      ${chip("all","All")}${Object.values(FORMS).filter(f=>counts[f.key])
+        .map(f=>chip(f.key, f.short)).join("")}
     </div>
 
     <div class="card" style="display:flex;align-items:center;gap:10px;padding:10px 12px">
@@ -2648,7 +3590,7 @@ let plantEditId = null;
 
 function blankPlant(){
   return { item:"", fleetNo:"", model:"", type:"Excavator", owner:"Hired",
-    onDate:todayISO(), offDate:"", examDate:"" };
+    onDate:todayISO(), offDate:"", examDate:"", doc:null };
 }
 
 function plantFields(p, attr){
@@ -2892,6 +3834,59 @@ function pickPlantView(){
     }).join("")}`;
 }
 
+function itemView(){
+  const kind = view.kind || "plant";
+  const it = findItem(kind, view.id);
+  if(!it) return `<div class="card"><h3>Not found</h3></div>`;
+  const isPlant = kind === "plant";
+  const st = lolerState(it);
+  const df = isPlant ? defectsFor(it.id) : null;
+  const onSite = (isPlant ? currentPlant() : currentLifting()).some(x=>x.id===it.id);
+
+  const sub = isPlant
+    ? [it.type||"Excavator", it.fleetNo||"No fleet no.", it.model, it.owner].filter(Boolean).join(" · ")
+    : [it.type||"", it.idNo||"No ID", it.swl?("SWL "+it.swl):"", it.owner].filter(Boolean).join(" · ");
+
+  return `<div class="top">
+      <button class="chip" data-go="${kind}">&lsaquo; ${isPlant?"Plant":"Lifting"}</button>
+      <span class="pill ${onSite?st.cls:"grey"}">${onSite?esc(st.label):"Off site"}</span>
+    </div>
+
+    <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
+    <p class="sub">${esc(sub)}</p>
+
+    ${df ? `<button class="card" style="width:100%;text-align:left;background:var(--bad-bg);
+      box-shadow:none" data-defopen="${df.items[0].id}">
+      <h3 style="color:var(--bad)">${df.items.length} open defect${df.items.length===1?"":"s"}${
+        df.unsafe?" · not fit for use":""}</h3>
+      ${df.items.map(x=>`<p style="color:var(--ink-2);margin-top:2px">
+        <b style="font-weight:640">${esc(x.item)}</b>${x.description?" — "+esc(x.description):""}
+        · reported ${ageText(x.reportedAt)}</p>`).join("")}
+    </button>` : ""}
+
+    <div class="sect">Examination</div>
+    ${examBlock(kind, it)}
+
+    ${docsBlock(kind, it)}
+
+    <div class="sect">Details</div>
+    <div class="card">
+      ${isPlant ? plantFields(it, "data-pl-"+it.id) : liftingFields(it, "data-lf-"+it.id)}
+    </div>
+
+    <div class="sect">This item</div>
+    ${isPlant ? `<button class="btn ghost" data-history="${it.id}">Defect history${
+        closedDefects(it.id).length?" ("+closedDefects(it.id).length+")":""}</button>
+      <button class="btn ghost" data-weeksheet="${it.id}">This week’s inspection sheet</button>
+      ${df ? `<button class="btn ghost" data-report="${it.id}">Send the defect report</button>` : ""}` : ""}
+    ${onSite
+      ? `<button class="btn line" style="color:var(--bad)" data-${isPlant?"ploff":"lfoff"}="${it.id}">
+          Take off site</button>`
+      : `<button class="btn line" data-${isPlant?"plback":"lfback"}="${it.id}">Back on site</button>
+         <button class="btn line" style="color:var(--bad)" data-${isPlant?"plrm":"lfrm"}="${it.id}">
+           Delete this item</button>`}`;
+}
+
 function plantView(){
   const all = (DB.plant||[]).filter(p=>p.job===DB.job);
   const live = currentPlant();
@@ -2914,7 +3909,9 @@ function plantView(){
       return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
         ${plantFields(p, "data-pl-"+p.id)}
         <button class="btn" style="margin:14px 0 0" data-pldone="${p.id}">Done</button>
-      </div>`;
+      </div>
+      ${examBlock("plant", p)}
+      ${docsBlock("plant", p)}`;
     }
     const ls = lolerState(p);
     const df = defectsFor(p.id);
@@ -2952,12 +3949,10 @@ function plantView(){
             Send to ${esc(recipientFor(p).kind==="internal" ? "our fitter" : (recipientFor(p).name||"them"))}</button>
         </div>
       </div>` : ""}
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn line sm" style="flex:1;margin:0" data-pledit="${p.id}">Edit</button>
-        <button class="btn line sm" style="flex:1;margin:0" data-history="${p.id}">History${
-          closedDefects(p.id).length?" ("+closedDefects(p.id).length+")":""}</button>
-        <button class="btn line sm" style="flex:1;margin:0" data-weeksheet="${p.id}">Sheet</button>
-        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-ploff="${p.id}">Off site</button>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+        <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
+          ${docCount(p)?docCount(p)+" document"+(docCount(p)===1?"":"s"):"No documents"}</span>
+        <button class="btn line sm" style="margin:0" data-openitem="plant:${p.id}">Open</button>
       </div>
     </div>`;
   }).join("");
@@ -2974,8 +3969,8 @@ function plantView(){
         <span class="pill grey">Off site</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn line sm" style="flex:1;margin:0" data-openitem="plant:${p.id}">Open</button>
         <button class="btn line sm" style="flex:1;margin:0" data-plback="${p.id}">Back on site</button>
-        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-plrm="${p.id}">Delete</button>
       </div>
     </div>`).join("");
 
@@ -2983,6 +3978,16 @@ function plantView(){
     ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
         <h3 style="margin-bottom:14px">New item of plant</h3>
         ${plantFields(plantDraft, "data-nd")}
+        <div class="f" style="margin:16px 0 0"><label>Inspection certificate</label>
+          <div class="hint">Scan it now, or add it later from the item.</div>
+          ${plantDraft.doc ? `<div class="ph" style="aspect-ratio:auto;max-height:190px;margin-bottom:10px">
+              <img src="${plantDraft.doc.src}" alt="Certificate" style="height:auto;max-height:190px;object-fit:contain">
+              <button type="button" data-ndrm="1" aria-label="Remove">&times;</button>
+            </div>` : ""}
+          <div class="g2">
+            <button class="btn line" style="margin:0" data-ndscan="1">${plantDraft.doc?"Rescan":"Scan certificate"}</button>
+            <button class="btn line" style="margin:0" data-ndup="1">Upload</button>
+          </div></div>
         <button class="btn" style="margin:16px 0 8px" data-pladdsave="1">Add to register</button>
         <button class="btn ghost" style="margin:0" data-pladdcancel="1">Cancel</button>
       </div>`
@@ -3007,7 +4012,7 @@ let liftEditId = null;
 
 function blankLifting(){
   return { item:"", idNo:"", type:"Single leg chain", swl:"", owner:"Hired", hireCompany:"",
-    onDate:todayISO(), offDate:"", examDate:"" };
+    onDate:todayISO(), offDate:"", examDate:"", doc:null };
 }
 
 function liftingFields(l, attr){
@@ -3066,9 +4071,75 @@ const TILE_ICONS = {
     <path d="M9 13h6M9 16.5h4"/></svg>`,
   timesheet: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>`,
+  pack: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linejoin="round"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5z"/>
+    <path d="M4 7.5 12 11l8-3.5M12 11v9"/></svg>`,
   list: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.9" stroke-linecap="round"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>`
 };
+
+function packView(){
+  const ws = view.week || weekStart(todayISO());
+  const secs = packSections(ws);
+  const gaps = packGaps(ws);
+  const have = secs.reduce((n,x)=>n+x.items.length,0);
+  const pack = packFor(ws);
+  const thisWeek = ws === weekStart(todayISO());
+
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button>
+      ${pack?`<span class="pill ok">Published</span>`:""}</div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Health &amp; safety pack</h1>
+    <p class="sub">${esc(DB.job)}</p>
+
+    <div class="card" style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:12px">
+      <button class="btn line sm" style="margin:0" data-pw="-1" aria-label="Previous week">&lsaquo;</button>
+      <span style="flex:1;text-align:center">
+        <b style="display:block;font-weight:650">${thisWeek?"This week":"Week commencing "+shortDate(ws)}</b>
+        <span style="font-size:12.5px;color:var(--ink-3)">${shortDate(ws)} – ${shortDate(addDays(ws,6))}</span>
+      </span>
+      <button class="btn line sm" style="margin:0" data-pw="1" ${thisWeek?"disabled":""}
+        aria-label="Next week">&rsaquo;</button>
+    </div>
+
+    <div class="tstotal">
+      <div><div class="big">${have}</div><div class="lab">records in the pack</div></div>
+      <div class="side">${gaps.length ? gaps.length+" outstanding" : "Nothing missing"}</div>
+    </div>
+
+    <div class="sect">Sections</div>
+    <div class="card">
+      ${secs.map(sec=>{
+        const short = sec.def.daily ? sec.items.length+" of "+sec.expected
+          : sec.def.weekly ? (sec.items.length?"Done":"Not done")
+          : String(sec.items.length);
+        const ok = sec.def.weekly ? sec.items.length>0 : sec.items.length>=sec.expected;
+        return `<div class="kpi">
+          <span class="kn">${esc(sec.name)}</span>
+          <span class="kv" style="color:${ok?"var(--ok)":"var(--warn)"}">${esc(short)}</span>
+        </div>`;
+      }).join("")}
+    </div>
+
+    ${gaps.length ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
+      <h3 style="color:var(--warn)">${gaps.length} record${gaps.length===1?"":"s"} outstanding</h3>
+      <p style="margin-bottom:8px">The pack can still be published. Anything missing is listed
+      on its own page rather than quietly left out.</p>
+      ${gaps.slice(0,8).map(g=>`<div style="font-size:13.5px;color:var(--ink-2);padding:2px 0">
+        ${esc(g.name)}${g.date?" — "+shortDate(g.date):""}</div>`).join("")}
+      ${gaps.length>8?`<div style="font-size:13px;color:var(--ink-3);padding-top:4px">
+        and ${gaps.length-8} more</div>`:""}
+    </div>` : ""}
+
+    ${pack ? `<div class="card" style="background:var(--ok-bg);box-shadow:none">
+      <h3 style="color:var(--ok)">Published</h3>
+      <p>${esc(pack.ref)} · ${esc(pack.publishedBy)} · ${stamp(pack.publishedAt)}
+        · ${pack.count} record${pack.count===1?"":"s"}</p>
+    </div>` : ""}
+
+    <button class="btn" data-packpdf="${ws}">${pack?"Open the pack again":"Build the pack"}</button>
+    ${pack ? "" : `<p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3)">
+      Building it marks the week as published and gives you the PDF to send.</p>`}`;
+}
 
 function projectView(){
   const t = todayISO();
@@ -3119,6 +4190,14 @@ function projectView(){
         unsignedVos ? unsignedVos+" to be signed"
           : (DB.vos||[]).length ? (DB.vos||[]).length+" all signed" : "None raised yet",
         unsignedVos ? "amber" : "", unsignedVos || "")}
+      ${(function(){
+        const ws = weekStart(t);
+        const g = packGaps(ws).length;
+        const done = !!packFor(ws);
+        return tile("pack", TILE_ICONS.pack, "H&S pack",
+          done ? "Published" : g ? g+" outstanding" : "Ready to build",
+          done ? "" : g ? "amber" : "", done ? "" : (g||""));
+      })()}
       ${tile("timesheet", TILE_ICONS.timesheet, "Timesheet",
         weekHours ? weekHours+" hours this week" : "Built from the diaries", "", "")}
       ${tile("list", TILE_ICONS.list, "All records",
@@ -3152,11 +4231,6 @@ function liftingView(){
   })() : "";
 
   const rows = on.map(l=>{
-    if(liftEditId===l.id){
-      return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
-        ${liftingFields(l, "data-lf-"+l.id)}
-        <button class="btn" style="margin:14px 0 0" data-lfdone="${l.id}">Done</button></div>`;
-    }
     const ls = lolerState(l);
     const tint = ls.key==="expired" ? "background:var(--bad-bg);box-shadow:none"
       : ls.key==="soon" ? "background:var(--warn-bg);box-shadow:none" : "";
@@ -3170,9 +4244,10 @@ function liftingView(){
         </div>
         <span class="pill ${ls.cls}" id="pill_${l.id}">${esc(ls.label)}</span>
       </div>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn line sm" style="flex:1;margin:0" data-lfedit="${l.id}">Edit</button>
-        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-lfoff="${l.id}">Off site</button>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+        <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
+          ${docCount(l)?docCount(l)+" document"+(docCount(l)===1?"":"s"):"No documents"}</span>
+        <button class="btn line sm" style="margin:0" data-openitem="lifting:${l.id}">Open</button>
       </div></div>`;
   }).join("");
 
@@ -3186,14 +4261,24 @@ function liftingView(){
         <span class="pill grey">Off site</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn line sm" style="flex:1;margin:0" data-openitem="lifting:${l.id}">Open</button>
         <button class="btn line sm" style="flex:1;margin:0" data-lfback="${l.id}">Back on site</button>
-        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-lfrm="${l.id}">Delete</button>
       </div></div>`).join("");
 
   const add = liftDraft
     ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
         <h3 style="margin-bottom:14px">New item of lifting equipment</h3>
         ${liftingFields(liftDraft, "data-lfnd")}
+        <div class="f" style="margin:16px 0 0"><label>Inspection certificate</label>
+          <div class="hint">Scan it now, or add it later from the item.</div>
+          ${liftDraft.doc ? `<div class="ph" style="aspect-ratio:auto;max-height:190px;margin-bottom:10px">
+              <img src="${liftDraft.doc.src}" alt="Certificate" style="height:auto;max-height:190px;object-fit:contain">
+              <button type="button" data-lfndrm="1" aria-label="Remove">&times;</button>
+            </div>` : ""}
+          <div class="g2">
+            <button class="btn line" style="margin:0" data-lfndscan="1">${liftDraft.doc?"Rescan":"Scan certificate"}</button>
+            <button class="btn line" style="margin:0" data-lfndup="1">Upload</button>
+          </div></div>
         <button class="btn" style="margin:16px 0 8px" data-lfaddsave="1">Add to register</button>
         <button class="btn ghost" style="margin:0" data-lfaddcancel="1">Cancel</button></div>`
     : `<button class="btn" data-lfadd="1">+ Add lifting equipment</button>`;
@@ -3961,6 +5046,44 @@ function bind(){
     viewWeek = addDays(viewWeek, 7*Number(el.dataset.week)); render(); });
   app.querySelectorAll("[data-start]").forEach(el=>el.onclick=()=>startForm(el.dataset.start,"diary"));
   app.querySelectorAll("[data-pick]").forEach(el=>el.onclick=()=>go("pickplant",{date:el.dataset.pick}));
+  app.querySelectorAll("[data-pw]").forEach(el=>el.onclick=()=>{
+    const ws = view.week || weekStart(todayISO());
+    go("pack", { week: addDays(ws, 7*Number(el.dataset.pw)) });
+  });
+  const ppdf = app.querySelector("[data-packpdf]");
+  if(ppdf) ppdf.onclick = async ()=>{
+    const ws = ppdf.dataset.packpdf;
+    toast("Building the pack…");
+    let out;
+    try{ out = await buildPackPdf(ws); }
+    catch(e){ toast("The pack could not be built."); return; }
+
+    if(!packFor(ws)){
+      DB.packs = (DB.packs||[]).concat([{
+        id:"pk_"+Date.now(), job:DB.job, weekCommencing:ws, ref:out.ref,
+        publishedBy:cfg().user.name, publishedAt:Date.now(),
+        count:out.count, gaps:out.gaps, pages:out.total
+      }]);
+      save();
+    }
+
+    const file = new File([out.blob], out.name, { type:"application/pdf" });
+    if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+      try{ await navigator.share({ files:[file], title:"Weekly Health and Safety Pack" }); }
+      catch(e){ /* cancelled */ }
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(file); a.download = file.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast("Pack saved — " + out.total + " pages");
+    }
+    render();
+  };
+
+  app.querySelectorAll("[data-startf]").forEach(el=>el.onclick=()=>
+    startForm(el.dataset.d || todayISO(), el.dataset.startf));
+  app.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>
+    go("record",{id:el.dataset.open}));
   app.querySelectorAll("[data-pickexc]").forEach(el=>el.onclick=()=>go("pickexc",{date:el.dataset.pickexc}));
   app.querySelectorAll("[data-exc]").forEach(el=>el.onclick=()=>
     startForm(el.dataset.excdate, "excavation", null, el.getAttribute("data-exc")));
@@ -4005,6 +5128,15 @@ function bind(){
       let v = el.value;
       if(el.type==="number") v = v===""?"":Number(v);
       setVal(el.dataset.f, v);
+      const fdef = getField(el.dataset.f);
+      if(fdef && fdef.sets){
+        const parts = el.dataset.f.split(".");
+        const target = parts.slice(0,-1).concat([fdef.sets.target]).join(".");
+        const preset = fdef.sets.values[v];
+        if(preset !== undefined && preset !== "") setVal(target, preset);
+        after();
+        return;
+      }
       if(formState.touched){ formState.errors = validate(); }
     };
   });
@@ -4035,9 +5167,26 @@ function bind(){
       const obj = (cur && typeof cur==="object") ? Object.assign({},cur) : { h:"", m:"" };
       obj[el.dataset.part] = el.value===""?"":Number(el.value);
       setVal(path, obj);
+      if(formState.form==="havs"){ after(); return; }
       if(formState.touched){ formState.errors = validate(); }
     };
     el.onchange = el.oninput;
+  });
+  app.querySelectorAll("[data-att]").forEach(el=>el.onclick=()=>{
+    const path = el.dataset.att, name = el.dataset.name, yes = el.dataset.v==="1";
+    const arr = getVal(path) || [];
+    setVal(path, yes ? (arr.includes(name) ? arr : arr.concat([name]))
+                     : arr.filter(x=>x!==name));
+    after();
+  });
+  app.querySelectorAll("[data-attall]").forEach(el=>el.onclick=()=>{
+    const path = el.dataset.attall;
+    const date = formState.date;
+    setVal(path, onSiteLabour(date).filter(l=>!leaveOn(l.id,date)).map(l=>l.name).filter(Boolean));
+    after();
+  });
+  app.querySelectorAll("[data-attnone]").forEach(el=>el.onclick=()=>{
+    setVal(el.dataset.attnone, []); after();
   });
   app.querySelectorAll("[data-chk3]").forEach(el=>el.onclick=()=>{
     const path = el.dataset.chk3;
@@ -4266,15 +5415,96 @@ function bind(){
     e.stopPropagation();
     printDefectReport(el.getAttribute("data-defpdf"));
   });
+  /* documents */
+  const parseRef = v => { const [kind,id,docId] = v.split(":"); return {kind,id,docId}; };
+  const attachDoc = (kind, id, doc) => {
+    const it = findItem(kind, id);
+    askDocType(t => { addDoc(kind, id, Object.assign({ type:t }, doc)); render(); toast("Document added"); });
+  };
+  app.querySelectorAll("[data-docscan]").forEach(el=>el.onclick=()=>{
+    const {kind,id} = parseRef(el.dataset.docscan);
+    openScanner(doc => attachDoc(kind, id, doc));
+  });
+  app.querySelectorAll("[data-docup]").forEach(el=>el.onclick=()=>{
+    const {kind,id} = parseRef(el.dataset.docup);
+    const inp = document.createElement("input");
+    inp.type="file"; inp.accept="image/*";
+    inp.onchange = async () => {
+      try{
+        const doc = await compressDoc(inp.files[0]);
+        attachDoc(kind, id, doc);
+      }catch(e){ toast("That file could not be read."); }
+    };
+    inp.click();
+  });
+  app.querySelectorAll("[data-docopen]").forEach(el=>el.onclick=()=>{
+    const {kind,id,docId} = parseRef(el.dataset.docopen);
+    const it = findItem(kind,id);
+    const d = (it.docs||[]).find(x=>x.id===docId);
+    if(d) openPhoto(d.src, d.scannedAt || d.addedAt);
+  });
+  app.querySelectorAll("[data-docrm]").forEach(el=>el.onclick=()=>{
+    const {kind,id,docId} = parseRef(el.dataset.docrm);
+    const it = findItem(kind,id);
+    const d = (it.docs||[]).find(x=>x.id===docId);
+    askConfirm("Delete this document?", (d?d.type:"It")+" will be removed from this item.",
+      "Delete", ()=>{ it.docs = (it.docs||[]).filter(x=>x.id!==docId); save(); render(); toast("Deleted"); });
+  });
+
+  /* inspection carried out */
+  app.querySelectorAll("[data-examstart]").forEach(el=>el.onclick=()=>{
+    const {kind,id} = parseRef(el.dataset.examstart);
+    const months = kind==="lifting" ? 6 : 12;
+    examDraft = { kind, id, done: todayISO(), next: addMonthsISO(todayISO(), months),
+      by:"", doc:null };
+    render();
+  });
+  app.querySelectorAll("[data-exf]").forEach(el=>{
+    el.oninput = () => { if(examDraft) examDraft[el.dataset.exf] = el.value; };
+    el.onchange = el.oninput;
+  });
+  const exs = app.querySelector("[data-exscan]");
+  if(exs) exs.onclick = ()=>openScanner(doc=>{ examDraft.doc = doc; render(); });
+  const exu = app.querySelector("[data-exup]");
+  if(exu) exu.onclick = ()=>{
+    const inp = document.createElement("input");
+    inp.type="file"; inp.accept="image/*";
+    inp.onchange = async () => {
+      try{ examDraft.doc = await compressDoc(inp.files[0]); render(); }
+      catch(e){ toast("That file could not be read."); }
+    };
+    inp.click();
+  };
+  const exc = app.querySelector("[data-excancel]");
+  if(exc) exc.onclick = ()=>{ examDraft = null; render(); };
+  const exv = app.querySelector("[data-exsave]");
+  if(exv) exv.onclick = ()=>{
+    const d = examDraft;
+    if(!d.next){ toast("Set the date the next inspection is due."); return; }
+    const it = findItem(d.kind, d.id);
+    it.exams = it.exams || [];
+    it.exams.unshift({ done:d.done, next:d.next, by:d.by||"", at:Date.now() });
+    it.examDate = d.next;
+    if(d.doc){
+      it.docs = it.docs || [];
+      it.docs.unshift(Object.assign({ id:"doc_"+Date.now(),
+        type: d.kind==="lifting" ? "LOLER certificate" : "Thorough examination certificate",
+        title: "Examined " + shortDate(d.done) }, d.doc));
+    }
+    examDraft = null; save(); render();
+    toast("Recorded — next due " + shortDate(it.examDate));
+  };
+
   app.querySelectorAll("[data-report]").forEach(el=>el.onclick=(e)=>{
     e.stopPropagation();
     try{ reportDefect(el.getAttribute("data-report")); }
     catch(err){ toast("Sharing is unavailable. Use View report instead."); }
   });
-  app.querySelectorAll("[data-pledit]").forEach(el=>el.onclick=()=>{
-    plantEditId = el.dataset.pledit; render(); });
-  const pdone = app.querySelector("[data-pldone]");
-  if(pdone) pdone.onclick = ()=>{ plantEditId = null; render(); toast("Saved"); };
+  app.querySelectorAll("[data-openitem]").forEach(el=>el.onclick=()=>{
+    const [kind,id] = el.dataset.openitem.split(":");
+    go("item", { kind, id });
+  });
+
 
   /* the draft being typed before it is added */
   app.querySelectorAll("[data-nd]").forEach(el=>{
@@ -4285,6 +5515,26 @@ function bind(){
     };
     el.onchange = el.oninput;
   });
+  /* certificate on a new item, before it exists */
+  const draftDoc = (getDraft, scanKey, upKey, rmKey) => {
+    const sc = app.querySelector("[data-"+scanKey+"]");
+    if(sc) sc.onclick = ()=>openScanner(doc=>{ const d=getDraft(); if(d){ d.doc = doc; render(); } });
+    const up = app.querySelector("[data-"+upKey+"]");
+    if(up) up.onclick = ()=>{
+      const inp = document.createElement("input");
+      inp.type="file"; inp.accept="image/*";
+      inp.onchange = async () => {
+        try{ const doc = await compressDoc(inp.files[0]); const d=getDraft(); if(d){ d.doc = doc; render(); } }
+        catch(e){ toast("That file could not be read."); }
+      };
+      inp.click();
+    };
+    const rm = app.querySelector("[data-"+rmKey+"]");
+    if(rm) rm.onclick = ()=>{ const d=getDraft(); if(d){ d.doc = null; render(); } };
+  };
+  draftDoc(()=>plantDraft, "ndscan", "ndup", "ndrm");
+  draftDoc(()=>liftDraft, "lfndscan", "lfndup", "lfndrm");
+
   const pa = app.querySelector("[data-pladd]");
   if(pa) pa.onclick = ()=>{ plantDraft = blankPlant(); render(); };
   const pc = app.querySelector("[data-pladdcancel]");
@@ -4293,15 +5543,22 @@ function bind(){
   if(ps) ps.onclick = ()=>{
     if(!plantDraft.item.trim()){ toast("Give the item a name first."); return; }
     DB.plant = DB.plant || [];
-    DB.plant.push(Object.assign({ id:"pl_"+Date.now(), job:DB.job }, plantDraft));
-    plantDraft = null; save(); render(); toast("Added to the register");
+    const doc = plantDraft.doc;
+    const item = Object.assign({ id:"pl_"+Date.now(), job:DB.job }, plantDraft);
+    delete item.doc;
+    if(doc) item.docs = [Object.assign({ id:"doc_"+Date.now(),
+      type:"Thorough examination certificate" }, doc)];
+    DB.plant.push(item);
+    plantDraft = null; save(); render();
+    toast(doc ? "Added with its certificate" : "Added to the register");
   };
 
   app.querySelectorAll("[data-ploff]").forEach(el=>el.onclick=()=>{
     const p = DB.plant.find(x=>x.id===el.dataset.ploff);
     if(!p) return;
     p.offDate = todayISO();
-    plantEditId = null; save(); render();
+    plantEditId = null; save();
+    if(view.name==="item") go("plant"); else render();
     toast((p.item||"Item")+" moved to off site — "+shortDate(p.offDate));
   });
   app.querySelectorAll("[data-plback]").forEach(el=>el.onclick=()=>{
@@ -4330,9 +5587,8 @@ function bind(){
       el.onchange = el.oninput;
     });
   });
-  app.querySelectorAll("[data-lfedit]").forEach(el=>el.onclick=()=>{ liftEditId=el.dataset.lfedit; render(); });
-  const lfd = app.querySelector("[data-lfdone]");
-  if(lfd) lfd.onclick = ()=>{ liftEditId=null; render(); toast("Saved"); };
+
+
   app.querySelectorAll("[data-lfnd]").forEach(el=>{
     el.oninput = () => {
       if(!liftDraft) return;
@@ -4349,12 +5605,19 @@ function bind(){
   if(lfs) lfs.onclick = ()=>{
     if(!liftDraft.item.trim()){ toast("Give the item a description first."); return; }
     DB.lifting = DB.lifting || [];
-    DB.lifting.push(Object.assign({ id:"lf_"+Date.now(), job:DB.job }, liftDraft));
-    liftDraft = null; save(); render(); toast("Added to the register");
+    const doc = liftDraft.doc;
+    const item = Object.assign({ id:"lf_"+Date.now(), job:DB.job }, liftDraft);
+    delete item.doc;
+    if(doc) item.docs = [Object.assign({ id:"doc_"+Date.now(),
+      type:"LOLER certificate" }, doc)];
+    DB.lifting.push(item);
+    liftDraft = null; save(); render();
+    toast(doc ? "Added with its certificate" : "Added to the register");
   };
   app.querySelectorAll("[data-lfoff]").forEach(el=>el.onclick=()=>{
     const l = DB.lifting.find(x=>x.id===el.dataset.lfoff);
-    if(!l) return; l.offDate = todayISO(); liftEditId=null; save(); render();
+    if(!l) return; l.offDate = todayISO(); liftEditId=null; save();
+    if(view.name==="item") go("lifting"); else render();
     toast((l.item||"Item")+" moved to off site — "+shortDate(l.offDate));
   });
   app.querySelectorAll("[data-lfback]").forEach(el=>el.onclick=()=>{
@@ -4365,7 +5628,8 @@ function bind(){
     const id = el.getAttribute("data-lfrm");
     const l = (DB.lifting||[]).find(x=>x.id===id);
     askConfirm("Delete this item?", (l&&l.item?l.item:"This item")+" will be removed from the register.",
-      "Delete", ()=>{ DB.lifting = DB.lifting.filter(x=>x.id!==id); save(); render(); toast("Deleted"); });
+      "Delete", ()=>{ DB.lifting = DB.lifting.filter(x=>x.id!==id); save();
+        if(view.name==="item") go("lifting"); else render(); toast("Deleted"); });
   });
 
   (DB.labour||[]).forEach(l=>{
@@ -4905,6 +6169,7 @@ if(!DB.labour) DB.labour = [];
 if(!DB.lifting) DB.lifting = [];
 if(!DB.leave) DB.leave = [];
 if(!DB.vos) DB.vos = [];
+if(!DB.packs) DB.packs = [];
 (DB.records||[]).forEach(r=>{ if(r.form==="excavator") r.form = "plantcheck"; });
 (DB.plant||[]).forEach(p=>{ if(!p.type) p.type = "Excavator"; });
 if(!DB.defects) DB.defects = [];
