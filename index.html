@@ -525,6 +525,22 @@ input[type=date].in,input[type=time].in,
 .sheet .ph-head{display:flex;justify-content:space-between;align-items:flex-start;
   border-bottom:2.5px solid #1F5A2D;padding-bottom:9px;margin-bottom:14px;gap:14px}
 .sheet .ph-head img{width:150px;height:auto}
+.pk-page{padding-bottom:26px;margin-bottom:26px;border-bottom:2px dashed #CFD6D1}
+.pk-page:last-child{border-bottom:0;margin-bottom:0}
+.pk-cover{text-align:center;padding:40px 0 30px}
+.pk-cover h1{font-size:26px;margin:18px 0 6px;letter-spacing:-.02em}
+.pk-cover .wc{font-size:15px;color:#555;margin-bottom:22px}
+.pk-draft{display:inline-block;border:2px solid #A72B22;color:#A72B22;font-weight:700;
+  padding:7px 14px;border-radius:4px;margin-bottom:16px;letter-spacing:.04em}
+.pk-h{background:#1F5A2D;color:#fff;font-weight:700;font-size:11px;padding:6px 9px;
+  margin:14px 0 6px;border-radius:2px}
+.sheet table.pk{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:10.5px}
+.sheet table.pk th{background:#EEF3EF;text-align:left;font-weight:700;padding:5px 7px;
+  border:1px solid #C9D2CC}
+.sheet table.pk td{padding:5px 7px;border:1px solid #D8DFDA;vertical-align:top}
+.sheet table.pk td.c{text-align:center}
+.sheet table.pk td.bad{color:#A72B22;font-weight:700}
+.sheet .pk-sig{height:46px}
 .sheet h2{font-size:11.5px;background:#1F5A2D;color:#fff;padding:5px 9px;margin:15px 0 8px;
   border-radius:3px;font-weight:650}
 .sheet table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;
@@ -540,6 +556,8 @@ input[type=date].in,input[type=time].in,
   body{background:#fff}
   .app{display:none!important}
   .sheetwrap{position:static;display:block!important;background:#fff;overflow:visible}
+  .pk-page{page-break-after:always;break-after:page}
+  .pk-page:last-child{page-break-after:auto;break-after:auto}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -1382,7 +1400,7 @@ PdfDoc.prototype.banner = function(t){
 PdfDoc.prototype.table = function(cols, rows, opts){
   opts = opts || {};
   const size = opts.size || 8.5;
-  const pad = 3;
+  const pad = opts.pad === undefined ? 3 : opts.pad;
   const rowH = size + pad*2 + 1;
   const total = cols.reduce((a,b)=>a+b,0);
   rows.forEach((row, ri)=>{
@@ -1448,6 +1466,33 @@ function jpegFromDataUrl(src, maxPx){
     im.src = src;
   });
 }
+
+/* Every sheet in the pack opens the same way: logo left, title right, then a
+   header table. */
+PdfDoc.prototype.sheetHead = function(logo, title, code, meta){
+  if(logo){ this.image(logo, 118); this.y += 8; }
+  const top = this.y + (logo ? 46 : 0);
+  this.page.ops.push(
+    `BT 0 0 0 rg /F2 14 Tf 1 0 0 1 ${PdfDoc.M} ${top.toFixed(1)} Tm (${pdfEsc(title)}) Tj ET`);
+  if(code) this.page.ops.push(
+    `BT 0.42 0.46 0.43 rg /F1 8.5 Tf 1 0 0 1 ${PdfDoc.M} ${(top-12).toFixed(1)} Tm (${pdfEsc(code)}) Tj ET`);
+  this.y -= 6;
+  this.rule();
+  if(meta && meta.length){
+    const wide = PdfDoc.W - PdfDoc.M*2;
+    this.table([wide*0.22, wide*0.28, wide*0.22, wide*0.28], meta,
+      { size:8.5, pad:2, colour:(r,c)=> (c%2===0) ? [.35,.39,.36] : [0,0,0] });
+  }
+};
+
+PdfDoc.prototype.signature = function(img, name, when){
+  this.room(60);
+  this.text("Declaration", { bold:true, size:9.5, colour:[.12,.35,.18], after:1 });
+  this.text("Upon inspecting, I confirm that the inspection results are accurate and where deemed "
+    + "as safe are fit for purpose.", { size:8.5, colour:[.42,.46,.43], after:4 });
+  if(img) this.image(img, 130);
+  this.text((name||"") + (when ? "   ·   " + stamp(when) : ""), { size:9, colour:[.35,.39,.36] });
+};
 
 PdfDoc.prototype.blob = function(){
   const chunks = [];
@@ -1752,6 +1797,7 @@ function printWeeklyPlantSheet(plantId, ws){
 }
 
 /* ---------------------------------------------------- the pack as a PDF -- */
+/* ---------------------------------------------------- the pack as a PDF -- */
 function recordLines(doc, rec){
   const fmt = (f,v) => {
     if(v===undefined||v===null||v==="") return "—";
@@ -1789,6 +1835,263 @@ function recordLines(doc, rec){
   });
 }
 
+/* Every image the pack needs, converted once up front so the pages can then be
+   drawn in one pass. */
+async function packImages(ws, secs){
+  const wanted = new Set([LOGO]);
+  secs.forEach(sec=>sec.items.forEach(r=>{
+    const d = r.data || {};
+    if(d.signature && d.signature.src) wanted.add(d.signature.src);
+    (d.entries||[]).forEach(e=>{ if(e.opSignature && e.opSignature.src) wanted.add(e.opSignature.src); });
+    (d.photos||[]).forEach(ph=>wanted.add(ph.src));
+    Object.values(d).forEach(v=>{
+      if(v && typeof v==="object" && v.v===false) (v.photos||[]).forEach(ph=>wanted.add(ph.src));
+    });
+  }));
+  const map = new Map();
+  for(const src of wanted){
+    try{ map.set(src, await jpegFromDataUrl(src, src===LOGO ? 460 : 900)); }catch(e){}
+  }
+  return map;
+}
+
+function yn(v){ return v===true ? "Yes" : v===false ? "No" : "—"; }
+function ckMark(v){
+  if(!v || v.v===undefined) return "";
+  return v.v===true ? "Yes" : v.v==="na" ? "N/A" : "No";
+}
+
+/* ---------------------------------------------- the pack, on screen --
+   The same sheets as the PDF, rendered as pages you can read, print or save
+   from the phone — no download needed.
+   -------------------------------------------------------------------------*/
+function openPackSheet(ws, draft){
+  const c = cfg();
+  const secs = packSections(ws).filter(x=>x.items.length);
+  const gaps = packGaps(ws);
+  const pack = packFor(ws);
+  const ref = pack ? pack.ref : (draft ? "Not yet published" : nextPackRef(ws));
+  const count = secs.reduce((n,x)=>n+x.items.length,0);
+
+  const yn = v => v===true ? "Yes" : v===false ? "No" : "—";
+  const ck = v => !v || v.v===undefined ? "" : v.v===true ? "Y" : v.v==="na" ? "N/A" : "X";
+  const cell = (t, cls) => `<td class="${cls||""}">${esc(t==null?"":String(t))}</td>`;
+  const tbl = (head, rows, opts) => {
+    opts = opts || {};
+    return `<table class="pk">${head?`<tr>${head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`:""}
+      ${rows.map(r=>`<tr>${r.map((v,i)=>{
+        const centre = (opts.centre||[]).includes(i);
+        const bad = (v==="X" || v==="No" || v==="NO" || v==="Quarantined");
+        return cell(v, (centre?"c ":"") + (bad?"bad":""));
+      }).join("")}</tr>`).join("")}</table>`;
+  };
+  const head = (title, code, meta) => `
+    <div class="ph-head">
+      <img src="${LOGO}" alt="${esc(c.company)}">
+      <div style="text-align:right"><h1>${esc(title)}</h1>
+        ${code?`<div style="font-size:10.5px;color:#555">${esc(code)}</div>`:""}</div>
+    </div>
+    ${meta ? tbl(null, meta) : ""}`;
+  const declaration = (rows, sig) => `
+    <div class="pk-h">Declaration</div>
+    <p style="font-size:10px;color:#555;margin:0 0 6px"><i>Upon inspecting, I confirm that the
+      inspection results are accurate and where deemed as safe are fit for purpose.</i></p>
+    ${tbl(null, rows)}
+    ${sig&&sig.src?`<img src="${sig.src}" alt="Signature" style="height:46px">`:""}`;
+
+  const metaFor = (rec, extra) => [
+    ["Site / depot", rec.job, "Date", longDate(rec.date)],
+    ["Completed by", rec.by || c.user.name, "Reference", rec.ref || ""]
+  ].concat(extra||[]);
+
+  const page = inner => `<div class="pk-page">${inner}</div>`;
+
+  /* ---- cover and contents ---- */
+  let html = page(`<div class="pk-cover">
+      <img src="${LOGO}" alt="${esc(c.company)}" style="width:190px">
+      ${draft?`<div style="margin-top:22px"><span class="pk-draft">DRAFT — NOT PUBLISHED</span></div>`:""}
+      <h1>Weekly Health and Safety Pack</h1>
+      <div class="wc">Week commencing ${longDate(ws)}</div>
+    </div>
+    ${tbl(null, [
+      ["Site", DB.job, "Week", shortDate(ws)+" to "+shortDate(addDays(ws,6))],
+      ["Prepared by", c.user.name, "Produced", stamp(Date.now())],
+      ["Pack reference", ref, "Records enclosed", String(count)]
+    ].concat(gaps.length ? [["Records outstanding", String(gaps.length), "", ""]] : []))}`);
+
+  html += page(`<div class="pk-h">Contents</div>
+    ${tbl(["Section","Sheets"], secs.map((sec,i)=>{
+      const n = sec.key==="plantcheck"
+        ? [...new Set(sec.items.map(r=>r.plantId))].length : sec.items.length;
+      return [(i+1)+".  "+sec.name, n + (sec.key==="plantcheck"
+        ? (n===1?" machine":" machines") : (n===1?" record":" records"))];
+    }).concat(gaps.length ? [["Records outstanding", String(gaps.length)]] : []))}`);
+
+  /* ---- a page per sheet ---- */
+  secs.forEach(sec=>{
+    if(sec.key === "plantcheck"){
+      const DL = ["M","T","W","T","F","S","S"];
+      [...new Set(sec.items.map(r=>r.plantId))].forEach(pid=>{
+        const m = (DB.plant||[]).find(x=>x.id===pid) || {};
+        const sheet = sheetFor(m.type||"Excavator") || CHECKSHEETS.Excavator;
+        const { days, map } = weekChecks(pid, ws);
+        const doneDays = days.filter(d=>map[d]);
+        const weeklyRec = days.map(d=>map[d]).find(r=>r && r.data && r.data.__weekly===true);
+        const defs = (DB.defects||[]).filter(x=>x.plantId===pid && days.includes(x.date));
+        html += page(
+          head(sheet.title || ((m.type||"Plant")+" Inspections"), sheet.code, [
+            ["Competent person", (doneDays.length && map[doneDays[0]].by) || c.user.name,
+             "Fleet number", m.fleetNo || "—"],
+            ["Week commencing", shortDate(ws), "Model", m.model || m.item || "—"],
+            ["Site / depot", DB.job, "Days recorded",
+              doneDays.length + " of " + days.filter(isWorking).length]
+          ]) +
+          `<div class="pk-h">Daily pre-use recorded checks</div>` +
+          tbl(["Check"].concat(days.map((d,i)=>DL[i]+" "+parse(d).getDate())),
+            sheet.daily.map(t=>[t].concat(days.map(d=>ck((map[d]&&map[d].data||{})["d_"+slug(t)])))),
+            { centre:[1,2,3,4,5,6,7] }) +
+          `<div class="pk-h">Weekly recorded checks${weeklyRec
+            ? " — completed "+shortDate(weeklyRec.date) : " — not done this week"}</div>` +
+          tbl(["Check","Result"],
+            sheet.weekly.map(t=>[t, ck((weeklyRec&&weeklyRec.data||{})["w_"+slug(t)]) || "—"]),
+            { centre:[1] }) +
+          `<div class="pk-h">Fleet engineer to be advised of defects</div>` +
+          tbl(["Check","Defect/s description","Response given and date"],
+            defs.length ? defs.map(x=>[x.item, x.description||"—",
+              x.status==="closed" ? (x.fixNote||"Fixed")+" — "+shortDate(iso(x.fixedAt)) : "Open"])
+              : [["—","No defects recorded this week",""]]) +
+          declaration(doneDays.map(d=>[
+            ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)],
+            map[d].by || "", shortDate(d)+" "+timeOnly(map[d].submittedAt),
+            (map[d].data||{}).signature ? "Signed" : ""]), null));
+      });
+      return;
+    }
+
+    sec.items.forEach(rec=>{
+      const d = rec.data || {};
+      if(sec.key === "briefing"){
+        const att = d.attendees || [];
+        const pairs = [];
+        for(let i=0;i<Math.max(att.length,2);i+=2)
+          pairs.push([(i+1)+".  "+(att[i]||""), (i+2)+".  "+(att[i+1]||"")]);
+        html += page(
+          head("Daily Activities Briefing", rec.ref||"", metaFor(rec, [
+            ["Delivered by", d.deliveredBy||rec.by||"", "Position", d.position||""]])) +
+          `<div class="pk-h">Activities</div>` +
+          tbl(["CGC activities","Other trades activities"],
+            [[d.cgcActivities||"—", d.otherActivities||"—"]]) +
+          `<div class="pk-h">Permits required</div>` +
+          tbl(["Hot works","Excavation","Confined spaces","Other permit"],
+            [[yn(d.permitHot), yn(d.permitExc), yn(d.permitConfined), d.permitOther||"—"]],
+            { centre:[0,1,2,3] }) +
+          `<div class="pk-h">Hazards briefed</div>` +
+          `<p style="font-size:10.5px;margin:0 0 8px">${esc((d.hazards||[]).join(",  ")||"None recorded")}</p>` +
+          `<div class="pk-h">Pre-start checklist</div>` +
+          tbl(["Check","Y / N / N/A"],
+            BRIEFING_CHECKS.map(t=>{
+              const v = d["b_"+slug(t)] || {};
+              return [t + (v.v===false&&v.defect ? "  —  "+v.defect : ""),
+                v.v===true?"Yes":v.v===false?"No":v.v==="na"?"N/A":"—"];
+            }).concat([["Any conflicting operations?", yn(d.b_conflicting)]]), { centre:[1] }) +
+          (d.conflictingDetail?`<p style="font-size:10.5px">${esc(d.conflictingDetail)}</p>`:"") +
+          `<div class="pk-h">Attendees of the daily activity briefing</div>` +
+          tbl(null, pairs) +
+          (d.otherAttendees?`<p style="font-size:10.5px">Also present: ${esc(d.otherAttendees)}</p>`:"") +
+          declaration([["Delivered by", d.deliveredBy||rec.by||""],
+            ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
+        return;
+      }
+      if(sec.key === "havs"){
+        const tot = havsTotals(d.entries);
+        html += page(
+          head("Hand Arm Vibration (HAVs) Record Sheet", "CGCivils-006", metaFor(rec)) +
+          `<div class="pk-h">HAVs record keeping log</div>` +
+          tbl(["Operative","Tool used","m/s²","Trigger time","Points","A(8)","Actions to reduce exposure"],
+            (d.entries||[]).map(e=>{
+              const pts = havsPoints(e.magnitude, durHours(e.triggerTime));
+              return [e.operative||"", e.tool==="Other"?(e.toolOther||"Other"):(e.tool||""),
+                String(e.magnitude??""), durText(e.triggerTime)||"—",
+                String(pts), String(havsA8(pts)), e.actions||"—"];
+            }), { centre:[2,3,4,5] }) +
+          `<div class="pk-h">Daily totals</div>` +
+          tbl(["Operative","Points","A(8)","Status"],
+            tot.map(r=>[r.name, String(r.points), String(r.a8), r.status.label]), { centre:[1,2] }) +
+          `<p style="font-size:10px;color:#555">Exposure action value 100 points (2.5 m/s² A(8)).
+            Exposure limit value 400 points (5.0 m/s² A(8)).</p>` +
+          declaration([["Supervisor", d.supervisor||rec.by||""],
+            ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
+        return;
+      }
+      if(sec.key === "puwer"){
+        html += page(
+          head("PUWER Register", "CGCivils-013", metaFor(rec, [
+            ["Location", d.location||DB.job, "", ""]])) +
+          `<p style="font-size:10px;color:#555;margin:0 0 8px">This weekly inspection schedule
+            ensures tools and work equipment are inspected and confirmed as defect free and safe
+            to use, in compliance with Regulations 5 and 6 of the Provision and Use of Work
+            Equipment Regulations 1998.</p>` +
+          tbl(["Tool / ID mark or number","Inspection satisfactory","Details of found defects",
+               "Remedial action"],
+            (d.tools||[]).map(t=>[t.tool||"", yn(t.ok), t.defects||"—", t.action||"—"]),
+            { centre:[1] }) +
+          declaration([["Inspected by", rec.by||""], ["Inspection date", longDate(rec.date)],
+            ["Location", d.location||DB.job], ["Signature",""]], d.signature));
+        return;
+      }
+      if(sec.key === "loler"){
+        html += page(
+          head("Register of Excavator Lifting Equipment", "CGCivils-007", metaFor(rec, [
+            ["Location", d.location||DB.job, "", ""]])) +
+          tbl(["Description","ID no","LOLER cert start","LOLER cert end","Inspection satisfactory",
+               "Status","Defects"],
+            (d.items||[]).map(i=>[i.description||"", i.idNo||"",
+              i.certStart?shortDate(i.certStart):"—", i.certEnd?shortDate(i.certEnd):"—",
+              yn(i.ok), i.status||"", i.ok===false?(i.defects||""):""]),
+            { centre:[2,3,4] }) +
+          declaration([["Inspected by", rec.by||""], ["Inspection date", longDate(rec.date)],
+            ["Location", d.location||DB.job], ["Signature",""]], d.signature));
+        return;
+      }
+      if(sec.key === "excavation"){
+        const checks = sectionsFor("excavation").find(x=>x.title==="Inspection").fields;
+        html += page(
+          head("Excavation Inspection", rec.ref||"", metaFor(rec, [
+            ["Excavation", d.ref||rec.excRef||"", "Location", d.location||""],
+            ["Maximum depth", d.depth?d.depth+" m":"", "Support system", d.support||""]])) +
+          `<div class="pk-h">Inspection</div>` +
+          tbl(["Check","Y / N / N/A"], checks.map(f=>{
+            const v = d[f.id] || {};
+            return [f.label + (v.v===false&&v.defect ? "  —  "+v.defect : ""),
+              v.v===true?"Yes":v.v===false?"No":v.v==="na"?"N/A":"—"];
+          }), { centre:[1] }) +
+          tbl(null, [["Safe for work to continue?", d.safe===false?"NO":"Yes"]]
+            .concat(d.safe===false?[["Action taken", d.action||""]]:[])) +
+          ((d.photos||[]).length ? `<div class="pk-h">Photographs</div>
+            <div class="imgs">${(d.photos||[]).map(ph=>`<img src="${ph.src}" alt="">`).join("")}</div>` : "") +
+          declaration([["Competent person", rec.by||""], ["Date", longDate(rec.date)],
+            ["Signature",""]], d.signature));
+        return;
+      }
+      /* anything else, plainly */
+      html += page(head(formDef(rec.form).name, rec.ref||"", metaFor(rec)));
+    });
+  });
+
+  if(gaps.length){
+    html += page(`<div class="pk-h">Records outstanding</div>
+      <p style="font-size:10.5px;color:#555">These were not completed for the week covered by
+      this pack.</p>` +
+      tbl(["Record","Day"], gaps.map(g=>[g.name, g.date?longDate(g.date):"Not done this week"])));
+  }
+
+  document.getElementById("sheet").innerHTML = html;
+  document.getElementById("sheetTitle").textContent =
+    (draft ? "Draft pack — " : "H&S pack — ") + "w/c " + shortDate(ws);
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
+}
+
 async function buildPackPdf(ws, draft){
   const c = cfg();
   const secs = packSections(ws).filter(x=>x.items.length);
@@ -1796,9 +2099,13 @@ async function buildPackPdf(ws, draft){
   const existing = packFor(ws);
   const ref = existing ? existing.ref : (draft ? "Not yet published" : nextPackRef(ws));
   const doc = new PdfDoc();
+  const imgs = await packImages(ws, secs);
+  const logo = imgs.get(LOGO);
+  const wide = PdfDoc.W - PdfDoc.M*2;
+  const red = [.65,.17,.13];
 
-  /* ---- cover ---- */
-  try{ doc.image(await jpegFromDataUrl(LOGO, 460), 170); }catch(e){}
+  /* ---------------- cover ---------------- */
+  if(logo) doc.image(logo, 170);
   doc.y -= 26;
   if(draft) doc.banner("DRAFT — NOT PUBLISHED");
   doc.text("Weekly Health and Safety Pack", { size:24, bold:true, after:6 });
@@ -1812,109 +2119,249 @@ async function buildPackPdf(ws, draft){
   doc.pair("Records enclosed", String(secs.reduce((n,x)=>n+x.items.length,0)));
   if(gaps.length) doc.pair("Records outstanding", String(gaps.length), [.66,.42,0]);
 
-  /* ---- contents: worked out once the pages are known ---- */
+  /* ---------------- contents (filled in once page numbers are known) ------ */
   doc.newPage();
-  const contentsPage = doc.pages.length - 1;      /* index of the contents page */
   doc.text("Contents", { size:18, bold:true, after:8 });
   doc.rule();
   const contentsAnchor = { page: doc.page, y: doc.y };
   doc.y -= 18 * (secs.length + (gaps.length?2:0)) + 12;
 
-  /* ---- the sections ---- */
+  /* ---------------- one sheet per record ---------------- */
   const starts = [];
-  secs.forEach((sec, si)=>{
-    doc.newPage();
-    starts.push(doc.pages.length);              /* 1-based page number */
-    doc.heading((si+1) + ".  " + sec.name);
-    doc.text(sec.items.length + " record" + (sec.items.length===1?"":"s") + " this week",
-      { size:9.5, colour:[.42,.46,.43], after:6 });
+  const meta = (rec, extra) => [
+    ["Site / depot", DB.job, "Date", longDate(rec.date)],
+    ["Completed by", rec.by || c.user.name, "Reference", rec.ref || ""]
+  ].concat(extra || []);
 
+  secs.forEach((sec, si)=>{
+    let first = true;
+
+    /* ---- plant: a page per machine, laid out like the paper sheet ---- */
     if(sec.key === "plantcheck"){
       const DL = ["M","T","W","T","F","S","S"];
-      const machineIds = [...new Set(sec.items.map(r=>r.plantId))];
-      machineIds.forEach((pid, mi)=>{
+      [...new Set(sec.items.map(r=>r.plantId))].forEach(pid=>{
         const m = (DB.plant||[]).find(x=>x.id===pid) || {};
-        const { days, map } = weekChecks(pid, ws);
         const sheet = sheetFor(m.type||"Excavator") || CHECKSHEETS.Excavator;
+        const { days, map } = weekChecks(pid, ws);
         const doneDays = days.filter(d=>map[d]);
-        if(mi) doc.y -= 4;
-        doc.room(120);
-        doc.text((m.item||"Machine") + (m.fleetNo ? "  ·  " + m.fleetNo : "")
-          + (m.model ? "  ·  " + m.model : ""), { bold:true, size:11.5, colour:[.12,.35,.18] });
-        doc.text(doneDays.length + " of " + days.filter(isWorking).length
-          + " working days recorded", { size:9, colour:[.42,.46,.43], after:3 });
+        doc.newPage();
+        if(first){ starts.push(doc.pages.length); first = false; }
 
-        const mark = (rec, key) => {
+        doc.sheetHead(logo, sheet.title || ((m.type||"Plant") + " Inspections"), sheet.code, [
+          ["Competent person", (doneDays.length && map[doneDays[0]].by) || c.user.name,
+           "Fleet number", m.fleetNo || "—"],
+          ["Week commencing", shortDate(ws), "Model", m.model || m.item || "—"],
+          ["Site / depot", DB.job, "Days recorded",
+            doneDays.length + " of " + days.filter(isWorking).length]
+        ]);
+
+        const mk = (rec, key) => {
           if(!rec) return "";
           const v = (rec.data||{})[key];
           if(!v || v.v===undefined) return "";
           return v.v===true ? "Y" : v.v==="na" ? "N/A" : "X";
         };
-        const wide = PdfDoc.W - PdfDoc.M*2;
         const cols = [wide - 7*24].concat(new Array(7).fill(24));
         const align = ["left","center","center","center","center","center","center","center"];
-        const colour = (ri,ci,txt) => txt==="X" ? [.65,.17,.13] : [0,0,0];
+        const colour = (r,ci,txt) => txt==="X" ? red : [0,0,0];
 
+        doc.text("Daily pre-use recorded checks", { bold:true, size:9.5, colour:[.12,.35,.18], after:1 });
         doc.table(cols,
-          [["Daily pre-use check"].concat(days.map((d,i)=>DL[i]+" "+parse(d).getDate()))]
-            .concat(sheet.daily.map(tname=>
-              [tname].concat(days.map(d=>mark(map[d], "d_"+slug(tname)))))),
-          { header:true, align, colour });
+          [["Check"].concat(days.map((d,i)=>DL[i]+" "+parse(d).getDate()))]
+            .concat(sheet.daily.map(t=>[t].concat(days.map(d=>mk(map[d], "d_"+slug(t)))))),
+          { header:true, align, colour, size:8, pad:1.6 });
 
         const weeklyRec = days.map(d=>map[d]).find(r=>r && r.data && r.data.__weekly===true);
-        if(weeklyRec && sheet.weekly.length){
-          doc.text("Weekly checks — completed " + shortDate(weeklyRec.date),
-            { bold:true, size:9.5, after:2 });
-          doc.table([wide-70, 70],
-            [["Check","Result"]].concat(sheet.weekly.map(tname=>
-              [tname, mark(weeklyRec, "w_"+slug(tname)) || "—"])),
-            { header:true, align:["left","center"], colour });
-        }
+        doc.text("Weekly recorded checks" + (weeklyRec ? " — completed " + shortDate(weeklyRec.date)
+          : " — not done this week"), { bold:true, size:9.5, colour:[.12,.35,.18], after:1 });
+        doc.table([wide-70, 70],
+          [["Check","Result"]].concat(sheet.weekly.map(t=>[t, mk(weeklyRec, "w_"+slug(t)) || "—"])),
+          { header:true, align:["left","center"], colour, size:8, pad:1.6 });
 
         const defs = (DB.defects||[]).filter(x=>x.plantId===pid && days.includes(x.date));
-        if(defs.length){
-          doc.text("Defects", { bold:true, size:9.5, after:2 });
-          doc.table([wide*0.3, wide*0.45, wide*0.25],
-            [["Check","Defect","Status"]].concat(defs.map(x=>[
-              x.item, x.description||"—",
-              x.status==="closed" ? "Fixed "+shortDate(iso(x.fixedAt)) : "Open"])),
-            { header:true, colour:(ri,ci,txt)=> txt==="Open" ? [.65,.17,.13] : [0,0,0] });
-        }
+        doc.text("Fleet engineer to be advised of defects", { bold:true, size:9.5,
+          colour:[.12,.35,.18], after:1 });
+        doc.table([wide*0.28, wide*0.42, wide*0.30],
+          defs.length
+            ? [["Check","Defect","Response and date"]].concat(defs.map(x=>[x.item, x.description||"—",
+                x.status==="closed" ? (x.fixNote||"Fixed") + " — " + shortDate(iso(x.fixedAt)) : "Open"]))
+            : [["Check","Defect","Response and date"],["—","No defects recorded this week",""]],
+          { header:true, colour:(r,ci,txt)=> txt==="Open" ? red : [0,0,0], size:8, pad:1.6 });
 
-        doc.table([wide*0.2, wide*0.4, wide*0.4],
-          [["Day","Inspected by","Time"]].concat(doneDays.map(d=>[
-            ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)] + " " + shortDate(d),
-            map[d].by || "", timeOnly(map[d].submittedAt)])),
-          { header:true, size:8.5 });
+        doc.text("Declaration", { bold:true, size:9.5, colour:[.12,.35,.18], after:1 });
+        doc.text("Upon inspecting, I confirm that the inspection results are accurate and where "
+          + "deemed as safe are fit for purpose.", { size:8, colour:[.42,.46,.43], after:2 });
+        doc.table([wide*0.16, wide*0.34, wide*0.22, wide*0.28],
+          [["Day","Inspected by","Date and time","Signed"]].concat(doneDays.map(d=>[
+            ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)],
+            map[d].by || "", shortDate(d) + " " + timeOnly(map[d].submittedAt),
+            (map[d].data||{}).signature ? "Signed" : ""])),
+          { header:true, size:8, pad:1.6 });
       });
       return;
     }
 
-    sec.items.forEach((rec, ri)=>{
-      if(ri) { doc.rule(); }
-      doc.room(60);
-      const who = rec.by || c.user.name;
-      doc.text(longDate(rec.date) + "   ·   " + (rec.ref||""),
-        { bold:true, size:11.5, colour:[.12,.35,.18] });
-      doc.text("Completed by " + who + (rec.submittedAt ? " at " + timeOnly(rec.submittedAt) : ""),
-        { size:9.5, colour:[.42,.46,.43], after:4 });
-      recordLines(doc, rec);
+    /* ---- everything else: a page per record ---- */
+    sec.items.forEach(rec=>{
+      const d = rec.data || {};
+      doc.newPage();
+      if(first){ starts.push(doc.pages.length); first = false; }
+
+      if(sec.key === "briefing"){
+        doc.sheetHead(logo, "Daily Activities Briefing", "", meta(rec, [
+          ["Delivered by", d.deliveredBy || rec.by || "", "Position", d.position || ""]
+        ]));
+        doc.table([wide/2, wide/2],
+          [["CGC activities","Other trades activities"],
+           [d.cgcActivities || "—", d.otherActivities || "—"]], { header:true });
+        doc.table([wide*0.25, wide*0.25, wide*0.25, wide*0.25],
+          [["Hot works","Excavation","Confined spaces","Other permit"],
+           [yn(d.permitHot), yn(d.permitExc), yn(d.permitConfined), d.permitOther || "—"]],
+          { header:true, align:["center","center","center","center"] });
+        doc.text("Hazards briefed", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+        doc.text((d.hazards||[]).length ? (d.hazards||[]).join(",  ") : "None recorded",
+          { size:9.5, after:4 });
+        doc.text("Pre-start checklist", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+        doc.table([wide-70, 70],
+          [["Check","Y / N / N/A"]].concat(BRIEFING_CHECKS.map(t=>
+            [t, ckMark(d["b_"+slug(t)])]))
+            .concat([["Any conflicting operations?", yn(d.b_conflicting)]]),
+          { header:true, align:["left","center"],
+            colour:(r,ci,txt)=> txt==="No" ? red : [0,0,0] });
+        if(d.conflictingDetail) doc.pair("Conflicting operations", d.conflictingDetail);
+        doc.text("Attendees", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+        const att = (d.attendees||[]).slice();
+        doc.table([wide/2, wide/2],
+          Array.from({length: Math.ceil(Math.max(att.length,2)/2)}, (_,i)=>
+            [ (i*2+1)+".  "+(att[i*2]||""), (i*2+2)+".  "+(att[i*2+1]||"") ]), { size:9 });
+        if(d.otherAttendees) doc.pair("Others present", d.otherAttendees);
+        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
+        return;
+      }
+
+      if(sec.key === "havs"){
+        doc.sheetHead(logo, "Hand Arm Vibration (HAVs) Record Sheet", "CGCivils-006", meta(rec));
+        doc.text("HAVs record keeping log", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+        doc.table([wide*0.20, wide*0.20, wide*0.12, wide*0.14, wide*0.17, wide*0.17],
+          [["Operative","Tool used","m/s²","Trigger time","Points","A(8)"]].concat(
+            (d.entries||[]).map(e=>{
+              const pts = havsPoints(e.magnitude, durHours(e.triggerTime));
+              return [e.operative||"", (e.tool==="Other"? (e.toolOther||"Other") : (e.tool||"")),
+                String(e.magnitude||""), durText(e.triggerTime)||"—",
+                String(pts), String(havsA8(pts))];
+            })),
+          { header:true, align:["left","left","center","center","center","center"] });
+        doc.text("Actions to reduce exposure", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+        doc.table([wide*0.25, wide*0.75],
+          [["Operative","Usage limits / job rotation / operative rotation"]].concat(
+            (d.entries||[]).map(e=>[e.operative||"", e.actions||"—"])), { header:true });
+        const tot = havsTotals(d.entries);
+        doc.text("Daily totals", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+        doc.table([wide*0.34, wide*0.16, wide*0.16, wide*0.34],
+          [["Operative","Points","A(8)","Status"]].concat(tot.map(r=>
+            [r.name, String(r.points), String(r.a8), r.status.label])),
+          { header:true, align:["left","center","center","left"],
+            colour:(ri,ci,txt)=> /limit value/.test(txt) ? red
+              : /action value/.test(txt) ? [.66,.42,0] : [0,0,0] });
+        doc.pair("Supervisor", d.supervisor || rec.by || "");
+        doc.signature(d.signature && imgs.get(d.signature.src), d.supervisor || rec.by, rec.submittedAt);
+        return;
+      }
+
+      if(sec.key === "puwer"){
+        doc.sheetHead(logo, "PUWER Register", "CGCivils-013", meta(rec, [
+          ["Location", d.location || DB.job, "", ""]
+        ]));
+        doc.text("This weekly inspection schedule ensures tools and work equipment are inspected "
+          + "and confirmed as defect free and safe to use, in compliance with Regulations 5 and 6 "
+          + "of the Provision and Use of Work Equipment Regulations 1998.",
+          { size:8.5, colour:[.42,.46,.43], after:5 });
+        doc.table([wide*0.30, wide*0.16, wide*0.30, wide*0.24],
+          [["Tool / ID mark or number","Satisfactory","Details of found defects","Remedial action"]]
+            .concat((d.tools||[]).map(t=>[t.tool||"", yn(t.ok), t.defects||"—", t.action||"—"])),
+          { header:true, align:["left","center","left","left"],
+            colour:(ri,ci,txt)=> txt==="No" ? red : [0,0,0] });
+        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
+        return;
+      }
+
+      if(sec.key === "loler"){
+        doc.sheetHead(logo, "Register of Excavator Lifting Equipment", "CGCivils-007", meta(rec, [
+          ["Location", d.location || DB.job, "", ""]
+        ]));
+        doc.table([wide*0.24, wide*0.13, wide*0.15, wide*0.15, wide*0.13, wide*0.20],
+          [["Description","ID no","Cert start","Cert end","Satisfactory","Status"]]
+            .concat((d.items||[]).map(i=>[i.description||"", i.idNo||"",
+              i.certStart?shortDate(i.certStart):"—", i.certEnd?shortDate(i.certEnd):"—",
+              yn(i.ok), i.status||""])),
+          { header:true, align:["left","left","center","center","center","left"],
+            colour:(ri,ci,txt)=> (txt==="No"||txt==="Quarantined") ? red : [0,0,0] });
+        const bad = (d.items||[]).filter(i=>i.ok===false && i.defects);
+        if(bad.length){
+          doc.text("Details of found defects", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+          doc.table([wide*0.3, wide*0.7],
+            [["Item","Defect"]].concat(bad.map(i=>[i.description||"", i.defects])), { header:true });
+        }
+        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
+        return;
+      }
+
+      if(sec.key === "excavation"){
+        doc.sheetHead(logo, "Excavation Inspection", "", meta(rec, [
+          ["Excavation", d.ref || rec.excRef || "", "Location", d.location || ""],
+          ["Maximum depth", (d.depth!==undefined&&d.depth!=="") ? d.depth+" m" : "—",
+           "Support system", d.support || ""]
+        ]));
+        doc.table([wide-70, 70],
+          [["Inspection","Y / N / N/A"]].concat(EXCAVATION_CHECKS.map(t=>
+            [t, ckMark(d["e_"+slug(t)])])),
+          { header:true, align:["left","center"], colour:(r,ci,txt)=> txt==="No" ? red : [0,0,0] });
+        const faults = EXCAVATION_CHECKS.filter(t=>{
+          const v = d["e_"+slug(t)]; return v && v.v===false;
+        });
+        if(faults.length){
+          doc.table([wide*0.35, wide*0.65],
+            [["Check","What was found"]].concat(faults.map(t=>[t, (d["e_"+slug(t)].defect)||"—"])),
+            { header:true });
+        }
+        doc.table([wide*0.35, wide*0.65],
+          [["Safe for work to continue?", yn(d.safe)]].concat(d.action ? [["Action taken", d.action]] : []),
+          { colour:(r,ci,txt)=> txt==="No" ? red : [0,0,0] });
+        (d.photos||[]).slice(0,4).forEach(ph=>{
+          const im = imgs.get(ph.src);
+          if(im){ doc.image(im, 240); doc.text(stamp(ph.takenAt), { size:8, colour:[.5,.54,.51], after:3 }); }
+        });
+        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
+        return;
+      }
+
+      /* anything new falls back to a plain listing */
+      doc.sheetHead(logo, formDef(rec.form).name, "", meta(rec));
+      sectionsFor(rec.form).forEach(sc=>{
+        sc.fields.filter(f=>visible(f,d) && f.type!=="signature").forEach(f=>{
+          const v = d[f.id];
+          if(v===undefined || v==="") return;
+          doc.pair(f.label, Array.isArray(v) ? v.join(", ") : String(v));
+        });
+      });
+      doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
     });
   });
 
-  /* ---- anything missing gets its own page, not a quiet omission ---- */
+  /* ---------------- outstanding ---------------- */
   let gapsPage = null;
   if(gaps.length){
     doc.newPage();
     gapsPage = doc.pages.length;
-    doc.heading("Records outstanding");
+    doc.sheetHead(logo, "Records outstanding", "", null);
     doc.text("These were not completed for the week covered by this pack.",
-      { size:10, colour:[.42,.46,.43], after:6 });
-    gaps.forEach(g=>doc.text("•  " + g.name + (g.date ? " — " + longDate(g.date) : " — not done this week"),
-      { size:10.5, indent:6 }));
+      { size:9.5, colour:[.42,.46,.43], after:4 });
+    doc.table([wide*0.6, wide*0.4],
+      [["Record","Day"]].concat(gaps.map(g=>[g.name, g.date ? longDate(g.date) : "Not done this week"])),
+      { header:true });
   }
 
-  /* ---- write the contents in, now that the page numbers are known ---- */
+  /* ---------------- contents ---------------- */
   const total = doc.pages.length;
   const saveTo = doc.page, saveY = doc.y;
   doc.page = contentsAnchor.page; doc.y = contentsAnchor.y;
@@ -4558,15 +5005,15 @@ function packView(){
         · ${pack.count} record${pack.count===1?"":"s"}</p>
     </div>` : ""}
 
-    ${pack
-      ? `<button class="btn" data-packpub="${ws}">Open the published pack</button>`
-      : `<button class="btn ghost" data-packdraft="${ws}">View the pack so far</button>
-         <button class="btn" data-packpub="${ws}" ${gaps.length?'style="background:#C3CCC6"':""}>
-           Publish the pack</button>
-         <p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3)">
-           ${gaps.length
-             ? "It can be viewed at any time. Publishing needs everything in."
-             : "Everything is in. Publishing gives you the final PDF to send."}</p>`}`;
+    <button class="btn" data-packview="${ws}">${pack?"Open the pack":"View the pack so far"}</button>
+    <button class="btn ghost" data-packshare="${ws}">Send it as a PDF</button>
+    ${pack ? "" : `
+      <button class="btn line" data-packpub="${ws}" ${gaps.length?'style="color:var(--ink-3)"':""}>
+        Publish the pack</button>
+      <p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3)">
+        ${gaps.length
+          ? "View it any day of the week. Publishing needs everything in."
+          : "Everything is in and it is ready to publish."}</p>`}`;
 }
 
 function projectView(){
@@ -5578,14 +6025,21 @@ function bind(){
     toast("Saved — " + out.total + " pages");
   };
 
-  /* look at it any day of the week */
-  const pdraft = app.querySelector("[data-packdraft]");
-  if(pdraft) pdraft.onclick = async ()=>{
-    const ws = pdraft.dataset.packdraft;
+  /* read it on screen, any day of the week */
+  const pview = app.querySelector("[data-packview]");
+  if(pview) pview.onclick = ()=>{
+    const ws = pview.dataset.packview;
+    openPackSheet(ws, !packFor(ws));
+  };
+
+  /* or send the file */
+  const pshare = app.querySelector("[data-packshare]");
+  if(pshare) pshare.onclick = async ()=>{
+    const ws = pshare.dataset.packshare;
     toast("Building the pack…");
     try{
-      const out = await buildPackPdf(ws, true);
-      await sendPack(out, "Weekly Health and Safety Pack (draft)");
+      const out = await buildPackPdf(ws, !packFor(ws));
+      await sendPack(out, "Weekly Health and Safety Pack");
     }catch(e){ toast("The pack could not be built."); }
   };
 
@@ -5606,22 +6060,16 @@ function bind(){
       }
     }
 
-    toast(already ? "Opening the pack…" : "Publishing…");
-    let out;
-    try{ out = await buildPackPdf(ws, false); }
-    catch(e){ toast("The pack could not be built."); return; }
-
-    if(!already){
-      DB.packs = (DB.packs||[]).concat([{
-        id:"pk_"+Date.now(), job:DB.job, weekCommencing:ws, ref:out.ref,
-        publishedBy:cfg().user.name, publishedAt:Date.now(),
-        count:out.count, gaps:0, pages:out.total
-      }]);
-      save();
-      toast("Published — " + out.ref);
-    }
-    await sendPack(out, "Weekly Health and Safety Pack");
+    const secs = packSections(ws).filter(x=>x.items.length);
+    DB.packs = (DB.packs||[]).concat([{
+      id:"pk_"+Date.now(), job:DB.job, weekCommencing:ws, ref: nextPackRef(ws),
+      publishedBy:cfg().user.name, publishedAt:Date.now(),
+      count: secs.reduce((n,x)=>n+x.items.length,0), gaps:0
+    }]);
+    save();
     render();
+    openPackSheet(ws, false);
+    toast("Published — " + packFor(ws).ref);
   };
 
   app.querySelectorAll("[data-startf]").forEach(el=>el.onclick=()=>
