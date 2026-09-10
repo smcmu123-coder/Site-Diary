@@ -5830,9 +5830,40 @@ function editTimesheetDay(date, personKey){
   wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
 }
 
+/* When the week looks empty, say why rather than showing a blank grid. */
+function timesheetReason(ws){
+  const days = weekDays(ws);
+  const inWeek = DB.records.filter(r=>days.includes(r.date));
+  const diaries = inWeek.filter(r=>(r.form||"diary")==="diary");
+  const mine = diaries.filter(r=>r.job===DB.job);
+  const submitted = mine.filter(r=>r.status==="submitted");
+  const drafts = mine.filter(r=>r.status!=="submitted");
+
+  if(!diaries.length) return "No diaries have been filled in for this week yet.";
+  if(!mine.length){
+    const jobs = [...new Set(diaries.map(r=>r.job))].filter(Boolean);
+    return (diaries.length===1 ? "There is 1 diary" : "There are " + diaries.length + " diaries")
+      + " this week, but " + (diaries.length===1?"it is":"they are") + " against "
+      + (jobs.length===1 ? "\u201c"+jobs[0]+"\u201d" : "another job")
+      + " and this timesheet is for \u201c" + DB.job + "\u201d.";
+  }
+  if(!submitted.length)
+    return drafts.length + " diar" + (drafts.length===1?"y is":"ies are")
+      + " still saved as " + (drafts.length===1?"a draft":"drafts")
+      + ". Hours are counted once a diary is submitted.";
+  const withRows = submitted.filter(r=>(r.data.labourTable||[]).length);
+  if(!withRows.length)
+    return submitted.length + " diar" + (submitted.length===1?"y has":"ies have")
+      + " been submitted, but nobody was on the labour register when they were filled in.";
+  const anyOn = withRows.some(r=>(r.data.labourTable||[]).some(x=>x.onSite===true));
+  if(!anyOn) return "Everyone was marked as not on site on this week\u2019s diaries.";
+  return null;
+}
+
 function timesheetView(){
   const ws = view.week || weekStart(todayISO());
   const { days, people } = timesheetWeek(ws);
+  const why = people.length ? null : timesheetReason(ws);
   const grand = people.reduce((n,p)=>n+p.total,0);
   const round = n => Math.round(n*100)/100;
   const LETTERS = ["M","T","W","T","F","S","S"];
@@ -5889,8 +5920,10 @@ function timesheetView(){
         Tap any day to correct it — the change goes back into that day&rsquo;s diary.</p>
 
       <button class="btn" style="margin-top:16px" data-tsprint="${ws}">Open timesheet PDF</button>`
-    : `<div class="card"><h3>Nothing yet</h3><p>Submit a diary with labour on it and the
-        timesheet appears here.</p></div>`}`;
+    : `<div class="card"><h3>No hours this week</h3>
+        <p>${esc(why || "Submit a diary with labour on it and the timesheet appears here.")}</p>
+        <button class="btn line sm" style="margin:14px 0 0" data-go="list">Look at the records</button>
+      </div>`}`;
 }
 
 function settingsView(){
