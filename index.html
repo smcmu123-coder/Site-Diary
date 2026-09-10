@@ -133,13 +133,25 @@ h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;
 .carousel::-webkit-scrollbar{display:none}
 .carousel > *{flex:0 0 calc(100% - 26px);scroll-snap-align:center;margin:0}
 @media(min-width:760px){
-  .carousel{margin:0 0 8px;padding:0 0 6px}
-  .carousel > *{flex:0 0 calc(50% - 6px)}
+  .carousel{margin:0 0 8px;padding:0 0 6px;gap:14px}
+  .carousel > *{flex:0 0 calc(50% - 7px)}
+  .ctabs{padding-bottom:16px}
+  .ctab{font-size:14px;padding:9px 16px}
 }
-.cdots{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
-.cdots i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block;
-  transition:background .2s}
-.cdots i.on{background:var(--green)}
+/* the last card can still sit at the left edge when scrolled to */
+.carousel::after{content:"";flex:0 0 1px}
+@media(min-width:760px){ .carousel::after{flex:0 0 calc(50% - 7px)} }
+.ctabs{display:flex;gap:7px;overflow-x:auto;padding:2px 0 14px;scrollbar-width:none}
+.ctabs::-webkit-scrollbar{display:none}
+.ctab{flex:none;display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;
+  background:var(--canvas);color:var(--ink-2);font-size:13.5px;font-weight:640;
+  border:1.5px solid transparent;transition:background .2s, color .2s, border-color .2s}
+.ctab.on{background:var(--green);color:#fff}
+.ctab .tick{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;
+  background:var(--ok-bg);color:var(--ok);font-size:10px;font-weight:800}
+.ctab.on .tick{background:rgba(255,255,255,.22);color:#fff}
+.ctab .todo{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+.ctab.on .todo{background:#fff}
 .hero .count{font-size:12.5px;color:rgba(255,255,255,.55);margin-top:2px}
 .hero.calm .count{color:var(--ink-3)}
 
@@ -1245,6 +1257,14 @@ function onSitePlant(date){
     && (!p.onDate || p.onDate<=d) && (!p.offDate || p.offDate>=d));
 }
 /* Is it on site now? Off hired today counts as gone — this drives the register. */
+/* On site that day, for the record. A machine that left is still part of the
+   day it worked. */
+/* Needing a check that day: once it has gone, it does not. */
+function plantNeedingCheck(date){
+  const d = date || todayISO();
+  return onSitePlant(d).filter(p => !p.offDate || p.offDate > d);
+}
+
 function currentPlant(){
   const t = todayISO();
   return (DB.plant||[]).filter(p => p.job===DB.job && (!p.offDate || p.offDate>t));
@@ -1512,7 +1532,7 @@ function packSections(ws){
       if(k === "plantcheck"){
         /* a check for every machine on site, every working day so far */
         expected = days.filter(isWorking).filter(d=>d<=todayISO())
-          .reduce((n,d)=>n + onSitePlant(d).length, 0);
+          .reduce((n,d)=>n + plantNeedingCheck(d).length, 0);
       } else {
         expected = def.daily ? days.filter(isWorking).filter(d=>d<=todayISO()).length
           : def.weekly ? 1
@@ -1528,7 +1548,7 @@ function packGaps(ws){
   packSections(ws).forEach(sec=>{
     if(sec.key === "plantcheck"){
       weekDays(ws).filter(isWorking).filter(d=>d<=todayISO()).forEach(d=>{
-        onSitePlant(d).forEach(m=>{
+        plantNeedingCheck(d).forEach(m=>{
           if(!sec.items.some(r=>r.date===d && r.plantId===m.id))
             out.push({ name: (m.item||"Machine") + (m.fleetNo?" ("+m.fleetNo+")":"") + " inspection",
               date: d });
@@ -2502,7 +2522,8 @@ function updateNav(){
   if(dot){
     const a = projectAlerts();
     dot.classList.toggle("show", a.total > 0);
-    bar.querySelector('[data-nav="project"]').setAttribute("aria-label",
+    const pb = bar.querySelector('[data-nav="project"]');
+    if(pb) pb.setAttribute("aria-label",
       a.total ? "Project — " + a.total + " needing attention" : "Project");
   }
 }
@@ -3126,7 +3147,7 @@ function homeView(){
   }
 
   /* second card: plant inspections for the selected day */
-  const machines = onSitePlant(sel);
+  const machines = plantNeedingCheck(sel);
   const doneChecks = checksFor(sel).filter(r=>r.status==="submitted");
   const allChecked = machines.length>0 && doneChecks.length>=machines.length;
   const plantHero = machines.length===0
@@ -3137,9 +3158,10 @@ function homeView(){
         <button class="begin" data-go="plant">Plant register</button></div>`
     : allChecked
     ? `<div class="hero calm">
-        <div class="lab">${isToday?"Today":shortDate(sel)}</div>
-        <div class="ttl">Checks complete</div>
-        <div class="count">${doneChecks.length} of ${machines.length} machines</div>
+        <div class="lab">Plant inspection</div>
+        <div class="ttl">All done</div>
+        <div class="count">${machines.length} machine${machines.length===1?"":"s"} checked ${
+          isToday?"today":"that day"}</div>
         <button class="begin" data-pick="${sel}">View them</button></div>`
     : `<div class="hero">
         <div class="lab">Plant inspection</div>
@@ -3172,23 +3194,6 @@ function homeView(){
   const excDue = excavationsDue(sel);
   const excDone = excsFor(sel).filter(r=>r.status==="submitted");
   const excLeft = excDue.filter(x=>!excFor(sel, x.ref) || excFor(sel, x.ref).status!=="submitted").length;
-  const excHero = excDue.length===0 && excDone.length===0
-    ? `<div class="hero calm">
-        <div class="lab">Excavation inspection</div>
-        <div class="ttl">None open</div>
-        <div class="why">Nothing was left open on the last working day.</div>
-        <button class="begin" data-pickexc="${sel}">Add one</button></div>`
-    : excLeft===0
-    ? `<div class="hero calm">
-        <div class="lab">${isToday?"Today":shortDate(sel)}</div>
-        <div class="ttl">Excavations checked</div>
-        <div class="count">${excDone.length} inspection${excDone.length===1?"":"s"} recorded</div>
-        <button class="begin" data-pickexc="${sel}">View them</button></div>`
-    : `<div class="hero">
-        <div class="lab">Excavation inspection</div>
-        <div class="ttl">${excLeft} to inspect</div>
-        <div class="count">Left open on ${shortDate(excDue[0].fromDate)}</div>
-        <button class="begin" data-pickexc="${sel}">Begin</button></div>`;
 
   const missed = missedDays();
   const missedCard = missed.length ? `<button class="card" style="width:100%;text-align:left;
@@ -3211,9 +3216,43 @@ function homeView(){
        <button class="warrow" data-week="1" ${canFwd?"":"disabled"} aria-label="Next week">&rsaquo;</button>
      </div>
      ${(function(){
-       const cards = [hero, dailyCard("briefing"), plantHero, excHero];
-       return `<div class="carousel" id="heroCar">${cards.join("")}</div>
-         <div class="cdots">${cards.map((_,i)=>`<i class="${i?"":"on"}"></i>`).join("")}</div>`;
+       const diaryDone = !!(rec && rec.status==="submitted");
+       const briefRec = dailyRecordFor("briefing", sel);
+       const cards = [
+         { label:"Diary",   done: diaryDone,               html: hero },
+         { label:"Briefing", done: isDone(briefRec),        html: dailyCard("briefing") },
+         { label:"Plant",   done: machines.length>0 && allChecked, html: plantHero }
+       ];
+       return `<div class="ctabs" id="heroTabs">${cards.map((c,i)=>`
+           <button class="ctab ${i?"":"on"}" data-cgo="${i}">
+             ${c.done ? `<span class="tick">&#10003;</span>` : `<span class="todo"></span>`}
+             ${esc(c.label)}
+           </button>`).join("")}</div>
+         <div class="carousel" id="heroCar">${cards.map(c=>c.html).join("")}</div>`;
+     })()}
+     <div class="sect">As required</div>
+     ${(function(){
+       /* raised by the diary, but only shown when there is something to do */
+       const level = excDue.length && excLeft ? "amber" : "";
+       const bg = level ? "background:var(--warn-bg);box-shadow:none" : "";
+       const fg = level ? "var(--warn)" : "var(--ink-3)";
+       const line = excDue.length
+         ? (excLeft
+             ? excLeft + " raised by the diary — left open on " + shortDate(excDue[0].fromDate)
+             : excDone.length + " inspected " + (isToday ? "today" : "that day"))
+         : excDone.length
+         ? excDone.length + " recorded " + (isToday ? "today" : "that day")
+         : "As required — anything left open overnight raises one";
+       return `<div class="card" style="${bg}">
+         <div style="display:flex;align-items:center;gap:12px">
+           <span style="flex:1">
+             <b style="font-size:16px;font-weight:640;display:block;${level?`color:${fg}`:""}">
+               Excavation inspection</b>
+             <span style="font-size:13px;color:${fg}">${esc(line)}</span></span>
+           ${level ? `<span class="pill warn">${excLeft}</span>` : ""}
+           <button class="btn line sm" style="margin:0" data-pickexc="${sel}">
+             ${excDue.length && excLeft ? "Begin" : (excDue.length||excDone.length) ? "View" : "Add one"}</button>
+         </div></div>`;
      })()}
      ${(function(){
        const rec = dailyRecordFor("havs", sel);
@@ -4140,113 +4179,48 @@ function pickExcView(){
 
 function pickPlantView(){
   const d = view.date || todayISO();
-  const machines = onSitePlant(d);
+  const machines = plantNeedingCheck(d);
   const ws = weekStart(d);
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
+  const rows = machines.map(m=>{
+    const rec = checkFor(d, m.id);
+    const done = rec && rec.status==="submitted";
+    const wk = weekChecks(m.id, ws);
+    const inWeek = wk.days.filter(x=>wk.map[x]).length;
+    return { m, rec, done, inWeek };
+  });
+  const todo = rows.filter(r=>!r.done);
+  const done = rows.filter(r=>r.done);
+
+  const card = (r, faded) => `<div class="card" style="padding:0 14px${faded?
+      ";background:var(--canvas);box-shadow:none;opacity:.75":""}">
+      <button class="row" style="width:100%;border:0" data-check="${r.m.id}">
+        <span class="n"><b${faded?' style="color:var(--ink-2)"':""}>${esc(r.m.item||"Unnamed")}</b>
+          <span>${esc(r.m.type||"Excavator")} · ${esc(r.m.fleetNo||"No fleet no.")}${
+            r.done?" · checked "+timeOnly(r.rec.submittedAt) : r.rec?" · draft saved":""}</span></span>
+        ${r.done?`<span class="pill ok">Done</span>`:`<span class="pill grey">To do</span>`}
+      </button>
+      ${r.inWeek ? `<div style="border-top:1px solid var(--line-2);padding:10px 0;display:flex;
+        align-items:center;gap:10px">
+        <span style="flex:1;font-size:13px;color:var(--ink-3)">${r.inWeek} day${r.inWeek===1?"":"s"} recorded this week</span>
+        <button class="btn line sm" style="margin:0" data-weeksheet="${r.m.id}" data-ws="${ws}">Week&rsquo;s sheet</button>
+      </div>` : ""}
+    </div>`;
+
+  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button>
+      ${todo.length?`<span class="pill grey">${todo.length} to do</span>`:`<span class="pill ok">All done</span>`}</div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Plant inspection</h1>
     <p class="sub">${longDate(d)}</p>
+
     ${machines.length ? "" : `<div class="card"><h3>Nothing on site</h3>
       <p>Add machines to the plant register first.</p></div>`}
-    ${machines.map(m=>{
-      const rec = checkFor(d, m.id);
-      const done = rec && rec.status==="submitted";
-      const wk = weekChecks(m.id, ws);
-      const inWeek = wk.days.filter(x=>wk.map[x]).length;
-      return `<div class="card" style="padding:0 14px">
-        <button class="row" style="width:100%;border:0" data-check="${m.id}">
-          <span class="n"><b>${esc(m.item||"Unnamed")}</b>
-            <span>${esc(m.type||"Excavator")} · ${esc(m.fleetNo||"No fleet no.")}${
-              done?" · checked "+timeOnly(rec.submittedAt) : rec?" · draft saved":""}</span></span>
-          ${done?`<span class="pill ok">Done</span>`:`<span class="pill grey">To do</span>`}
-        </button>
-        ${inWeek ? `<div style="border-top:1px solid var(--line-2);padding:10px 0;display:flex;
-          align-items:center;gap:10px">
-          <span style="flex:1;font-size:13px;color:var(--ink-3)">${inWeek} day${inWeek===1?"":"s"} recorded this week</span>
-          <button class="btn line sm" style="margin:0" data-weeksheet="${m.id}" data-ws="${ws}">Week's sheet</button>
-        </div>` : ""}
-      </div>`;
-    }).join("")}`;
-}
 
-let itemEditing = false;
+    ${todo.length
+      ? `<div class="sect">To do (${todo.length})</div>${todo.map(r=>card(r,false)).join("")}`
+      : (machines.length ? `<div class="card" style="background:var(--green-50);box-shadow:none">
+          <h3 style="color:var(--green-700)">All done</h3>
+          <p>Every machine on site has been checked ${d===todayISO()?"today":"that day"}.</p></div>` : "")}
 
-function itemView(){
-  const kind = view.kind || "plant";
-  const it = findItem(kind, view.id);
-  if(!it) return `<div class="card"><h3>Not found</h3></div>`;
-  const isPlant = kind === "plant";
-  const st = lolerState(it);
-  const df = isPlant ? defectsFor(it.id) : null;
-  const onSite = (isPlant ? currentPlant() : currentLifting()).some(x=>x.id===it.id);
-  const back = `<button class="chip" data-go="${kind}">&lsaquo; ${isPlant?"Plant":"Lifting"}</button>`;
-
-  /* ---------- editing ---------- */
-  if(itemEditing){
-    return `<div class="top">${back}<span class="pill info">Editing</span></div>
-      <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
-      <p class="sub">Change what needs changing, then save.</p>
-      <div class="card">
-        ${isPlant ? plantFields(it, "data-pl-"+it.id) : liftingFields(it, "data-lf-"+it.id)}
-      </div>
-      <button class="btn" data-itemdone="1">Save changes</button>
-      ${onSite
-        ? `<button class="btn line" style="color:var(--bad)" data-${isPlant?"ploff":"lfoff"}="${it.id}">
-            Take off site</button>`
-        : `<button class="btn line" data-${isPlant?"plback":"lfback"}="${it.id}">Back on site</button>
-           <button class="btn line" style="color:var(--bad)" data-${isPlant?"plrm":"lfrm"}="${it.id}">
-             Delete this item</button>`}`;
-  }
-
-  /* ---------- reading ---------- */
-  const row = (k,v) => v ? `<div class="kv"><span class="k">${esc(k)}</span>
-    <span class="v">${esc(v)}</span></div>` : "";
-  const details = isPlant
-    ? row("Type", it.type||"Excavator") + row("Fleet number", it.fleetNo)
-      + row("Model", it.model) + row("Owned or hired", it.owner)
-      + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) + row("Hire reference", it.hireRef)
-          + row("Their email", it.hireEmail) + row("Their phone", it.hirePhone) : "")
-      + row("On site from", it.onDate?shortDate(it.onDate):"")
-      + row("Off site", it.offDate?shortDate(it.offDate):"")
-      + row("Next examination", examDateOf(it)?shortDate(examDateOf(it)):"Not set")
-    : row("Type", it.type) + row("ID number", it.idNo) + row("Safe working load", it.swl)
-      + row("Owned or hired", it.owner)
-      + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) : "")
-      + row("On site from", it.onDate?shortDate(it.onDate):"")
-      + row("Off site", it.offDate?shortDate(it.offDate):"")
-      + row("LOLER expiry", examDateOf(it)?shortDate(examDateOf(it)):"Not set");
-
-  return `<div class="top">${back}
-      <span class="pill ${onSite?st.cls:"grey"}">${onSite?esc(st.label):"Off site"}</span>
-    </div>
-
-    <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
-    <p class="sub">${esc([isPlant?(it.type||"Excavator"):it.type,
-      isPlant?it.fleetNo:it.idNo].filter(Boolean).join(" · "))}</p>
-
-    ${df ? `<button class="card" style="width:100%;text-align:left;background:var(--bad-bg);
-      box-shadow:none" data-defopen="${df.items[0].id}">
-      <h3 style="color:var(--bad)">${df.items.length} open defect${df.items.length===1?"":"s"}${
-        df.unsafe?" · not fit for use":""}</h3>
-      ${df.items.map(x=>`<p style="color:var(--ink-2);margin-top:2px">
-        <b style="font-weight:640">${esc(x.item)}</b>${x.description?" — "+esc(x.description):""}
-        · reported ${ageText(x.reportedAt)}</p>`).join("")}
-    </button>` : ""}
-
-    <div class="sect">Details</div>
-    <div class="card">${details}</div>
-
-    <div class="sect">Examination</div>
-    ${examBlock(kind, it)}
-
-    ${docsBlock(kind, it)}
-
-    ${isPlant ? `<div class="sect">This machine</div>
-      <button class="btn ghost" data-history="${it.id}">Defect history${
-        closedDefects(it.id).length?" ("+closedDefects(it.id).length+")":""}</button>
-      <button class="btn ghost" data-weeksheet="${it.id}">This week\u2019s inspection sheet</button>
-      ${df ? `<button class="btn ghost" data-report="${it.id}">Send the defect report</button>` : ""}` : ""}
-
-    <button class="btn" style="margin-top:18px" data-itemedit="1">Edit this item</button>`;
+    ${done.length ? `<div class="sect">Checked (${done.length})</div>${done.map(r=>card(r,true)).join("")}` : ""}`;
 }
 
 function plantView(){
@@ -5072,20 +5046,106 @@ function timesheetWeek(ws){
     (rec && rec.data.labourTable || []).forEach(row=>{
       const key = row.id || row.name;
       if(row.leave){
-        if(!people[key]) people[key] = { name:row.name, trade:row.trade, days:{}, total:0 };
-        people[key].days[d] = { leave:row.leave, hours:0 };
+        if(!people[key]) people[key] = { name:row.name, trade:row.trade, key, days:{}, total:0 };
+        people[key].days[d] = { leave:row.leave, hours:0, recId: rec.id };
         return;
       }
       if(row.onSite!==true) return;
-      if(!people[key]) people[key] = { name:row.name, trade:row.trade, days:{}, total:0 };
+      if(!people[key]) people[key] = { name:row.name, trade:row.trade, key, days:{}, total:0 };
       const h = rowHours(row);
       people[key].days[d] = { hours:h, start: row.normal===false?row.start:hoursFor().start,
         finish: row.normal===false?row.finish:hoursFor().finish, normal: row.normal!==false,
-        reason: row.reason||"" };
+        reason: row.reason||"", recId: rec.id };
       people[key].total += h;
     });
   });
   return { days, people:Object.values(people) };
+}
+
+/* Correcting a day: it writes back into that day's diary, so the timesheet and
+   the diary never say different things. */
+function editTimesheetDay(date, personKey){
+  const rec = DB.records.find(r=>r.date===date && r.job===DB.job && r.status==="submitted");
+  if(!rec){ toast("There is no submitted diary for that day."); return; }
+  const rows = rec.data.labourTable || [];
+  const row = rows.find(r=>(r.id||r.name)===personKey);
+  if(!row){ toast("That person is not on that day\u2019s diary."); return; }
+
+  const h = hoursFor();
+  const draft = {
+    onSite: row.onSite !== false,
+    normal: row.normal !== false,
+    start: row.start || h.start,
+    finish: row.finish || h.finish,
+    reason: row.reason || ""
+  };
+
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  const paint = () => {
+    wrap.innerHTML = `<div class="dlg">
+      <h3>${esc(row.name || "This person")}</h3>
+      <p>${longDate(date)} &middot; ${esc(rec.ref || "diary")}</p>
+      ${row.leave ? `<div class="card" style="background:var(--info-bg);box-shadow:none">
+        <p>Booked off as ${esc(row.leave)}. Change that under Time off.</p></div>
+        <button class="btn" style="margin:0" data-x>Close</button>`
+      : `
+      <div class="f"><label>On site?</label>
+        <div class="yn">
+          <button type="button" class="${draft.onSite?"y":""}" data-on="1">Yes</button>
+          <button type="button" class="${!draft.onSite?"n":""}" data-on="0">No</button>
+        </div></div>
+      ${draft.onSite ? `
+        <div class="f"><label>Normal hours?</label>
+          <div class="hint">${esc(h.start)} to ${esc(h.finish)}, ${h.breakMins} minute break.</div>
+          <div class="yn">
+            <button type="button" class="${draft.normal?"y":""}" data-nm="1">Yes</button>
+            <button type="button" class="${!draft.normal?"n":""}" data-nm="0">No</button>
+          </div></div>
+        ${!draft.normal ? `
+          <div class="g2">
+            <div class="f"><label>Start</label>
+              <input class="in" type="time" data-tf="start" value="${esc(draft.start)}"></div>
+            <div class="f"><label>Finish</label>
+              <input class="in" type="time" data-tf="finish" value="${esc(draft.finish)}"></div>
+          </div>
+          <div class="f"><label>Reason</label>
+            <input class="in" data-tf="reason" value="${esc(draft.reason)}"
+              placeholder="Overtime, early finish"></div>` : ""}
+        <div class="card" style="background:var(--green-50);box-shadow:none;margin-bottom:16px">
+          <div class="spread"><span>Hours for the day</span>
+            <b style="font-size:17px">${Math.round(rowHours(Object.assign({},row,draft,{onSite:true}))*100)/100}</b></div>
+        </div>` : ""}
+      <button class="btn" data-save>Save the change</button>
+      <button class="btn ghost" style="margin:0" data-x>Cancel</button>`}
+    </div>`;
+    wire();
+  };
+  const wire = () => {
+    wrap.querySelectorAll("[data-on]").forEach(b=>b.onclick=()=>{ draft.onSite = b.dataset.on==="1"; paint(); });
+    wrap.querySelectorAll("[data-nm]").forEach(b=>b.onclick=()=>{ draft.normal = b.dataset.nm==="1"; paint(); });
+    wrap.querySelectorAll("[data-tf]").forEach(el=>{
+      el.oninput = () => { draft[el.dataset.tf] = el.value; };
+      el.onchange = () => { draft[el.dataset.tf] = el.value; paint(); };
+    });
+    const x = wrap.querySelector("[data-x]"); if(x) x.onclick = () => wrap.remove();
+    const sv = wrap.querySelector("[data-save]");
+    if(sv) sv.onclick = () => {
+      row.onSite = draft.onSite;
+      if(draft.onSite){
+        row.normal = draft.normal;
+        if(!draft.normal){ row.start = draft.start; row.finish = draft.finish; row.reason = draft.reason; }
+        else { delete row.start; delete row.finish; delete row.reason; }
+      }
+      rec.updatedAt = Date.now();
+      rec.amendedAt = Date.now();
+      save(); wrap.remove(); render();
+      toast("Diary updated — " + shortDate(date));
+    };
+  };
+  document.body.appendChild(wrap);
+  paint();
+  wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
 }
 
 function timesheetView(){
@@ -5101,8 +5161,8 @@ function timesheetView(){
     let cls = "none", val = "–";
     if(c && c.leave){ cls = "hol"; val = c.leave; }
     else if(c){ cls = c.normal ? "norm" : "extra"; val = round(c.hours); }
-    return `<div class="tsday ${cls}${weekend?" we":""}">
-      <span class="dl">${LETTERS[i]}</span><span class="dv">${esc(val)}</span></div>`;
+    return `<button class="tsday ${cls}${weekend?" we":""}" data-tsedit="${d}|${esc(p.key)}">
+      <span class="dl">${LETTERS[i]}</span><span class="dv">${esc(val)}</span></button>`;
   };
 
   const body = people.map(p=>`
@@ -5143,7 +5203,8 @@ function timesheetView(){
         <span><i style="background:var(--info-bg)"></i>Booked off</span>
       </div>
       <p style="font-size:12.5px;color:var(--ink-3);padding:8px 4px 0">
-        Hours are finish minus start, less a ${hoursFor().breakMins} minute break.</p>
+        Hours are finish minus start, less a ${hoursFor().breakMins} minute break.
+        Tap any day to correct it — the change goes back into that day&rsquo;s diary.</p>
 
       <button class="btn" style="margin-top:16px" data-tsprint="${ws}">Open timesheet PDF</button>`
     : `<div class="card"><h3>Nothing yet</h3><p>Submit a diary with labour on it and the
@@ -5501,14 +5562,30 @@ function bind(){
   app.querySelectorAll("[data-check]").forEach(el=>el.onclick=()=>
     startForm(view.date||todayISO(), "plantcheck", el.dataset.check));
 
-  /* carousel position dots */
+  /* carousel: tabs name each card, follow the scroll and jump to it */
   const car = document.getElementById("heroCar");
-  if(car){
-    const dots = document.querySelectorAll(".cdots i");
-    car.onscroll = () => {
-      const i = Math.round(car.scrollLeft / (car.clientWidth * 0.92));
-      dots.forEach((dt,ix)=>dt.classList.toggle("on", ix===Math.min(i,dots.length-1)));
+  const tabs = document.getElementById("heroTabs");
+  if(car && tabs){
+    const btns = Array.from(tabs.querySelectorAll("[data-cgo]") || []);
+    const cards = Array.from(car.children || []);
+    if(!btns.length || !cards.length) return;
+    const mark = () => {
+      /* whichever card starts closest to the left edge is the one being read */
+      let best = 0, bd = 1e9;
+      cards.forEach((el,i)=>{
+        const d = Math.abs(el.offsetLeft - car.scrollLeft - car.offsetLeft);
+        if(d < bd){ bd = d; best = i; }
+      });
+      btns.forEach((b,i)=>b.classList.toggle("on", i===best));
     };
+    car.onscroll = mark;
+    btns.forEach((b,i)=>b.onclick = ()=>{
+      const el = cards[i];
+      if(!el) return;
+      car.scrollTo({ left: el.offsetLeft - car.offsetLeft, behavior:"smooth" });
+      btns.forEach((x,ix)=>x.classList.toggle("on", ix===i));
+    });
+    mark();
   }
   app.querySelectorAll("[data-view]").forEach(el=>el.onclick=()=>go("record",{id:el.dataset.view}));
   app.querySelectorAll("[data-lfilter]").forEach(el=>el.onclick=()=>{
@@ -6249,6 +6326,10 @@ function bind(){
       "Remove", ()=>{ DB.leave = DB.leave.filter(x=>x.id!==id); save(); render(); toast("Removed"); });
   });
 
+  app.querySelectorAll("[data-tsedit]").forEach(el=>el.onclick=()=>{
+    const [date, key] = el.dataset.tsedit.split("|");
+    editTimesheetDay(date, key);
+  });
   app.querySelectorAll("[data-ts]").forEach(el=>el.onclick=()=>{
     const ws = view.week || weekStart(todayISO());
     go("timesheet", { week: addDays(ws, 7*Number(el.dataset.ts)) });
