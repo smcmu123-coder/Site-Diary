@@ -467,6 +467,8 @@ input[type=date].in,input[type=time].in,
 .scanbar [data-save]{background:var(--green);}
 .scanstage{flex:1;display:grid;place-items:center;min-height:0;padding:12px}
 .scanstage canvas{touch-action:none;max-width:100%;max-height:100%;border-radius:6px}
+.scanstage .scanshot{max-width:100%;max-height:100%;border-radius:6px;
+  box-shadow:0 10px 30px -12px rgba(0,0,0,.8);background:#fff}
 .scanfoot{display:flex;gap:10px;padding:12px 16px calc(20px + env(safe-area-inset-bottom));
   justify-content:center}
 .scanfoot .btn{background:rgba(255,255,255,.12);color:#fff;box-shadow:none}
@@ -1353,6 +1355,43 @@ PdfDoc.prototype.banner = function(t){
   this.page.ops.push(`BT 1 1 1 rg /F2 11 Tf 1 0 0 1 ${(PdfDoc.M+8)} ${(this.y-14.5).toFixed(1)} Tm (${pdfEsc(t)}) Tj ET`);
   this.y -= 32;
 };
+/* A plain table: column widths in points, rows of strings. */
+PdfDoc.prototype.table = function(cols, rows, opts){
+  opts = opts || {};
+  const size = opts.size || 8.5;
+  const pad = 3;
+  const rowH = size + pad*2 + 1;
+  const total = cols.reduce((a,b)=>a+b,0);
+  rows.forEach((row, ri)=>{
+    if(this.room(rowH + 2)){
+      /* carried onto a new page — repeat the header */
+      if(opts.header && ri>0) this.table(cols, [rows[0]], { size, header:true, align:opts.align });
+    }
+    const top = this.y;
+    const head = opts.header && ri===0;
+    if(head){
+      this.page.ops.push(`0.93 0.95 0.93 rg ${PdfDoc.M} ${(top-rowH).toFixed(1)} ${total} ${rowH} re f`);
+    }
+    let x = PdfDoc.M;
+    row.forEach((cell, ci)=>{
+      const w = cols[ci];
+      const txt = String(cell==null?"":cell);
+      const al = (opts.align && opts.align[ci]) || "left";
+      const tw = pdfWidth(txt, size);
+      let tx = x + pad;
+      if(al==="center") tx = x + (w - tw)/2;
+      if(al==="right")  tx = x + w - tw - pad;
+      const col = (opts.colour && opts.colour(ri, ci, txt)) || [0,0,0];
+      this.page.ops.push(
+        `BT ${col[0]} ${col[1]} ${col[2]} rg /${head?"F2":"F1"} ${size} Tf 1 0 0 1 ${tx.toFixed(1)} ${(top-size-pad).toFixed(1)} Tm (${pdfEsc(txt)}) Tj ET`);
+      x += w;
+    });
+    this.page.ops.push(`0.82 0.85 0.83 RG 0.5 w ${PdfDoc.M} ${(top-rowH).toFixed(1)} m ${(PdfDoc.M+total).toFixed(1)} ${(top-rowH).toFixed(1)} l S`);
+    this.y -= rowH;
+  });
+  this.y -= 6;
+};
+
 PdfDoc.prototype.image = function(img, maxW){
   const w = Math.min(maxW || 240, img.w);
   const h = w * (img.h / img.w);
@@ -1458,7 +1497,7 @@ PdfDoc.prototype.blob = function(){
 /* ------------------------------------------------- weekly H&S pack -- */
 /* Everything health and safety that was completed in a week, gathered into
    one document with a cover, a contents page and a section per form. */
-const PACK_ORDER = ["briefing","toolboxtalk","havs","puwer","loler","excavation"];
+const PACK_ORDER = ["briefing","toolboxtalk","havs","plantcheck","puwer","loler","excavation"];
 
 function packSections(ws){
   const days = weekDays(ws);
@@ -1469,8 +1508,15 @@ function packSections(ws){
       const items = DB.records.filter(r=>r.form===k && r.job===DB.job
         && r.status==="submitted" && days.includes(r.date))
         .sort((a,b)=>a.date<b.date?-1:1);
-      const expected = def.daily ? days.filter(isWorking).filter(d=>d<=todayISO()).length
-        : def.weekly ? 1 : items.length;
+      let expected;
+      if(k === "plantcheck"){
+        /* a check for every machine on site, every working day so far */
+        expected = days.filter(isWorking).filter(d=>d<=todayISO())
+          .reduce((n,d)=>n + onSitePlant(d).length, 0);
+      } else {
+        expected = def.daily ? days.filter(isWorking).filter(d=>d<=todayISO()).length
+          : def.weekly ? 1 : items.length;
+      }
       return { key:k, name:def.name, items, expected, def };
     })
     .filter(sec=>sec.items.length || sec.expected>0);
@@ -1479,6 +1525,16 @@ function packSections(ws){
 function packGaps(ws){
   const out = [];
   packSections(ws).forEach(sec=>{
+    if(sec.key === "plantcheck"){
+      weekDays(ws).filter(isWorking).filter(d=>d<=todayISO()).forEach(d=>{
+        onSitePlant(d).forEach(m=>{
+          if(!sec.items.some(r=>r.date===d && r.plantId===m.id))
+            out.push({ name: (m.item||"Machine") + (m.fleetNo?" ("+m.fleetNo+")":"") + " inspection",
+              date: d });
+        });
+      });
+      return;
+    }
     if(sec.def.daily){
       weekDays(ws).filter(isWorking).filter(d=>d<=todayISO()).forEach(d=>{
         if(!sec.items.some(r=>r.date===d)) out.push({ name:sec.name, date:d });
@@ -1708,17 +1764,18 @@ function recordLines(doc, rec){
   });
 }
 
-async function buildPackPdf(ws){
+async function buildPackPdf(ws, draft){
   const c = cfg();
   const secs = packSections(ws).filter(x=>x.items.length);
   const gaps = packGaps(ws);
   const existing = packFor(ws);
-  const ref = existing ? existing.ref : nextPackRef(ws);
+  const ref = existing ? existing.ref : (draft ? "Not yet published" : nextPackRef(ws));
   const doc = new PdfDoc();
 
   /* ---- cover ---- */
   try{ doc.image(await jpegFromDataUrl(LOGO, 460), 170); }catch(e){}
   doc.y -= 26;
+  if(draft) doc.banner("DRAFT — NOT PUBLISHED");
   doc.text("Weekly Health and Safety Pack", { size:24, bold:true, after:6 });
   doc.text("Week commencing " + longDate(ws), { size:14, colour:[.35,.39,.36], after:14 });
   doc.rule();
@@ -1746,6 +1803,67 @@ async function buildPackPdf(ws){
     doc.heading((si+1) + ".  " + sec.name);
     doc.text(sec.items.length + " record" + (sec.items.length===1?"":"s") + " this week",
       { size:9.5, colour:[.42,.46,.43], after:6 });
+
+    if(sec.key === "plantcheck"){
+      const DL = ["M","T","W","T","F","S","S"];
+      const machineIds = [...new Set(sec.items.map(r=>r.plantId))];
+      machineIds.forEach((pid, mi)=>{
+        const m = (DB.plant||[]).find(x=>x.id===pid) || {};
+        const { days, map } = weekChecks(pid, ws);
+        const sheet = sheetFor(m.type||"Excavator") || CHECKSHEETS.Excavator;
+        const doneDays = days.filter(d=>map[d]);
+        if(mi) doc.y -= 4;
+        doc.room(120);
+        doc.text((m.item||"Machine") + (m.fleetNo ? "  ·  " + m.fleetNo : "")
+          + (m.model ? "  ·  " + m.model : ""), { bold:true, size:11.5, colour:[.12,.35,.18] });
+        doc.text(doneDays.length + " of " + days.filter(isWorking).length
+          + " working days recorded", { size:9, colour:[.42,.46,.43], after:3 });
+
+        const mark = (rec, key) => {
+          if(!rec) return "";
+          const v = (rec.data||{})[key];
+          if(!v || v.v===undefined) return "";
+          return v.v===true ? "Y" : v.v==="na" ? "N/A" : "X";
+        };
+        const wide = PdfDoc.W - PdfDoc.M*2;
+        const cols = [wide - 7*24].concat(new Array(7).fill(24));
+        const align = ["left","center","center","center","center","center","center","center"];
+        const colour = (ri,ci,txt) => txt==="X" ? [.65,.17,.13] : [0,0,0];
+
+        doc.table(cols,
+          [["Daily pre-use check"].concat(days.map((d,i)=>DL[i]+" "+parse(d).getDate()))]
+            .concat(sheet.daily.map(tname=>
+              [tname].concat(days.map(d=>mark(map[d], "d_"+slug(tname)))))),
+          { header:true, align, colour });
+
+        const weeklyRec = days.map(d=>map[d]).find(r=>r && r.data && r.data.__weekly===true);
+        if(weeklyRec && sheet.weekly.length){
+          doc.text("Weekly checks — completed " + shortDate(weeklyRec.date),
+            { bold:true, size:9.5, after:2 });
+          doc.table([wide-70, 70],
+            [["Check","Result"]].concat(sheet.weekly.map(tname=>
+              [tname, mark(weeklyRec, "w_"+slug(tname)) || "—"])),
+            { header:true, align:["left","center"], colour });
+        }
+
+        const defs = (DB.defects||[]).filter(x=>x.plantId===pid && days.includes(x.date));
+        if(defs.length){
+          doc.text("Defects", { bold:true, size:9.5, after:2 });
+          doc.table([wide*0.3, wide*0.45, wide*0.25],
+            [["Check","Defect","Status"]].concat(defs.map(x=>[
+              x.item, x.description||"—",
+              x.status==="closed" ? "Fixed "+shortDate(iso(x.fixedAt)) : "Open"])),
+            { header:true, colour:(ri,ci,txt)=> txt==="Open" ? [.65,.17,.13] : [0,0,0] });
+        }
+
+        doc.table([wide*0.2, wide*0.4, wide*0.4],
+          [["Day","Inspected by","Time"]].concat(doneDays.map(d=>[
+            ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)] + " " + shortDate(d),
+            map[d].by || "", timeOnly(map[d].submittedAt)])),
+          { header:true, size:8.5 });
+      });
+      return;
+    }
 
     sec.items.forEach((rec, ri)=>{
       if(ri) { doc.rule(); }
@@ -1784,7 +1902,8 @@ async function buildPackPdf(ws){
   doc.page = saveTo; doc.y = saveY;
 
   return { blob: doc.blob(), ref,
-    name: "Weekly HS Pack - " + DB.job.replace(/[^\w\- ]+/g,"") + " - wc " + ws + ".pdf",
+    name: (draft ? "DRAFT " : "") + "Weekly HS Pack - " + DB.job.replace(/[^\w\- ]+/g,"")
+      + " - wc " + ws + ".pdf",
     count: secs.reduce((n,x)=>n+x.items.length,0), gaps: gaps.length, total };
 }
 
@@ -1929,7 +2048,7 @@ async function defectReportPdf(plantId){
   doc.text("Signed", { bold:true, size:10 });
   doc.y -= 22; doc.rule();
 
-  doc.text("Produced by " + c.company + " on " + stamp(Date.now()),
+  doc.text((draft ? "Draft produced by " : "Produced by ") + c.company + " on " + stamp(Date.now()),
     { size:8.5, colour:[.5,.54,.51] });
 
   return { blob: doc.blob(),
@@ -2382,34 +2501,96 @@ function homography(dst, src){          /* both arrays of 4 {x,y} */
   return [h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1];
 }
 
-/* Rough guess at where the page is: the bright area in the middle. */
-function guessCorners(img, w, h){
-  try{
-    const sc = 160 / Math.max(w,h);
-    const cv = document.createElement("canvas");
-    cv.width = Math.round(w*sc); cv.height = Math.round(h*sc);
-    const g = cv.getContext("2d");
-    g.drawImage(img, 0, 0, cv.width, cv.height);
-    const d = g.getImageData(0,0,cv.width,cv.height).data;
-    let sum = 0;
-    for(let i=0;i<d.length;i+=4) sum += (d[i]+d[i+1]+d[i+2])/3;
-    const mean = sum / (d.length/4);
-    const cut = Math.min(235, mean + 22);
-    let x0=cv.width, y0=cv.height, x1=0, y1=0, found=false;
-    for(let y=0;y<cv.height;y++) for(let x=0;x<cv.width;x++){
-      const i=(y*cv.width+x)*4;
-      if((d[i]+d[i+1]+d[i+2])/3 > cut){
-        found=true;
-        if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
-      }
-    }
-    if(!found || (x1-x0) < cv.width*0.25 || (y1-y0) < cv.height*0.25) throw 0;
-    const k = 1/sc;
-    return [{x:x0*k,y:y0*k},{x:x1*k,y:y0*k},{x:x1*k,y:y1*k},{x:x0*k,y:y1*k}];
-  }catch(e){
-    const mx = w*0.06, my = h*0.06;
-    return [{x:mx,y:my},{x:w-mx,y:my},{x:w-mx,y:h-my},{x:mx,y:h-my}];
+/* Find the page on its own: Otsu threshold, largest bright blob, then the four
+   extreme points of that blob give the corners even when the photo is skewed. */
+function otsu(hist, total){
+  let sum = 0;
+  for(let i=0;i<256;i++) sum += i*hist[i];
+  let sumB = 0, wB = 0, best = 0, thr = 128;
+  for(let i=0;i<256;i++){
+    wB += hist[i];
+    if(!wB) continue;
+    const wF = total - wB;
+    if(!wF) break;
+    sumB += i*hist[i];
+    const mB = sumB/wB, mF = (sum-sumB)/wF;
+    const between = wB*wF*(mB-mF)*(mB-mF);
+    if(between > best){ best = between; thr = i; }
   }
+  return thr;
+}
+
+function detectPage(img){
+  const W = img.width, H = img.height;
+  const sc = 240 / Math.max(W,H);
+  const w = Math.max(40, Math.round(W*sc)), h = Math.max(40, Math.round(H*sc));
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const g = cv.getContext("2d");
+  g.drawImage(img, 0, 0, w, h);
+  const d = g.getImageData(0,0,w,h).data;
+
+  const grey = new Uint8Array(w*h);
+  const hist = new Uint32Array(256);
+  for(let i=0, p=0; i<d.length; i+=4, p++){
+    const v = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114) | 0;
+    grey[p] = v; hist[v]++;
+  }
+  const thr = Math.max(60, otsu(hist, w*h) - 6);
+
+  /* largest connected run of bright pixels */
+  const lab = new Int32Array(w*h).fill(-1);
+  let bestId = -1, bestSize = 0, id = 0;
+  const stack = new Int32Array(w*h);
+  for(let start=0; start<w*h; start++){
+    if(grey[start] < thr || lab[start] !== -1) continue;
+    let sp = 0, size = 0;
+    stack[sp++] = start; lab[start] = id;
+    while(sp){
+      const q = stack[--sp]; size++;
+      const x = q % w, y = (q / w) | 0;
+      if(x>0   && grey[q-1]>=thr && lab[q-1]===-1){ lab[q-1]=id; stack[sp++]=q-1; }
+      if(x<w-1 && grey[q+1]>=thr && lab[q+1]===-1){ lab[q+1]=id; stack[sp++]=q+1; }
+      if(y>0   && grey[q-w]>=thr && lab[q-w]===-1){ lab[q-w]=id; stack[sp++]=q-w; }
+      if(y<h-1 && grey[q+w]>=thr && lab[q+w]===-1){ lab[q+w]=id; stack[sp++]=q+w; }
+    }
+    if(size > bestSize){ bestSize = size; bestId = id; }
+    id++;
+  }
+
+  const whole = [{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}];
+  if(bestId < 0 || bestSize < w*h*0.12) return { corners: whole, found:false };
+
+  /* extremes of the blob: these are the page corners */
+  let tl=null, tr=null, br=null, bl=null;
+  let tlv=1e9, trv=-1e9, brv=-1e9, blv=1e9;
+  let minX=w, maxX=0, minY=h, maxY=0;
+  for(let p=0; p<w*h; p++){
+    if(lab[p] !== bestId) continue;
+    const x = p % w, y = (p / w) | 0;
+    if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y;
+    const sum = x+y, dif = x-y;
+    if(sum < tlv){ tlv=sum; tl={x,y}; }
+    if(sum > brv){ brv=sum; br={x,y}; }
+    if(dif > trv){ trv=dif; tr={x,y}; }
+    if(dif < blv){ blv=dif; bl={x,y}; }
+  }
+  if(!tl||!tr||!br||!bl) return { corners: whole, found:false };
+
+  /* if it fills nearly the whole frame there was probably no visible edge */
+  const fills = (maxX-minX) > w*0.97 && (maxY-minY) > h*0.97;
+  const k = 1/sc;
+  const out = [tl,tr,br,bl].map(c=>({ x:c.x*k, y:c.y*k }));
+
+  /* a page should be a sensible quadrilateral, not a sliver */
+  const side = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+  const top = side(out[0],out[1]), right = side(out[1],out[2]),
+        bottom = side(out[2],out[3]), left = side(out[3],out[0]);
+  const ratio = Math.min(top,bottom)/Math.max(top,bottom,1);
+  const ratio2 = Math.min(left,right)/Math.max(left,right,1);
+  if(ratio < 0.55 || ratio2 < 0.55) return { corners: whole, found:false };
+
+  return { corners: out, found: !fills };
 }
 
 function warpToPage(img, corners, enhance){
@@ -2475,7 +2656,10 @@ function openScanner(onDone){
     const fr = new FileReader();
     fr.onload = () => {
       const img = new Image();
-      img.onload = () => scanEditor(img, onDone);
+      img.onload = () => {
+        const det = detectPage(img);
+        scanPreview(img, det, onDone);
+      };
       img.src = fr.result;
     };
     fr.readAsDataURL(file);
@@ -2483,8 +2667,8 @@ function openScanner(onDone){
   pick.click();
 }
 
-function scanEditor(img, onDone){
-  let corners = guessCorners(img, img.width, img.height);
+function scanEditor(img, onDone, startCorners){
+  let corners = startCorners || detectPage(img).corners;
   let enhance = true;
 
   const wrap = document.createElement("div");
@@ -2497,6 +2681,7 @@ function scanEditor(img, onDone){
     </div>
     <div class="scanstage"><canvas id="scanCv"></canvas></div>
     <div class="scanfoot">
+      <button class="btn line sm" style="margin:0" data-auto>Find it again</button>
       <button class="btn line sm" style="margin:0" data-full>Whole photo</button>
       <button class="btn line sm" style="margin:0" data-enh>Clean up: on</button>
     </div>`;
@@ -2559,6 +2744,7 @@ function scanEditor(img, onDone){
   cv.addEventListener("pointercancel", stop);
 
   wrap.querySelector("[data-cancel]").onclick = () => wrap.remove();
+  wrap.querySelector("[data-auto]").onclick = () => { corners = detectPage(img).corners; draw(); };
   wrap.querySelector("[data-full]").onclick = () => {
     corners = [{x:0,y:0},{x:img.width,y:0},{x:img.width,y:img.height},{x:0,y:img.height}];
     draw();
@@ -2579,6 +2765,37 @@ function scanEditor(img, onDone){
 
   layout();
   window.addEventListener("resize", layout);
+}
+
+/* The result, straightened and cleaned up, with a way back if it got it wrong. */
+function scanPreview(img, det, onDone){
+  let src;
+  try{ src = warpToPage(img, det.corners, true); }
+  catch(e){ scanEditor(img, onDone, det.corners); return; }
+
+  const wrap = document.createElement("div");
+  wrap.className = "scanwrap";
+  wrap.innerHTML = `
+    <div class="scanbar">
+      <button data-retake>Retake</button>
+      <span class="t">${det.found ? "Page found and straightened" : "Could not find the edges"}</span>
+      <button data-save>Use it</button>
+    </div>
+    <div class="scanstage"><img src="${src}" alt="Scan" class="scanshot"></div>
+    <div class="scanfoot">
+      <button class="btn line sm" style="margin:0" data-adjust>Adjust the corners</button>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  wrap.querySelector("[data-save]").onclick = () => {
+    wrap.remove();
+    onDone({ src, scannedAt: Date.now() });
+  };
+  wrap.querySelector("[data-adjust]").onclick = () => {
+    wrap.remove();
+    scanEditor(img, onDone, det.corners);
+  };
+  wrap.querySelector("[data-retake]").onclick = () => { wrap.remove(); openScanner(onDone); };
 }
 
 /* Signing happens in its own panel, so a finger on the canvas can never drag
@@ -2696,6 +2913,24 @@ function compressDoc(file){
     };
     fr.readAsDataURL(file);
   });
+}
+
+function askNotice(title, lines, note){
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg">
+      <h3>${esc(title)}</h3>
+      ${note?`<p>${esc(note)}</p>`:""}
+      <div class="card" style="background:var(--warn-bg);box-shadow:none;margin-bottom:16px">
+        ${lines.map(l=>`<div style="font-size:14px;color:var(--ink-2);padding:3px 0">
+          &bull;&nbsp; ${esc(l)}</div>`).join("")}
+      </div>
+      <button class="btn" style="margin:0" data-x>Right you are</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.querySelector("[data-x]").onclick = close;
+  wrap.onclick = e => { if(e.target===wrap) close(); };
 }
 
 function askConfirm(title, message, confirmLabel, onYes){
@@ -4136,9 +4371,15 @@ function packView(){
         · ${pack.count} record${pack.count===1?"":"s"}</p>
     </div>` : ""}
 
-    <button class="btn" data-packpdf="${ws}">${pack?"Open the pack again":"Build the pack"}</button>
-    ${pack ? "" : `<p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3)">
-      Building it marks the week as published and gives you the PDF to send.</p>`}`;
+    ${pack
+      ? `<button class="btn" data-packpub="${ws}">Open the published pack</button>`
+      : `<button class="btn ghost" data-packdraft="${ws}">View the pack so far</button>
+         <button class="btn" data-packpub="${ws}" ${gaps.length?'style="background:#C3CCC6"':""}>
+           Publish the pack</button>
+         <p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3)">
+           ${gaps.length
+             ? "It can be viewed at any time. Publishing needs everything in."
+             : "Everything is in. Publishing gives you the final PDF to send."}</p>`}`;
 }
 
 function projectView(){
@@ -4195,7 +4436,7 @@ function projectView(){
         const g = packGaps(ws).length;
         const done = !!packFor(ws);
         return tile("pack", TILE_ICONS.pack, "H&S pack",
-          done ? "Published" : g ? g+" outstanding" : "Ready to build",
+          done ? "Published" : g ? g+" to complete" : "Ready to publish",
           done ? "" : g ? "amber" : "", done ? "" : (g||""));
       })()}
       ${tile("timesheet", TILE_ICONS.timesheet, "Timesheet",
@@ -5050,33 +5291,62 @@ function bind(){
     const ws = view.week || weekStart(todayISO());
     go("pack", { week: addDays(ws, 7*Number(el.dataset.pw)) });
   });
-  const ppdf = app.querySelector("[data-packpdf]");
-  if(ppdf) ppdf.onclick = async ()=>{
-    const ws = ppdf.dataset.packpdf;
+  const sendPack = async (out, title) => {
+    const file = new File([out.blob], out.name, { type:"application/pdf" });
+    if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+      try{ await navigator.share({ files:[file], title }); }
+      catch(e){ /* cancelled */ }
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("Saved — " + out.total + " pages");
+  };
+
+  /* look at it any day of the week */
+  const pdraft = app.querySelector("[data-packdraft]");
+  if(pdraft) pdraft.onclick = async ()=>{
+    const ws = pdraft.dataset.packdraft;
     toast("Building the pack…");
+    try{
+      const out = await buildPackPdf(ws, true);
+      await sendPack(out, "Weekly Health and Safety Pack (draft)");
+    }catch(e){ toast("The pack could not be built."); }
+  };
+
+  /* publishing needs the week to be complete */
+  const ppub = app.querySelector("[data-packpub]");
+  if(ppub) ppub.onclick = async ()=>{
+    const ws = ppub.dataset.packpub;
+    const already = packFor(ws);
+
+    if(!already){
+      const gaps = packGaps(ws);
+      if(gaps.length){
+        askNotice("Not ready to publish",
+          gaps.map(g=>g.name + (g.date ? " — " + longDate(g.date) : " — not done this week")),
+          "The following needs to be completed before the pack can be published. "
+          + "You can still view the pack as it stands.");
+        return;
+      }
+    }
+
+    toast(already ? "Opening the pack…" : "Publishing…");
     let out;
-    try{ out = await buildPackPdf(ws); }
+    try{ out = await buildPackPdf(ws, false); }
     catch(e){ toast("The pack could not be built."); return; }
 
-    if(!packFor(ws)){
+    if(!already){
       DB.packs = (DB.packs||[]).concat([{
         id:"pk_"+Date.now(), job:DB.job, weekCommencing:ws, ref:out.ref,
         publishedBy:cfg().user.name, publishedAt:Date.now(),
-        count:out.count, gaps:out.gaps, pages:out.total
+        count:out.count, gaps:0, pages:out.total
       }]);
       save();
+      toast("Published — " + out.ref);
     }
-
-    const file = new File([out.blob], out.name, { type:"application/pdf" });
-    if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
-      try{ await navigator.share({ files:[file], title:"Weekly Health and Safety Pack" }); }
-      catch(e){ /* cancelled */ }
-    } else {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(file); a.download = file.name;
-      document.body.appendChild(a); a.click(); a.remove();
-      toast("Pack saved — " + out.total + " pages");
-    }
+    await sendPack(out, "Weekly Health and Safety Pack");
     render();
   };
 
