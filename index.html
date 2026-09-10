@@ -1126,8 +1126,8 @@ const FORMS = {
     sections:briefingSections, daily:true, inPack:true,
     blurb:"Activities, hazards and the pre-start checklist." },
   havs: { key:"havs", name:"HAVs record", short:"HAVs", prefix:"HV",
-    sections:havsSections, daily:true, inPack:true,
-    blurb:"Vibration exposure, an entry per operative." },
+    sections:havsSections, asNeeded:true, inPack:true,
+    blurb:"Only needed on a day vibrating tools have been used." },
   puwer: { key:"puwer", name:"PUWER register", short:"PUWER", prefix:"PU",
     sections:puwerSections, weekly:true, inPack:true,
     blurb:"Tools and small plant, once a week." },
@@ -1515,7 +1515,8 @@ function packSections(ws){
           .reduce((n,d)=>n + onSitePlant(d).length, 0);
       } else {
         expected = def.daily ? days.filter(isWorking).filter(d=>d<=todayISO()).length
-          : def.weekly ? 1 : items.length;
+          : def.weekly ? 1
+          : items.length;                      /* as required — whatever was done is the whole of it */
       }
       return { key:k, name:def.name, items, expected, def };
     })
@@ -2114,19 +2115,35 @@ function addDoc(kind, id, doc){
 }
 function docCount(it){ return (it.docs||[]).length; }
 
+/* A certificate is only worth anything until it runs out, so each one carries
+   the date it expires and is marked once it has. */
+function docState(d){
+  if(!d.expires) return { label:"", cls:"" };
+  const days = Math.round((parse(d.expires) - parse(todayISO())) / 86400000);
+  if(days < 0)  return { label:"Expired "+shortDate(d.expires), cls:"red" };
+  if(days <= 30) return { label:"Expires "+shortDate(d.expires), cls:"amber" };
+  return { label:"Valid to "+shortDate(d.expires), cls:"ok" };
+}
+
 function docsBlock(kind, it){
-  const docs = it.docs || [];
-  return `<div class="sect" style="margin:18px 0 8px">Documents${docs.length?" ("+docs.length+")":""}</div>
-    ${docs.length ? `<div class="card" style="padding:4px 14px">${docs.map(d=>`
-      <div class="row">
-        <button style="flex:1;text-align:left;display:block" data-docopen="${kind}:${it.id}:${d.id}">
+  const docs = (it.docs||[]).slice().sort((a,b)=>
+    (b.scannedAt||0)-(a.scannedAt||0));
+  return `<div class="sect" style="margin:22px 0 8px">Documents${docs.length?" ("+docs.length+")":""}</div>
+    ${docs.length ? `<div class="card" style="padding:4px 14px">${docs.map(d=>{
+      const st = docState(d);
+      return `<div class="row">
+        <button style="flex:1;text-align:left;display:block;min-width:0"
+          data-docopen="${kind}:${it.id}:${d.id}">
           <b style="display:block;font-size:15px;font-weight:640">${esc(d.type||"Document")}</b>
           <span style="display:block;font-size:12.5px;color:var(--ink-3)">
-            ${esc(d.title||"")}${d.title?" · ":""}added ${shortDate(iso(d.scannedAt||d.addedAt||Date.now()))}</span>
+            Added ${shortDate(iso(d.scannedAt||d.addedAt||Date.now()))}${
+              d.title?" · "+esc(d.title):""}</span>
         </button>
+        ${st.label?`<span class="pill ${st.cls}">${esc(st.label)}</span>`:""}
         <button data-docrm="${kind}:${it.id}:${d.id}" aria-label="Delete"
           style="color:var(--bad);font-size:20px;padding:0 4px">&times;</button>
-      </div>`).join("")}</div>` : ""}
+      </div>`;
+    }).join("")}</div>` : `<div class="card"><p class="sub">Nothing attached yet.</p></div>`}
     <div class="g2">
       <button class="btn line" style="margin:0" data-docscan="${kind}:${it.id}">Scan a document</button>
       <button class="btn line" style="margin:0" data-docup="${kind}:${it.id}">Upload</button>
@@ -2135,10 +2152,28 @@ function docsBlock(kind, it){
 
 /* Recording that an examination has been done. */
 let examDraft = null;
-const addMonthsISO = (d, n) => { const x = parse(d); x.setMonth(x.getMonth()+n); return iso(x); };
+const EXAM_INTERVALS = [
+  { months:3,  label:"LOLER — 3 months",
+    note:"Lifting equipment used to lift people" },
+  { months:6,  label:"LOLER — 6 months",
+    note:"Lifting equipment and accessories, including excavators used for lifting" },
+  { months:12, label:"PUWER — 12 months",
+    note:"Plant and work equipment that does not lift" }
+];
+/* A certificate runs to the day before the anniversary: examined 10/09/26 on a
+   12 month interval is due again 09/09/27. */
+function addMonthsISO(d, n){
+  const x = parse(d);
+  const day = x.getDate();
+  x.setMonth(x.getMonth() + n);
+  if(x.getDate() < day) x.setDate(0);        /* clamp for short months */
+  x.setDate(x.getDate() - 1);
+  return iso(x);
+}
 
 function examBlock(kind, it){
   const st = lolerState(it);
+  const dueSoon = st.key === "expired" || st.key === "soon" || st.key === "none";
   if(!examDraft || examDraft.kind!==kind || examDraft.id!==it.id){
     return `<div class="card" style="${st.key==="expired"?"background:var(--bad-bg);box-shadow:none":
       st.key==="soon"?"background:var(--warn-bg);box-shadow:none":""}">
@@ -2147,11 +2182,15 @@ function examBlock(kind, it){
           <h3 style="${st.key==="expired"?"color:var(--bad)":st.key==="soon"?"color:var(--warn)":""}">
             ${esc(st.label)}</h3>
           <p class="sub">${(it.exams||[]).length
-            ? (it.exams||[]).length+" recorded" : "No examinations recorded yet"}</p>
+            ? (it.exams||[]).length+" examination"+((it.exams||[]).length===1?"":"s")+" recorded"
+            : "No examinations recorded yet"}</p>
         </div>
       </div>
-      <button class="btn" style="margin:14px 0 0" data-examstart="${kind}:${it.id}">
-        Inspection carried out</button>
+      ${dueSoon
+        ? `<button class="btn" style="margin:14px 0 0" data-examstart="${kind}:${it.id}">
+             Inspection carried out</button>`
+        : `<p class="sub" style="margin-top:10px;font-size:12.5px;color:var(--ink-3)">
+             Nothing to do until a month before it is due.</p>`}
       ${(it.exams||[]).length ? `<div style="margin-top:12px;padding-top:12px;
         border-top:1px solid var(--line-2)">
         ${(it.exams||[]).slice(0,4).map(e=>`<div style="font-size:13px;color:var(--ink-2);padding:3px 0">
@@ -2162,12 +2201,35 @@ function examBlock(kind, it){
   const d = examDraft;
   return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
     <h3 style="margin-bottom:12px">Inspection carried out</h3>
-    <div class="g2">
-      <div class="f"><label>Date carried out</label>
-        <input class="in" type="date" data-exf="done" value="${esc(d.done)}"></div>
-      <div class="f"><label>Next inspection due</label>
-        <input class="in" type="date" data-exf="next" value="${esc(d.next)}"></div>
+
+    <div class="f"><label>Date carried out</label>
+      <input class="in" type="date" data-exf="done" value="${esc(d.done)}"></div>
+
+    <div class="f"><label>Next inspection due</label>
+      <div class="hint">Pick the interval that applies and the date works itself out.</div>
+      <div style="display:grid;gap:8px">
+        ${EXAM_INTERVALS.map(iv=>`
+          <button type="button" class="cb ${d.interval===iv.months?"on":""}"
+            style="align-items:flex-start;padding:12px" data-exint="${iv.months}">
+            <span class="b" style="margin-top:2px">${d.interval===iv.months?"&#10003;":""}</span>
+            <span>
+              <b style="display:block;font-weight:660">${esc(iv.label)}</b>
+              <span style="display:block;font-size:12.5px;font-weight:500;color:var(--ink-2)">
+                ${esc(iv.note)}</span>
+            </span>
+          </button>`).join("")}
+        <button type="button" class="cb ${d.interval==="custom"?"on":""}" data-exint="custom">
+          <span class="b">${d.interval==="custom"?"&#10003;":""}</span>Another date</button>
+      </div>
+      ${d.interval ? `<div style="margin-top:10px">
+        <input class="in" type="date" data-exf="next" value="${esc(d.next||"")}">
+        ${d.interval!=="custom" && d.next
+          ? `<div class="hint" style="margin:6px 0 0">${esc(
+              EXAM_INTERVALS.find(x=>x.months===d.interval).label)} on from
+              ${shortDate(d.done)} — change it if the certificate says otherwise.</div>` : ""}
+      </div>` : ""}
     </div>
+
     <div class="f"><label>Carried out by</label>
       <input class="in" data-exf="by" value="${esc(d.by||"")}" placeholder="Engineer or company"></div>
     <div class="f" style="margin:0"><label>Certificate</label>
@@ -2452,7 +2514,8 @@ function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="lifting"){ liftEditId = null; liftDraft = null; }
-  if(name!=="plant" && name!=="lifting"){ examDraft = null; }
+  if(name!=="plant" && name!=="lifting" && name!=="item"){ examDraft = null; }
+  if(name!=="item"){ itemEditing = false; }
   if(name!=="leave"){ leaveDraft = null; leaveDay = null; }
   if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; voEditDate = ""; }
   if(name!=="defect"){ fixDraft = null; }
@@ -2877,6 +2940,27 @@ function openPhoto(src, takenAt){
   document.body.appendChild(wrap);
 }
 
+function askDocExpiry(type, onDone){
+  /* certificates run out; manuals and hire agreements do not */
+  if(!/certificate|examination/i.test(type)){ onDone(""); return; }
+  let val = "";
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg">
+      <h3>When does it expire?</h3>
+      <p>The scan is filed against this date and is marked once it has passed.</p>
+      <div class="f"><label>Certificate expiry</label>
+        <input class="in" type="date" data-exp></div>
+      <button class="btn" data-ok>Save it</button>
+      <button class="btn ghost" style="margin:0" data-skip>No expiry date</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  const inp = wrap.querySelector("[data-exp]");
+  inp.oninput = () => { val = inp.value; };
+  wrap.querySelector("[data-ok]").onclick = () => { wrap.remove(); onDone(val); };
+  wrap.querySelector("[data-skip]").onclick = () => { wrap.remove(); onDone(""); };
+}
+
 function askDocType(onPick){
   const wrap = document.createElement("div");
   wrap.className = "scrim";
@@ -3127,9 +3211,24 @@ function homeView(){
        <button class="warrow" data-week="1" ${canFwd?"":"disabled"} aria-label="Next week">&rsaquo;</button>
      </div>
      ${(function(){
-       const cards = [hero, dailyCard("briefing"), plantHero, dailyCard("havs"), excHero];
+       const cards = [hero, dailyCard("briefing"), plantHero, excHero];
        return `<div class="carousel" id="heroCar">${cards.join("")}</div>
          <div class="cdots">${cards.map((_,i)=>`<i class="${i?"":"on"}"></i>`).join("")}</div>`;
+     })()}
+     ${(function(){
+       const rec = dailyRecordFor("havs", sel);
+       const done = isDone(rec);
+       return `<div class="card">
+         <div style="display:flex;align-items:center;gap:12px">
+           <span style="flex:1">
+             <b style="font-size:16px;font-weight:640;display:block">HAVs record</b>
+             <span style="font-size:13px;color:var(--ink-3)">${done
+               ? "Done at "+timeOnly(rec.submittedAt)
+               : "As required — only on a day vibrating tools have been used"}</span></span>
+           ${done
+             ? `<button class="btn line sm" style="margin:0" data-open="${rec.id}">View</button>`
+             : `<button class="btn line sm" style="margin:0" data-startf="havs" data-d="${sel}">Add one</button>`}
+         </div></div>`;
      })()}
      ${(function(){
        const due = weeklyOutstanding(sel);
@@ -4069,6 +4168,8 @@ function pickPlantView(){
     }).join("")}`;
 }
 
+let itemEditing = false;
+
 function itemView(){
   const kind = view.kind || "plant";
   const it = findItem(kind, view.id);
@@ -4077,18 +4178,50 @@ function itemView(){
   const st = lolerState(it);
   const df = isPlant ? defectsFor(it.id) : null;
   const onSite = (isPlant ? currentPlant() : currentLifting()).some(x=>x.id===it.id);
+  const back = `<button class="chip" data-go="${kind}">&lsaquo; ${isPlant?"Plant":"Lifting"}</button>`;
 
-  const sub = isPlant
-    ? [it.type||"Excavator", it.fleetNo||"No fleet no.", it.model, it.owner].filter(Boolean).join(" · ")
-    : [it.type||"", it.idNo||"No ID", it.swl?("SWL "+it.swl):"", it.owner].filter(Boolean).join(" · ");
+  /* ---------- editing ---------- */
+  if(itemEditing){
+    return `<div class="top">${back}<span class="pill info">Editing</span></div>
+      <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
+      <p class="sub">Change what needs changing, then save.</p>
+      <div class="card">
+        ${isPlant ? plantFields(it, "data-pl-"+it.id) : liftingFields(it, "data-lf-"+it.id)}
+      </div>
+      <button class="btn" data-itemdone="1">Save changes</button>
+      ${onSite
+        ? `<button class="btn line" style="color:var(--bad)" data-${isPlant?"ploff":"lfoff"}="${it.id}">
+            Take off site</button>`
+        : `<button class="btn line" data-${isPlant?"plback":"lfback"}="${it.id}">Back on site</button>
+           <button class="btn line" style="color:var(--bad)" data-${isPlant?"plrm":"lfrm"}="${it.id}">
+             Delete this item</button>`}`;
+  }
 
-  return `<div class="top">
-      <button class="chip" data-go="${kind}">&lsaquo; ${isPlant?"Plant":"Lifting"}</button>
+  /* ---------- reading ---------- */
+  const row = (k,v) => v ? `<div class="kv"><span class="k">${esc(k)}</span>
+    <span class="v">${esc(v)}</span></div>` : "";
+  const details = isPlant
+    ? row("Type", it.type||"Excavator") + row("Fleet number", it.fleetNo)
+      + row("Model", it.model) + row("Owned or hired", it.owner)
+      + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) + row("Hire reference", it.hireRef)
+          + row("Their email", it.hireEmail) + row("Their phone", it.hirePhone) : "")
+      + row("On site from", it.onDate?shortDate(it.onDate):"")
+      + row("Off site", it.offDate?shortDate(it.offDate):"")
+      + row("Next examination", examDateOf(it)?shortDate(examDateOf(it)):"Not set")
+    : row("Type", it.type) + row("ID number", it.idNo) + row("Safe working load", it.swl)
+      + row("Owned or hired", it.owner)
+      + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) : "")
+      + row("On site from", it.onDate?shortDate(it.onDate):"")
+      + row("Off site", it.offDate?shortDate(it.offDate):"")
+      + row("LOLER expiry", examDateOf(it)?shortDate(examDateOf(it)):"Not set");
+
+  return `<div class="top">${back}
       <span class="pill ${onSite?st.cls:"grey"}">${onSite?esc(st.label):"Off site"}</span>
     </div>
 
     <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
-    <p class="sub">${esc(sub)}</p>
+    <p class="sub">${esc([isPlant?(it.type||"Excavator"):it.type,
+      isPlant?it.fleetNo:it.idNo].filter(Boolean).join(" · "))}</p>
 
     ${df ? `<button class="card" style="width:100%;text-align:left;background:var(--bad-bg);
       box-shadow:none" data-defopen="${df.items[0].id}">
@@ -4099,27 +4232,21 @@ function itemView(){
         · reported ${ageText(x.reportedAt)}</p>`).join("")}
     </button>` : ""}
 
+    <div class="sect">Details</div>
+    <div class="card">${details}</div>
+
     <div class="sect">Examination</div>
     ${examBlock(kind, it)}
 
     ${docsBlock(kind, it)}
 
-    <div class="sect">Details</div>
-    <div class="card">
-      ${isPlant ? plantFields(it, "data-pl-"+it.id) : liftingFields(it, "data-lf-"+it.id)}
-    </div>
-
-    <div class="sect">This item</div>
-    ${isPlant ? `<button class="btn ghost" data-history="${it.id}">Defect history${
+    ${isPlant ? `<div class="sect">This machine</div>
+      <button class="btn ghost" data-history="${it.id}">Defect history${
         closedDefects(it.id).length?" ("+closedDefects(it.id).length+")":""}</button>
-      <button class="btn ghost" data-weeksheet="${it.id}">This week’s inspection sheet</button>
+      <button class="btn ghost" data-weeksheet="${it.id}">This week\u2019s inspection sheet</button>
       ${df ? `<button class="btn ghost" data-report="${it.id}">Send the defect report</button>` : ""}` : ""}
-    ${onSite
-      ? `<button class="btn line" style="color:var(--bad)" data-${isPlant?"ploff":"lfoff"}="${it.id}">
-          Take off site</button>`
-      : `<button class="btn line" data-${isPlant?"plback":"lfback"}="${it.id}">Back on site</button>
-         <button class="btn line" style="color:var(--bad)" data-${isPlant?"plrm":"lfrm"}="${it.id}">
-           Delete this item</button>`}`;
+
+    <button class="btn" style="margin-top:18px" data-itemedit="1">Edit this item</button>`;
 }
 
 function plantView(){
@@ -4346,6 +4473,7 @@ function packView(){
       ${secs.map(sec=>{
         const short = sec.def.daily ? sec.items.length+" of "+sec.expected
           : sec.def.weekly ? (sec.items.length?"Done":"Not done")
+          : sec.def.asNeeded ? sec.items.length+" as required"
           : String(sec.items.length);
         const ok = sec.def.weekly ? sec.items.length>0 : sec.items.length>=sec.expected;
         return `<div class="kpi">
@@ -5688,8 +5816,17 @@ function bind(){
   /* documents */
   const parseRef = v => { const [kind,id,docId] = v.split(":"); return {kind,id,docId}; };
   const attachDoc = (kind, id, doc) => {
-    const it = findItem(kind, id);
-    askDocType(t => { addDoc(kind, id, Object.assign({ type:t }, doc)); render(); toast("Document added"); });
+    askDocType(t => askDocExpiry(t, exp => {
+      addDoc(kind, id, Object.assign({ type:t, expires:exp }, doc));
+      /* a certificate with a later date moves the item's examination date on */
+      if(exp){
+        const it = findItem(kind, id);
+        if(it && (!examDateOf(it) || exp > examDateOf(it))) it.examDate = exp;
+        save();
+      }
+      render();
+      toast(exp ? "Filed — valid to " + shortDate(exp) : "Document added");
+    }));
   };
   app.querySelectorAll("[data-docscan]").forEach(el=>el.onclick=()=>{
     const {kind,id} = parseRef(el.dataset.docscan);
@@ -5724,13 +5861,28 @@ function bind(){
   /* inspection carried out */
   app.querySelectorAll("[data-examstart]").forEach(el=>el.onclick=()=>{
     const {kind,id} = parseRef(el.dataset.examstart);
-    const months = kind==="lifting" ? 6 : 12;
-    examDraft = { kind, id, done: todayISO(), next: addMonthsISO(todayISO(), months),
-      by:"", doc:null };
+    examDraft = { kind, id, done: todayISO(), interval:null, next:"", by:"", doc:null };
+    render();
+  });
+  app.querySelectorAll("[data-exint]").forEach(el=>el.onclick=()=>{
+    if(!examDraft) return;
+    const v = el.dataset.exint;
+    if(v === "custom"){ examDraft.interval = "custom"; }
+    else {
+      examDraft.interval = Number(v);
+      examDraft.next = addMonthsISO(examDraft.done || todayISO(), Number(v));
+    }
     render();
   });
   app.querySelectorAll("[data-exf]").forEach(el=>{
-    el.oninput = () => { if(examDraft) examDraft[el.dataset.exf] = el.value; };
+    el.oninput = () => {
+      if(!examDraft) return;
+      examDraft[el.dataset.exf] = el.value;
+      if(el.dataset.exf === "done" && typeof examDraft.interval === "number"){
+        examDraft.next = addMonthsISO(examDraft.done, examDraft.interval);
+        render();
+      }
+    };
     el.onchange = el.oninput;
   });
   const exs = app.querySelector("[data-exscan]");
@@ -5750,6 +5902,7 @@ function bind(){
   const exv = app.querySelector("[data-exsave]");
   if(exv) exv.onclick = ()=>{
     const d = examDraft;
+    if(!d.interval){ toast("Choose when the next inspection is due."); return; }
     if(!d.next){ toast("Set the date the next inspection is due."); return; }
     const it = findItem(d.kind, d.id);
     it.exams = it.exams || [];
@@ -5759,7 +5912,7 @@ function bind(){
       it.docs = it.docs || [];
       it.docs.unshift(Object.assign({ id:"doc_"+Date.now(),
         type: d.kind==="lifting" ? "LOLER certificate" : "Thorough examination certificate",
-        title: "Examined " + shortDate(d.done) }, d.doc));
+        title: "Examined " + shortDate(d.done), expires: d.next }, d.doc));
     }
     examDraft = null; save(); render();
     toast("Recorded — next due " + shortDate(it.examDate));
@@ -5772,8 +5925,13 @@ function bind(){
   });
   app.querySelectorAll("[data-openitem]").forEach(el=>el.onclick=()=>{
     const [kind,id] = el.dataset.openitem.split(":");
+    itemEditing = false;
     go("item", { kind, id });
   });
+  const ied = app.querySelector("[data-itemedit]");
+  if(ied) ied.onclick = ()=>{ itemEditing = true; render(); };
+  const idn = app.querySelector("[data-itemdone]");
+  if(idn) idn.onclick = ()=>{ itemEditing = false; save(); render(); toast("Saved"); };
 
 
   /* the draft being typed before it is added */
@@ -5817,7 +5975,7 @@ function bind(){
     const item = Object.assign({ id:"pl_"+Date.now(), job:DB.job }, plantDraft);
     delete item.doc;
     if(doc) item.docs = [Object.assign({ id:"doc_"+Date.now(),
-      type:"Thorough examination certificate" }, doc)];
+      type:"Thorough examination certificate", expires: item.examDate || "" }, doc)];
     DB.plant.push(item);
     plantDraft = null; save(); render();
     toast(doc ? "Added with its certificate" : "Added to the register");
@@ -5879,7 +6037,7 @@ function bind(){
     const item = Object.assign({ id:"lf_"+Date.now(), job:DB.job }, liftDraft);
     delete item.doc;
     if(doc) item.docs = [Object.assign({ id:"doc_"+Date.now(),
-      type:"LOLER certificate" }, doc)];
+      type:"LOLER certificate", expires: item.examDate || "" }, doc)];
     DB.lifting.push(item);
     liftDraft = null; save(); render();
     toast(doc ? "Added with its certificate" : "Added to the register");
