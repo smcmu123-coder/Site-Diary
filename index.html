@@ -32,7 +32,7 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:3px solid #7FB394;outline-offset:2px;border-radius:8px}
 .app{max-width:560px;margin:0 auto;min-height:100vh;
-  padding:0 16px calc(30px + env(safe-area-inset-bottom));
+  padding:0 16px calc(104px + env(safe-area-inset-bottom));
   padding-left:max(16px, env(safe-area-inset-left));
   padding-right:max(16px, env(safe-area-inset-right));
   background:var(--paper);overflow-x:hidden}
@@ -46,7 +46,7 @@ input,select,textarea{font:inherit;color:inherit}
 /* iPad: more room, bigger type, cards side by side. Same code, one layout. */
 @media(min-width:760px){
   body{background:var(--canvas)}
-  .app{max-width:760px;padding:0 34px 60px;box-shadow:0 0 0 1px var(--line);
+  .app{max-width:760px;padding:0 34px 120px;box-shadow:0 0 0 1px var(--line);
     background:var(--paper)}
   h1.greet{font-size:34px}
   .sub{font-size:15px;margin-bottom:26px}
@@ -92,8 +92,6 @@ input,select,textarea{font:inherit;color:inherit}
   padding:calc(14px + env(safe-area-inset-top)) 0 2px}
 .top .chip{background:var(--canvas);border-radius:999px;padding:8px 14px;font-size:13px;
   font-weight:640;color:var(--ink-2)}
-.top .av{width:42px;height:42px;border-radius:50%;background:var(--green);color:#fff;
-  display:grid;place-items:center;font-weight:700;font-size:14px}
 h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;margin:14px 0 2px}
 .sub{text-align:center;color:var(--ink-3);font-size:13.5px;margin:0 0 20px}
 
@@ -250,6 +248,79 @@ input[type=date].in,input[type=time].in,
 .dayoff h4{margin:0 0 8px;font-size:13.5px;font-weight:700;color:var(--info)}
 .dayoff .who{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:14.5px}
 .dayoff .who i{width:9px;height:9px;border-radius:50%;flex:none}
+
+/* project tiles */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{background:var(--paper);border-radius:20px;box-shadow:var(--sh);padding:16px;
+  text-align:left;display:flex;flex-direction:column;justify-content:space-between;
+  min-height:132px;position:relative;overflow:hidden}
+.tile:active{transform:scale(.985)}
+.tile .ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  background:var(--green-50);color:var(--green);flex:none}
+.tile .tl{font-size:15.5px;font-weight:660;letter-spacing:-.01em;margin-top:12px;line-height:1.2}
+.tile .tv{font-size:13px;color:var(--ink-3);margin-top:3px;line-height:1.3}
+.tile .badge{position:absolute;top:14px;right:14px;min-width:24px;height:24px;padding:0 7px;
+  border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:700}
+.tile.amber{background:var(--warn-bg);box-shadow:none}
+.tile.amber .ic{background:rgba(169,106,0,.13);color:var(--warn)}
+.tile.amber .tl,.tile.amber .tv{color:var(--warn)}
+.tile.amber .badge{background:var(--warn);color:#fff}
+.tile.red{background:var(--bad-bg);box-shadow:none}
+.tile.red .ic{background:rgba(167,43,34,.13);color:var(--bad)}
+.tile.red .tl,.tile.red .tv{color:var(--bad)}
+.tile.red .badge{background:var(--bad);color:#fff}
+@media(min-width:760px){
+  .tiles{grid-template-columns:repeat(3,1fr)}
+  .tile{min-height:146px;padding:18px}
+}
+
+/* bottom navigation — frosted glass, brand green, sliding indicator */
+.navpill{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);z-index:70;
+  width:min(440px, calc(100% - 28px));
+  display:grid;grid-template-columns:repeat(3,1fr);
+  padding:7px;border-radius:999px;
+  background:rgba(255,255,255,.66);
+  -webkit-backdrop-filter:blur(22px) saturate(180%);
+  backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(31,90,45,.16);
+  box-shadow:0 12px 34px -14px rgba(16,44,26,.5),
+             0 2px 8px -4px rgba(16,44,26,.25),
+             inset 0 1px 0 rgba(255,255,255,.75);
+  transition:opacity .25s ease, transform .25s ease}
+.navpill.hidden{opacity:0;pointer-events:none;transform:translate(-50%,20px)}
+.navslide{position:absolute;top:7px;left:7px;height:calc(100% - 14px);
+  width:calc((100% - 14px) / 3);border-radius:999px;
+  background:linear-gradient(180deg,#2A7440 0%,var(--green) 55%,#194A26 100%);
+  box-shadow:0 6px 14px -6px rgba(31,90,45,.75), inset 0 1px 0 rgba(255,255,255,.22);
+  transition:transform .38s cubic-bezier(.34,1.24,.42,1);
+  will-change:transform;z-index:0}
+.navpill button{position:relative;z-index:1;height:52px;border-radius:999px;
+  display:grid;place-items:center;gap:3px;color:var(--green-700);
+  transition:color .28s ease}
+.navpill button.on{color:#fff}
+.navpill button span{font-size:10.5px;font-weight:700;letter-spacing:.03em;line-height:1}
+.navdot{position:absolute;top:5px;right:calc(50% - 17px);width:9px;height:9px;border-radius:50%;
+  background:var(--bad);box-shadow:0 0 0 2.5px rgba(255,255,255,.92);
+  opacity:0;transform:scale(.4);transition:opacity .25s ease, transform .25s cubic-bezier(.34,1.5,.5,1)}
+.navpill button.on .navdot{box-shadow:0 0 0 2.5px rgba(26,72,40,.95)}
+.navdot.show{opacity:1;transform:scale(1)}
+@media (prefers-reduced-motion:no-preference){
+  .navdot.show{animation:dotPulse 2.4s ease-in-out 1.2s infinite}
+}
+@keyframes dotPulse{
+  0%,72%,100%{box-shadow:0 0 0 2.5px rgba(255,255,255,.92), 0 0 0 0 rgba(167,43,34,.5)}
+  84%{box-shadow:0 0 0 2.5px rgba(255,255,255,.92), 0 0 0 6px rgba(167,43,34,0)}
+}
+.navpill button svg{transition:transform .28s ease}
+.navpill button.on svg{transform:translateY(-1px)}
+@media(min-width:760px){
+  .navpill{width:420px;bottom:24px}
+  .navpill button{height:56px}
+}
+@media (prefers-reduced-motion:reduce){
+  .navslide{transition:none}
+}
 
 /* timesheet */
 .tstotal{background:var(--green-50);border-radius:var(--r);padding:18px 20px;margin-bottom:12px;
@@ -429,6 +500,13 @@ input[type=date].in,input[type=time].in,
 </head>
 <body>
 <div class="app" id="app"></div>
+
+<nav class="navpill" id="navpill" aria-label="Sections">
+  <span class="navslide" id="navslide"></span>
+  <button data-nav="home" aria-label="Home"></button>
+  <button data-nav="project" aria-label="Project"><i class="navdot" id="navdot"></i></button>
+  <button data-nav="profile" aria-label="Profile"></button>
+</nav>
 <div class="sheetwrap" id="sheetwrap">
   <div class="sheetbar">
     <button id="sheetClose">&lsaquo; Close</button>
@@ -533,6 +611,25 @@ const DIARY = [
         { id:"hours", type:"duration", label:"Time taken", required:true },
         { id:"materials", type:"textarea", label:"Materials used" },
         { id:"comments", type:"textarea", label:"Other comments" }
+      ]}
+  ]},
+
+  { title:"Excavations", fields:[
+    { id:"excavationsOpen", type:"yesno", required:true,
+      label:"Any excavations left open overnight?",
+      hint:"Each one listed raises an inspection for the next working morning." },
+    { id:"excavationList", type:"repeater", label:"Excavations left open",
+      itemLabel:"Excavation", addLabel:"Add another excavation",
+      required:true, collapsible:true, showIf:{field:"excavationsOpen",equals:true},
+      columns:[
+        { id:"ref", type:"text", label:"Reference", required:true,
+          hint:"For example, FW12–FW14 or MH8 chamber." },
+        { id:"location", type:"text", label:"Where is it?" },
+        { id:"depth", type:"number", label:"Maximum depth", suffix:"m" },
+        { id:"support", type:"select", label:"Support in place",
+          options:["Battered sides","Trench box","Drag box","Sheet piles","Manhole shoring",
+                   "None — under 1.2m and assessed"] },
+        { id:"secured", type:"yesno", label:"Barriers and covers in place for the night?" }
       ]}
   ]},
 
@@ -700,6 +797,62 @@ function plantCheckSections(){
   return secs;
 }
 
+/* ------------------------------------------------- excavation inspection -- */
+const EXCAVATION_CHECKS = [
+  "Sides battered or supported correctly",
+  "Support system undamaged and properly installed",
+  "Edge protection and barriers in place",
+  "Safe access and egress",
+  "Spoil and materials set back from the edge",
+  "Water ingress controlled",
+  "Exposed services supported and marked",
+  "Plant kept clear of the edges",
+  "Signage and lighting in place",
+  "No loose material or debris in the excavation",
+  "Adjacent structures and roads unaffected"
+];
+
+function excavationSections(){
+  return [
+    { title:"The excavation", fields:[
+      { id:"ref", type:"text", label:"Reference", required:true },
+      { id:"location", type:"text", label:"Where is it?" },
+      { id:"depth", type:"number", label:"Maximum depth", suffix:"m", required:true },
+      { id:"support", type:"select", label:"Support system", required:true,
+        options:["Battered sides","Trench box","Drag box","Sheet piles","Manhole shoring",
+                 "None — under 1.2m and assessed"] }
+    ]},
+    { title:"Inspection", fields:
+      EXCAVATION_CHECKS.map(t=>({ id:"e_"+slug(t), type:"check", label:t, required:true })) },
+    { title:"Result", fields:[
+      { id:"safe", type:"yesno", label:"Safe for work to continue?", required:true },
+      { id:"action", type:"textarea", label:"What has been done about it?", required:true,
+        showIf:{field:"safe",equals:false},
+        hint:"Nobody enters until it is put right. Say what has been done and who has been told." },
+      { id:"photos", type:"photos", label:"Photographs" },
+      { id:"signature", type:"signature", label:"Competent person signature", required:true,
+        hint:"I confirm I am competent to inspect excavations and the above is accurate." }
+    ]}
+  ];
+}
+
+/* Excavations left open on the last working day need looking at this morning. */
+function excavationsDue(date){
+  const prev = prevWorking(date || todayISO());
+  const diary = DB.records.find(r=>(r.form||"diary")==="diary" && r.job===DB.job
+    && r.date===prev && r.status==="submitted");
+  if(!diary || diary.data.excavationsOpen !== true) return [];
+  const list = Array.isArray(diary.data.excavationList) ? diary.data.excavationList : [];
+  return list.filter(x=>x && x.ref).map(x=>Object.assign({}, x, { fromDate: prev }));
+}
+function excFor(date, ref){
+  return DB.records.find(r=>r.form==="excavation" && r.job===DB.job && r.date===date
+    && (r.excRef||"") === ref) || null;
+}
+function excsFor(date){
+  return DB.records.filter(r=>r.form==="excavation" && r.job===DB.job && r.date===date);
+}
+
 /* Every form the app knows about. Adding another is an entry here. */
 const FORMS = {
   diary: { key:"diary", name:"Site diary", short:"Diary", prefix:"DD",
@@ -707,7 +860,10 @@ const FORMS = {
     blurb:"Conditions, labour, plant, work done and dayworks." },
   plantcheck: { key:"plantcheck", name:"Plant inspection", short:"Plant check", prefix:"PC",
     sections:plantCheckSections, perMachine:true,
-    blurb:"Daily pre-use checks, plus the weekly ones when they fall due." }
+    blurb:"Daily pre-use checks, plus the weekly ones when they fall due." },
+  excavation: { key:"excavation", name:"Excavation inspection", short:"Excavation", prefix:"EX",
+    sections:excavationSections, perMachine:false,
+    blurb:"Raised by anything left open overnight." }
 };
 const formDef = k => FORMS[k] || FORMS.diary;
 const sectionsFor = k => formDef(k).sections();
@@ -722,11 +878,11 @@ function load(){
     if(raw) return JSON.parse(raw);
   }catch(e){}
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
-    job:CONFIG.jobs[0], plant:[], labour:[], leave:[], vos:[] };
+    job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], leave:[], vos:[] };
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
-  catch(e){ toast("Storage full — export a backup and remove old photos"); }
+  catch(e){ toast("Storage is full. Take a backup, then remove some old photographs."); }
 }
 const cfg = () => DB.config || CONFIG;
 
@@ -1114,13 +1270,13 @@ function weekChecks(plantId, ws){
 
 function printWeeklyPlantSheet(plantId, ws){
   const m = (DB.plant||[]).find(x=>x.id===plantId);
-  if(!m){ toast("Machine not found"); return; }
+  if(!m){ toast("That machine could not be found."); return; }
   const c = cfg();
   ws = ws || weekStart(todayISO());
   const { days, map } = weekChecks(plantId, ws);
   const sheet = sheetFor(m.type||"Excavator") || CHECKSHEETS.Excavator;
   const done = days.filter(d=>map[d]);
-  if(!done.length){ toast("No checks recorded for that week yet"); return; }
+  if(!done.length){ toast("No checks have been recorded for that week yet."); return; }
 
   const DL = ["M","T","W","T","F","S","S"];
   const mark = (rec, key) => {
@@ -1208,7 +1364,7 @@ function printWeeklyPlantSheet(plantId, ws){
 function printDefectReport(plantId){
   const m = (DB.plant||[]).find(x=>x.id===plantId);
   const df = defectsFor(plantId);
-  if(!m || !df){ toast("No open defects on this machine"); return; }
+  if(!m || !df){ toast("There are no open defects on this machine."); return; }
   const c = cfg();
 
   const photos = [];
@@ -1356,7 +1512,7 @@ async function defectReportPdf(plantId){
 async function reportDefect(plantId){
   const m = (DB.plant||[]).find(x=>x.id===plantId);
   const df = defectsFor(plantId);
-  if(!m || !df){ toast("No open defects on this machine"); return; }
+  if(!m || !df){ toast("There are no open defects on this machine."); return; }
   const to = recipientFor(m);
   const subject = (to.priority ? "PRIORITY — " : "")
     + "Plant defect — " + (m.fleetNo || m.item || "machine") + " — " + DB.job;
@@ -1384,7 +1540,7 @@ async function reportDefect(plantId){
     const a = document.createElement("a");
     a.href = URL.createObjectURL(file); a.download = file.name;
     document.body.appendChild(a); a.click(); a.remove();
-    toast("Report saved — attach it to your email");
+    toast("Report saved. Attach it to your email.");
     return;
   }
 
@@ -1393,6 +1549,17 @@ async function reportDefect(plantId){
     + "&body=" + encodeURIComponent(body);
   a.target = "_blank"; a.rel = "noopener";
   document.body.appendChild(a); a.click(); a.remove();
+}
+
+function refreshLiftPill(id){
+  const l = (DB.lifting||[]).find(x=>x.id===id);
+  const el = document.getElementById("pill_"+id);
+  if(!l || !el) return;
+  const st = lolerState(l);
+  el.className = "pill " + st.cls;
+  el.textContent = st.label;
+  const inp = document.querySelector('[data-lf-'+id+'="examDate"]');
+  if(inp) inp.classList.toggle("err", st.key==="expired");
 }
 
 function refreshPlantPill(id){
@@ -1417,6 +1584,28 @@ function availablePeople(){
 function availablePlant(){
   return onSitePlant(formState ? formState.date : null)
     .map(p => p.item + (p.fleetNo ? " ("+p.fleetNo+")" : "")).filter(Boolean);
+}
+
+/* ---------------------------------------------------- lifting equipment -- */
+/* Slings, shackles, beams and the like. Same thorough examination rules as
+   plant: amber a month out, red once it has lapsed. */
+const LIFTING_TYPES = ["Single leg chain","2 leg chain","3 leg chain","4 leg chain",
+  "Chain sling","Webbing sling","Round sling","Shackle","Lifting beam",
+  "Chain block","Lever hoist","Pipe grab","Manhole lifter","Vacuum lifter","Strop",
+  "Excavator lifting eye","Quick hitch","Other"];
+
+function onSiteLifting(date){
+  const d = date || todayISO();
+  return (DB.lifting||[]).filter(l => l.job===DB.job
+    && (!l.onDate || l.onDate<=d) && (!l.offDate || l.offDate>=d));
+}
+function currentLifting(){
+  const t = todayISO();
+  return (DB.lifting||[]).filter(l => l.job===DB.job && (!l.offDate || l.offDate>t));
+}
+function liftingAlerts(){
+  return currentLifting().map(l=>({ l, st:lolerState(l) }))
+    .filter(x=>x.st.key==="expired" || x.st.key==="soon");
 }
 
 /* -------------------------------------------------------- labour register -- */
@@ -1554,15 +1743,88 @@ function rowHours(row){
   return workedHours(row.start, row.finish) || 0;
 }
 
+/* ---------------------------------------------------------------- nav -- */
+const ICONS = {
+  home: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/>
+    <path d="M6 10v10h12V10" fill="currentColor" stroke="none"/>
+    <path d="M6 10v10h12V10"/></svg>`,
+  crane: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="2" stroke-linecap="square"><path d="M4 4h13"/><path d="M11 4v16"/>
+    <path d="M4 4v4"/><path d="M8 20h6"/></svg>`,
+  person: `<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="8" r="3.6"/><path d="M6 21v-4a6 6 0 0 1 12 0v4z"/></svg>`
+};
+
+/* which section of the app a screen belongs to */
+const SECTION = {
+  home:"home",
+  project:"project", plant:"project", lifting:"project", labour:"project", leave:"project",
+  timesheet:"project", vos:"project", vo:"project", list:"project", record:"project",
+  defect:"project", planthistory:"project", pickplant:"project", pickexc:"project",
+  settings:"profile"
+};
+
+const NAV_ORDER = ["home","project","profile"];
+const NAV_LABEL = { home:"Home", project:"Project", profile:"Profile" };
+
+/* Built once and left alone, so the indicator can slide rather than jump. */
+function initNav(){
+  const bar = document.getElementById("navpill");
+  bar.querySelectorAll("button").forEach(b=>{
+    const k = b.dataset.nav;
+    b.innerHTML = (k==="project" ? `<i class="navdot" id="navdot"></i>` : "")
+      + ICONS[k==="home"?"home":k==="project"?"crane":"person"]
+      + `<span>${NAV_LABEL[k]}</span>`;
+    b.onclick = () => go(k==="profile" ? "settings" : k);
+  });
+}
+/* Anything on the Project page that somebody needs to do something about. */
+function projectAlerts(){
+  const defects = currentPlant().reduce((n,m)=>{
+    const df = defectsFor(m.id); return n + (df ? df.items.length : 0); }, 0);
+  return {
+    defects,
+    plantExams: lolerAlerts().length,
+    liftExams: liftingAlerts().length,
+    unsignedVos: (DB.vos||[]).filter(v=>v.status!=="signed").length,
+    get total(){ return this.defects + this.plantExams + this.liftExams + this.unsignedVos; }
+  };
+}
+
+function updateNav(){
+  const bar = document.getElementById("navpill");
+  if(!bar) return;
+  const active = SECTION[view.name] || "home";
+  const i = Math.max(0, NAV_ORDER.indexOf(active));
+  document.getElementById("navslide").style.transform = "translateX(" + (i*100) + "%)";
+  bar.querySelectorAll("button").forEach(b=>{
+    const on = b.dataset.nav === active;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-current", on ? "page" : "false");
+  });
+  bar.classList.toggle("hidden", view.name === "form");
+
+  const dot = document.getElementById("navdot");
+  if(dot){
+    const a = projectAlerts();
+    dot.classList.toggle("show", a.total > 0);
+    bar.querySelector('[data-nav="project"]').setAttribute("aria-label",
+      a.total ? "Project — " + a.total + " needing attention" : "Project");
+  }
+}
+
 /* ---------------------------------------------------------------- router -- */
 let view = { name:"home", date:todayISO() };
 let viewWeek = weekStart(todayISO());
 function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
+  if(name!=="lifting"){ liftEditId = null; liftDraft = null; }
   if(name!=="leave"){ leaveDraft = null; leaveDay = null; }
   if(name!=="vo"){ voSign = null; voEdit = null; voEditRef = ""; voEditDate = ""; }
   if(name!=="defect"){ fixDraft = null; }
+  if(name!=="pickexc"){ excDraftRef = null; }
   view = Object.assign({name}, opts||{});
   window.scrollTo(0,0);
   render();
@@ -1626,7 +1888,7 @@ function openSignaturePad(existing, onSave){
     g.clearRect(0,0,cv.width,cv.height); touched = false;
   };
   wrap.querySelector("[data-padsave]").onclick = () => {
-    if(!touched){ toast("Nothing signed yet"); return; }
+    if(!touched){ toast("Nothing has been signed yet."); return; }
     const src = cv.toDataURL("image/png");
     close();
     onSave(src);
@@ -1681,29 +1943,29 @@ function render(){
   else if(view.name==="list") app.innerHTML = listView();
   else if(view.name==="plant") app.innerHTML = plantView();
   else if(view.name==="pickplant") app.innerHTML = pickPlantView();
+  else if(view.name==="pickexc") app.innerHTML = pickExcView();
   else if(view.name==="defect") app.innerHTML = defectView();
   else if(view.name==="planthistory") app.innerHTML = plantHistoryView();
   else if(view.name==="labour") app.innerHTML = labourView();
+  else if(view.name==="project") app.innerHTML = projectView();
+  else if(view.name==="lifting") app.innerHTML = liftingView();
   else if(view.name==="leave") app.innerHTML = leaveView();
   else if(view.name==="vos") app.innerHTML = voListView();
   else if(view.name==="vo") app.innerHTML = voView();
   else if(view.name==="timesheet") app.innerHTML = timesheetView();
   else if(view.name==="settings") app.innerHTML = settingsView();
   bind();
+  updateNav();
 }
 
 function header(right){
-  const c = cfg();
-  return `<div class="top">
-    <span class="chip">${esc(right)}</span>
-    <button class="av" data-go="settings" aria-label="Settings">${esc(initials(c.user.name))}</button>
-  </div>`;
+  return `<div class="top"><span class="chip">${esc(right)}</span></div>`;
 }
 
 function homeView(){
   const c = cfg(), t = todayISO();
   const hour = new Date().getHours();
-  const greet = hour<12 ? "good morning" : hour<17 ? "good afternoon" : "good evening";
+  const greet = hour<12 ? "Good Morning" : hour<17 ? "Good Afternoon" : "Good Evening";
   const firstName = (cfg().user.name||"").trim().split(" ")[0] || "";
   const sel = view.date || t;
   const days = weekDays(viewWeek);
@@ -1780,6 +2042,28 @@ function homeView(){
     .filter(x=>x.df)
     .sort((a,b)=>(b.to.priority?1:0)-(a.to.priority?1:0) || a.df.oldest-b.df.oldest);
 
+  /* excavations left open on the last working day */
+  const excDue = excavationsDue(sel);
+  const excDone = excsFor(sel).filter(r=>r.status==="submitted");
+  const excLeft = excDue.filter(x=>!excFor(sel, x.ref) || excFor(sel, x.ref).status!=="submitted").length;
+  const excHero = excDue.length===0 && excDone.length===0
+    ? `<div class="hero calm">
+        <div class="lab">Excavation inspection</div>
+        <div class="ttl">None open</div>
+        <div class="why">Nothing was left open on the last working day.</div>
+        <button class="begin" data-pickexc="${sel}">Add one</button></div>`
+    : excLeft===0
+    ? `<div class="hero calm">
+        <div class="lab">${isToday?"Today":shortDate(sel)}</div>
+        <div class="ttl">Excavations checked</div>
+        <div class="count">${excDone.length} inspection${excDone.length===1?"":"s"} recorded</div>
+        <button class="begin" data-pickexc="${sel}">View them</button></div>`
+    : `<div class="hero">
+        <div class="lab">Excavation inspection</div>
+        <div class="ttl">${excLeft} to inspect</div>
+        <div class="count">Left open on ${shortDate(excDue[0].fromDate)}</div>
+        <button class="begin" data-pickexc="${sel}">Begin</button></div>`;
+
   const missed = missedDays();
   const missedCard = missed.length ? `<button class="card" style="width:100%;text-align:left;
     background:${missed.some(m=>m.level==="red")?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"
@@ -1793,7 +2077,7 @@ function homeView(){
   const wkDone = wk.filter(d => statusFor(d)==="done").length;
 
   return header(isToday ? "Today" : shortDate(sel)) +
-    `<h1 class="greet">${greet}${firstName?", "+esc(firstName):""}.</h1>
+    `<h1 class="greet">${greet}${firstName?", "+esc(firstName):""}!</h1>
      <p class="sub">${esc(DB.job)}</p>
      <div class="week">
        <button class="warrow" data-week="-1" aria-label="Previous week">&lsaquo;</button>
@@ -1803,8 +2087,9 @@ function homeView(){
      <div class="carousel" id="heroCar">
        ${hero}
        ${plantHero}
+       ${excHero}
      </div>
-     <div class="cdots"><i class="on"></i><i></i></div>
+     <div class="cdots"><i class="on"></i><i></i><i></i></div>
      ${faulty.length ? `<button class="card" style="width:100%;text-align:left;
        background:var(--bad-bg);box-shadow:none" data-go="plant">
        <h3 style="color:var(--bad)">${faulty.reduce((n,x)=>n+x.df.items.length,0)} plant defect${
@@ -1825,63 +2110,7 @@ function homeView(){
        </div>
        <span class="bar"><i style="width:${wk.length?(wkDone/wk.length*100):0}%"></i></span>
      </div>
-     <div class="sect">Project</div>
-     <div class="projgrid">
-     ${(function(){
-       const n = currentPlant().length;
-       const al = lolerAlerts();
-       const expired = al.filter(x=>x.st.key==="expired");
-       const soon = al.filter(x=>x.st.key==="soon");
-       const level = expired.length ? "red" : soon.length ? "amber" : "";
-       const bg = level==="red" ? "var(--bad-bg)" : level==="amber" ? "var(--warn-bg)" : "";
-       const fg = level==="red" ? "var(--bad)" : level==="amber" ? "var(--warn)" : "var(--ink-3)";
-       const line = expired.length
-         ? expired.length+" examination"+(expired.length===1?"":"s")+" overdue"+(soon.length?", "+soon.length+" due soon":"")
-         : soon.length
-         ? soon.length+" thorough examination"+(soon.length===1?"":"s")+" due within a month"
-         : n+" item"+(n===1?"":"s")+" — added to every diary";
-       return `<button class="card" style="width:100%;text-align:left;
-         ${bg?`background:${bg};box-shadow:none`:""}" data-go="plant">
-         <div style="display:flex;align-items:center;gap:12px">
-           <span style="flex:1">
-             <b style="font-size:16px;font-weight:640;display:block;${level?`color:${fg}`:""}">Plant on site</b>
-             <span style="font-size:13px;color:${fg}">${esc(line)}</span></span>
-           ${level ? `<span class="pill ${level}">${expired.length+soon.length}</span>` : ""}
-           <span style="color:var(--ink-3)">&rsaquo;</span>
-         </div>
-       </button>`;
-     })()}
-     <button class="card" style="width:100%;text-align:left" data-go="labour">
-       <div style="display:flex;align-items:center;gap:12px">
-         <span style="flex:1"><b style="font-size:16px;font-weight:640;display:block">Site labour</b>
-           <span style="font-size:13px;color:var(--ink-3)">${currentLabour().length} on the register${
-             leaveToday().length ? " · "+leaveToday().length+" off today" : ""}</span></span>
-         <span style="color:var(--ink-3)">&rsaquo;</span>
-       </div>
-     </button>
-     ${(function(){
-       const vos = DB.vos||[];
-       const uns = vos.filter(v=>v.status!=="signed").length;
-       return `<button class="card" style="width:100%;text-align:left;${uns?"background:var(--warn-bg);box-shadow:none":""}" data-go="vos">
-         <div style="display:flex;align-items:center;gap:12px">
-           <span style="flex:1"><b style="font-size:16px;font-weight:640;display:block;${uns?"color:var(--warn)":""}">Dayworks</b>
-             <span style="font-size:13px;color:${uns?"var(--warn)":"var(--ink-3)"}">${
-               vos.length ? (uns?uns+" waiting to be signed":vos.length+" all signed") : "Raised from the diary"}</span></span>
-           <span style="color:var(--ink-3)">&rsaquo;</span>
-         </div></button>`;
-     })()}
-     <button class="card" style="width:100%;text-align:left" data-go="timesheet">
-       <div style="display:flex;align-items:center;gap:12px">
-         <span style="flex:1"><b style="font-size:16px;font-weight:640;display:block">Timesheet</b>
-           <span style="font-size:13px;color:var(--ink-3)">${(function(){
-             const t=timesheetWeek(weekStart(todayISO()));
-             const g=t.people.reduce((n,p)=>n+p.total,0);
-             return g?Math.round(g*100)/100+" hours this week":"Built from the diaries";})()}</span></span>
-         <span style="color:var(--ink-3)">&rsaquo;</span>
-       </div>
-     </button>
-     </div>
-     <button class="btn ghost" data-go="list">All records</button>`;
+`;
 }
 
 /* ------------------------------------------------------------------- form -- */
@@ -1889,11 +2118,13 @@ let formState = null;
 
 function visible(f, v){ return !f.showIf || v[f.showIf.field] === f.showIf.equals; }
 
-function startForm(date, formKey, plantId){
+function startForm(date, formKey, plantId, excRef){
   formKey = formKey || "diary";
-  const rec = formKey==="diary" ? recordFor(date) : checkFor(date, plantId);
+  const rec = formKey==="diary" ? recordFor(date)
+    : formKey==="excavation" ? excFor(date, excRef||"")
+    : checkFor(date, plantId);
   if(rec && rec.status==="submitted"){ go("record",{id:rec.id}); return; }
-  const values = rec ? JSON.parse(JSON.stringify(rec.data)) : prefill(date, formKey);
+  const values = rec ? JSON.parse(JSON.stringify(rec.data)) : prefill(date, formKey, excRef);
   if(rec){
     ["personnel","plant","activities","progress","deliveries","dwLabour_old"].forEach(k=>{ delete values[k]; });
     values.tasks = values.tasks || [];
@@ -1915,14 +2146,25 @@ function startForm(date, formKey, plantId){
     });
   }
   formState = { date, values, errors:{}, touched:false, id: rec?rec.id:null,
-    form: formKey, plantId: plantId||null };
+    form: formKey, plantId: plantId||null, excRef: excRef || (rec&&rec.excRef) || null };
   go("form",{date});
 }
-function prefill(date, formKey){
+function prefill(date, formKey, excRef){
   const v = {};
   sectionsFor(formKey||"diary").forEach(s=>s.fields.forEach(f=>{
     if(f.type==="repeater"||f.type==="checkboxes"||f.type==="photos") v[f.id]=[];
   }));
+  if(formKey === "excavation"){
+    /* carry across what the diary already told us about it */
+    const src = excavationsDue(date).find(x=>x.ref===excRef);
+    if(src){
+      v.ref = src.ref;
+      if(src.location) v.location = src.location;
+      if(src.depth !== undefined && src.depth !== "") v.depth = src.depth;
+      if(src.support) v.support = src.support;
+    } else if(excRef){ v.ref = excRef; }
+    return v;
+  }
   if((formKey||"diary")!=="diary") return v;
   const prev = DB.records.filter(r=>r.job===DB.job && r.status==="submitted" && r.date<date)
     .sort((a,b)=>a.date<b.date?1:-1)[0];
@@ -2219,6 +2461,8 @@ function formView(){
     </div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">${
       machine ? esc(machineType(machine.id))+" inspection" : esc(def.name)}</h1>
+    ${formState.form==="excavation" && formState.excRef
+      ? `<p class="sub" style="margin-top:-2px">Raised by the diary — ${esc(formState.excRef)}</p>` : ""}
     <p class="sub">${longDate(formState.date)}</p>
     ${machine ? `<div class="card" style="background:var(--green-50);box-shadow:none">
       <div class="kv"><span class="k">Competent person</span><span class="v">${esc(cfg().user.name)}</span></div>
@@ -2342,7 +2586,8 @@ function listView(){
   const counts = {
     all: all.length,
     diary: all.filter(r=>(r.form||"diary")==="diary").length,
-    plantcheck: all.filter(r=>r.form==="plantcheck").length
+    plantcheck: all.filter(r=>r.form==="plantcheck").length,
+    excavation: all.filter(r=>r.form==="excavation").length
   };
   let recs = all.filter(r=> listFilter==="all" ? true : (r.form||"diary")===listFilter);
   if(listDate) recs = recs.filter(r=>r.date===listDate);
@@ -2360,7 +2605,8 @@ function listView(){
     return `<div class="row">
       <button style="flex:1;text-align:left;display:block" data-view="${r.id}">
         <b style="display:block;font-size:15.5px;font-weight:640">${esc(formDef(r.form).name)}${
-          machine ? " — "+esc(machine.item||machine.fleetNo||"") : ""}</b>
+          machine ? " — "+esc(machine.item||machine.fleetNo||"") : ""}${
+          r.excRef ? " — "+esc(r.excRef) : ""}</b>
         <span style="display:block;font-size:13px;color:var(--ink-3)">
           ${esc(r.ref||"Draft")}${r.submittedAt?" · "+timeOnly(r.submittedAt):""}${
             machine&&machine.fleetNo?" · "+esc(machine.fleetNo):""}</span>
@@ -2371,12 +2617,13 @@ function listView(){
     </div>`;
   };
 
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Records</h1>
     <p class="sub">${esc(DB.job)}</p>
 
     <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:12px;scrollbar-width:none">
-      ${chip("all","All")}${chip("diary","Site diary")}${chip("plantcheck","Plant inspection")}
+      ${chip("all","All")}${chip("diary","Site diary")}${chip("plantcheck","Plant inspection")}${
+        chip("excavation","Excavation")}
     </div>
 
     <div class="card" style="display:flex;align-items:center;gap:10px;padding:10px 12px">
@@ -2492,7 +2739,7 @@ function defectView(){
       </div>`
     : `<button class="btn" data-fixstart="1">Mark as fixed</button>`;
 
-  return `<div class="top"><button class="chip" data-go="plant">&lsaquo; Back</button>
+  return `<div class="top"><button class="chip" data-go="plant">&lsaquo; Plant</button>
       <span class="pill ${open?"red":"ok"}">${open?"Open":"Closed"}</span></div>
     <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(d.item)}</h1>
     <p class="sub">${esc(m.item||"Machine")}${m.fleetNo?" · "+esc(m.fleetNo):""}</p>
@@ -2562,13 +2809,57 @@ function plantHistoryView(){
         <b style="font-weight:640">Fix:</b> ${esc(d.fixNote)}</p>`:""}
     </button>`;
 
-  return `<div class="top"><button class="chip" data-go="plant">&lsaquo; Back</button></div>
+  return `<div class="top"><button class="chip" data-go="plant">&lsaquo; Plant</button></div>
     <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(m.item||"Machine")}</h1>
     <p class="sub">${esc(m.fleetNo||"")} · ${checks} inspection${checks===1?"":"s"} recorded</p>
     ${open.length ? `<div class="sect">Open (${open.length})</div>`+open.map(card).join("") : ""}
     ${closed.length ? `<div class="sect">Previous faults (${closed.length})</div>`+closed.map(card).join("")
       : `<div class="card"><h3>No history yet</h3>
         <p>Faults that have been fixed appear here, with what was done about them.</p></div>`}`;
+}
+
+let excDraftRef = null;
+
+function pickExcView(){
+  const d = view.date || todayISO();
+  const due = excavationsDue(d);
+  const extra = excsFor(d).filter(r=>!due.some(x=>x.ref===r.excRef));
+
+  const row = (ref, src, rec) => {
+    const done = rec && rec.status==="submitted";
+    return `<button class="task" data-exc="${esc(ref)}" data-excdate="${d}">
+      <span class="n"><b>${esc(ref||"No reference")}</b>
+        <span>${esc((src&&src.location)||"")}${src&&src.location?" · ":""}${
+          done ? "inspected "+timeOnly(rec.submittedAt)
+               : rec ? "draft saved"
+               : src ? "left open "+shortDate(src.fromDate) : "added by hand"}</span></span>
+      ${done?`<span class="pill ok">Done</span>`:`<span class="pill grey">To do</span>`}
+    </button>`;
+  };
+
+  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Excavation inspections</h1>
+    <p class="sub">${longDate(d)}</p>
+
+    ${due.length ? `<div class="card" style="background:var(--green-50);box-shadow:none">
+      <p>Raised by the diary — these were left open on ${shortDate(due[0].fromDate)}.</p></div>` : ""}
+
+    ${due.map(x=>row(x.ref, x, excFor(d, x.ref))).join("")}
+    ${extra.map(r=>row(r.excRef, null, r)).join("")}
+
+    ${(!due.length && !extra.length) ? `<div class="card"><h3>Nothing raised</h3>
+      <p>Nothing was left open on the last working day. You can still add an inspection below.</p></div>` : ""}
+
+    ${excDraftRef===null
+      ? `<button class="btn line" data-excadd="1">+ Add an inspection</button>`
+      : `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+          <div class="f" style="margin:0"><label>Excavation reference</label>
+            <div class="hint">For anything not picked up from the diary.</div>
+            <input class="in" data-excref="1" value="${esc(excDraftRef)}"
+              placeholder="e.g. MH8 chamber"></div>
+          <button class="btn" style="margin:14px 0 8px" data-excgo="1">Start the inspection</button>
+          <button class="btn ghost" style="margin:0" data-exccancel="1">Cancel</button>
+        </div>`}`;
 }
 
 function pickPlantView(){
@@ -2697,18 +2988,229 @@ function plantView(){
       </div>`
     : `<button class="btn" data-pladd="1">+ Add plant</button>`;
 
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Plant on site</h1>
     <p class="sub">${esc(DB.job)}</p>
     <div class="card" style="background:var(--green-50);box-shadow:none">
-      <p>Anything on site is added to a new diary automatically — all you enter in the diary
-      is the hours. Take an item off site and it stops appearing from that date.</p>
+      <p>Anything on site is added to a new diary automatically, so the only thing to enter
+      is the hours. Take an item off site and it stops appearing from that date onwards.</p>
     </div>
     ${alertCard}
     ${onSite.length ? `<div class="sect">On site (${onSite.length})</div><div class="reggrid">${liveRows}</div>`
       : `<div class="card"><h3>Nothing on site yet</h3><p>Add the machines currently on the job.</p></div>`}
     ${addBlock}
     ${offSite.length ? `<div class="sect">Off site (${offSite.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
+}
+
+let liftDraft = null;
+let liftEditId = null;
+
+function blankLifting(){
+  return { item:"", idNo:"", type:"Single leg chain", swl:"", owner:"Hired", hireCompany:"",
+    onDate:todayISO(), offDate:"", examDate:"" };
+}
+
+function liftingFields(l, attr){
+  const ls = lolerState(l);
+  return `
+    <div class="f"><label>Description</label>
+      <input class="in" ${attr}="item" value="${esc(l.item||"")}" placeholder="e.g. 2 leg chain sling"></div>
+    <div class="f"><label>Type</label>
+      <select class="in" ${attr}="type">
+        ${LIFTING_TYPES.map(t=>`<option ${(l.type||"Single leg chain")===t?"selected":""}>${esc(t)}</option>`).join("")}
+      </select></div>
+    <div class="g2">
+      <div class="f"><label>ID or serial number</label>
+        <input class="in" ${attr}="idNo" value="${esc(l.idNo||"")}"></div>
+      <div class="f"><label>Safe working load</label>
+        <input class="in" ${attr}="swl" value="${esc(l.swl||"")}" placeholder="e.g. 2 tonne"></div>
+    </div>
+    <div class="g2">
+      <div class="f"><label>Owned or hired</label>
+        <select class="in" ${attr}="owner">
+          ${["Owned","Hired","Subcontractor"].map(o=>`<option ${l.owner===o?"selected":""}>${esc(o)}</option>`).join("")}
+        </select></div>
+      <div class="f"><label>On site from</label>
+        <input class="in" type="date" ${attr}="onDate" value="${esc(l.onDate||"")}"></div>
+    </div>
+    ${(l.owner||"Hired")!=="Owned" ? `<div class="f"><label>Supplier</label>
+      <input class="in" ${attr}="hireCompany" value="${esc(l.hireCompany||"")}"></div>` : ""}
+    <div class="f" style="margin:0"><label>LOLER expiry</label>
+      <div class="hint">Date of the next thorough examination. Six months for lifting accessories.</div>
+      <input class="in ${ls.key==="expired"?"err":""}" type="date" ${attr}="examDate"
+        value="${esc(examDateOf(l))}"></div>`;
+}
+
+const TILE_ICONS = {
+  /* Tracked excavator, side on: boom and dipper reaching up and left to a
+     bucket, cab with a window, sat on tracks. */
+  plant: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.6" y="18.3" width="18.8" height="2.7" rx="1.35"/>
+    <rect x="13.2" y="12.2" width="6.8" height="6.1" rx="1.1"/>
+    <rect x="14.4" y="13.4" width="2.9" height="2.2" rx="0.4" stroke-width="1.1"/>
+    <path d="M13.3 14 8.2 8.8"/>
+    <path d="M8.2 8.8 5.3 13.9"/>
+    <path d="M5.6 13.2 3.1 15.4l1.5 1.7L7 15z" fill="currentColor" stroke-width="1.2"/></svg>`,
+  lifting: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/>
+    <path d="M12 9 8 15h8z"/><path d="M9 18h6"/><circle cx="12" cy="20.5" r="1.6"/></svg>`,
+  labour: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/>
+    <path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 11a3 3 0 1 0-1.5-5.6"/><path d="M17 20a5.5 5.5 0 0 0-1.6-3.9"/></svg>`,
+  leave: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/>
+    <path d="M3.5 10h17M8 3v4M16 3v4"/></svg>`,
+  vos: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>
+    <path d="M9 13h6M9 16.5h4"/></svg>`,
+  timesheet: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>`,
+  list: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.9" stroke-linecap="round"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>`
+};
+
+function projectView(){
+  const t = todayISO();
+  const plantAl = lolerAlerts(), liftAl = liftingAlerts();
+  const faulty = currentPlant().map(m=>({ m, df: defectsFor(m.id) })).filter(x=>x.df);
+  const defectCount = faulty.reduce((n,x)=>n+x.df.items.length,0);
+  const unsignedVos = (DB.vos||[]).filter(v=>v.status!=="signed").length;
+  const offToday = leaveToday().length;
+  const week = timesheetWeek(weekStart(t));
+  const weekHours = Math.round(week.people.reduce((n,p)=>n+p.total,0)*100)/100;
+
+  const tile = (key, icon, title, line, level, badge) => `
+    <button class="tile ${level||""}" data-go="${key}">
+      ${badge ? `<span class="badge">${esc(badge)}</span>` : ""}
+      <span class="ic">${icon}</span>
+      <span>
+        <span class="tl" style="display:block">${esc(title)}</span>
+        <span class="tv" style="display:block">${esc(line)}</span>
+      </span>
+    </button>`;
+
+  const plantLevel = defectCount || plantAl.some(x=>x.st.key==="expired") ? "red"
+    : plantAl.length ? "amber" : "";
+  const liftLevel = liftAl.some(x=>x.st.key==="expired") ? "red" : liftAl.length ? "amber" : "";
+
+  return `<h1 class="greet" style="font-size:26px;margin-top:18px">Project</h1>
+    <p class="sub">${esc(DB.job)}</p>
+
+    <div class="sect">On site</div>
+    <div class="tiles">
+      ${tile("plant", TILE_ICONS.plant, "Plant",
+        defectCount ? defectCount+" open defect"+(defectCount===1?"":"s")
+          : plantAl.length ? plantAl.length+" examination"+(plantAl.length===1?"":"s")+" due"
+          : currentPlant().length+" on site",
+        plantLevel, defectCount || plantAl.length || "")}
+      ${tile("lifting", TILE_ICONS.lifting, "Lifting gear",
+        liftAl.length ? liftAl.length+" LOLER due" : currentLifting().length+" on site",
+        liftLevel, liftAl.length || "")}
+      ${tile("labour", TILE_ICONS.labour, "Labour",
+        currentLabour().length+" on the register"+(offToday?" · "+offToday+" off":""), "", "")}
+      ${tile("leave", TILE_ICONS.leave, "Time off",
+        leaveThisWeek().length ? leaveThisWeek().length+" booked this week" : "Nobody booked off", "", "")}
+    </div>
+
+    <div class="sect">Paperwork</div>
+    <div class="tiles">
+      ${tile("vos", TILE_ICONS.vos, "Dayworks",
+        unsignedVos ? unsignedVos+" to be signed"
+          : (DB.vos||[]).length ? (DB.vos||[]).length+" all signed" : "None raised yet",
+        unsignedVos ? "amber" : "", unsignedVos || "")}
+      ${tile("timesheet", TILE_ICONS.timesheet, "Timesheet",
+        weekHours ? weekHours+" hours this week" : "Built from the diaries", "", "")}
+      ${tile("list", TILE_ICONS.list, "All records",
+        DB.records.length+" record"+(DB.records.length===1?"":"s"), "", "")}
+    </div>
+
+    <div class="sect">The job</div>
+    <div class="card">
+      <div class="kv"><span class="k">Job</span><span class="v">${esc(DB.job)}</span></div>
+      <div class="kv"><span class="k">Working hours</span>
+        <span class="v">${esc(hoursFor().start)} – ${esc(hoursFor().finish)} · ${normalHours()} hrs</span></div>
+      <div class="kv"><span class="k">Diaries chased from</span>
+        <span class="v">${shortDate(startDate())}</span></div>
+    </div>`;
+}
+
+function liftingView(){
+  const all = (DB.lifting||[]).filter(l=>l.job===DB.job);
+  const liveIds = currentLifting().map(l=>l.id);
+  const on = all.filter(l=>liveIds.includes(l.id));
+  const off = all.filter(l=>!liveIds.includes(l.id))
+    .sort((a,b)=>(b.offDate||"").localeCompare(a.offDate||""));
+
+  const alerts = liftingAlerts();
+  const alertCard = alerts.length ? (function(){
+    const bad = alerts.some(x=>x.st.key==="expired");
+    return `<div class="card" style="background:${bad?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none">
+      <h3 style="color:${bad?"var(--bad)":"var(--warn)"}">
+        ${bad?"LOLER examination overdue":"LOLER examination due"}</h3>
+      <p>${alerts.map(x=>esc((x.l.item||"Unnamed item")+" — "+x.st.label)).join("<br>")}</p></div>`;
+  })() : "";
+
+  const rows = on.map(l=>{
+    if(liftEditId===l.id){
+      return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+        ${liftingFields(l, "data-lf-"+l.id)}
+        <button class="btn" style="margin:14px 0 0" data-lfdone="${l.id}">Done</button></div>`;
+    }
+    const ls = lolerState(l);
+    const tint = ls.key==="expired" ? "background:var(--bad-bg);box-shadow:none"
+      : ls.key==="soon" ? "background:var(--warn-bg);box-shadow:none" : "";
+    return `<div class="card" style="${tint}">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:16.5px;font-weight:650;display:block">${esc(l.item||"Unnamed item")}</b>
+          <span style="font-size:13px;color:var(--ink-2)">
+            ${esc(l.type||"")}${l.idNo?" · "+esc(l.idNo):""}${l.swl?" · SWL "+esc(l.swl):""}
+          </span>
+        </div>
+        <span class="pill ${ls.cls}" id="pill_${l.id}">${esc(ls.label)}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn line sm" style="flex:1;margin:0" data-lfedit="${l.id}">Edit</button>
+        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-lfoff="${l.id}">Off site</button>
+      </div></div>`;
+  }).join("");
+
+  const offRows = off.map(l=>`
+    <div class="card" style="background:var(--canvas);box-shadow:none;opacity:.72">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:15.5px;font-weight:620;display:block;color:var(--ink-2)">${esc(l.item||"Unnamed item")}</b>
+          <span style="font-size:13px;color:var(--ink-3)">${esc(l.type||"")} · off site ${l.offDate?shortDate(l.offDate):"—"}</span>
+        </div>
+        <span class="pill grey">Off site</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn line sm" style="flex:1;margin:0" data-lfback="${l.id}">Back on site</button>
+        <button class="btn line sm" style="flex:1;margin:0;color:var(--bad)" data-lfrm="${l.id}">Delete</button>
+      </div></div>`).join("");
+
+  const add = liftDraft
+    ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+        <h3 style="margin-bottom:14px">New item of lifting equipment</h3>
+        ${liftingFields(liftDraft, "data-lfnd")}
+        <button class="btn" style="margin:16px 0 8px" data-lfaddsave="1">Add to register</button>
+        <button class="btn ghost" style="margin:0" data-lfaddcancel="1">Cancel</button></div>`
+    : `<button class="btn" data-lfadd="1">+ Add lifting equipment</button>`;
+
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Lifting equipment</h1>
+    <p class="sub">${esc(DB.job)}</p>
+    <div class="card" style="background:var(--green-50);box-shadow:none">
+      <p>Everything on site that lifts or is used to lift. The app warns you a month before
+      a thorough examination is due, and again once it has lapsed.</p>
+    </div>
+    ${alertCard}
+    ${on.length ? `<div class="sect">On site (${on.length})</div><div class="reggrid">${rows}</div>`
+      : `<div class="card"><h3>Nothing on site yet</h3>
+        <p>Add the slings, shackles and beams being used on this job.</p></div>`}
+    ${add}
+    ${off.length ? `<div class="sect">Off site (${off.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
 }
 
 let labourDraft = null;
@@ -2783,12 +3285,11 @@ function labourView(){
         <button class="btn ghost" style="margin:0" data-lbaddcancel="1">Cancel</button></div>`
     : `<button class="btn" data-lbadd="1">+ Add person</button>`;
 
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Site labour</h1>
     <p class="sub">${esc(DB.job)}</p>
     <div class="card" style="background:var(--green-50);box-shadow:none">
-      <p>Everyone here appears in the diary each day. You tick who was on, and anyone
-      off normal hours gets a start and finish time — the timesheet builds itself.</p>
+      <p>Everyone on this list appears in the diary each day. Tick who was on site, and anyone outside normal hours gets a start time, a finish time and a reason. The timesheet then builds itself.</p>
     </div>
     ${on.length ? `<div class="sect">On site (${on.length})</div><div class="reggrid">${rows}</div>`
       : `<div class="card"><h3>Nobody added yet</h3><p>Add the gang working on this job.</p></div>`}
@@ -2928,14 +3429,13 @@ function leaveView(){
         `<span><i style="background:${personColour(id)}"></i>${esc(nameOf(id))}</span>`).join("")}</div>` : ""}
     </div>`;
 
-  return `<div class="top"><button class="chip" data-go="labour">&lsaquo; Back</button></div>
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Time off</h1>
     <p class="sub">${esc(DB.job)}</p>
     ${calendar}
     ${dayPanel}
     <div class="card" style="background:var(--green-50);box-shadow:none">
-      <p>Book someone off and the diary marks them automatically — no need to answer for them —
-      and the timesheet shows the code instead of hours.</p>
+      <p>Book someone off and the diary marks them automatically, so there is nothing to answer for them. The timesheet shows the code instead of their hours.</p>
     </div>
     ${people.length ? "" : `<div class="card"><h3>Nobody on the labour register</h3>
       <p>Add the gang under Site labour first.</p></div>`}
@@ -2947,13 +3447,12 @@ function leaveView(){
 function voListView(){
   const vos = (DB.vos||[]).slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   const unsigned = vos.filter(v=>v.status!=="signed").length;
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button>
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button>
       ${unsigned?`<span class="pill amber">${unsigned} unsigned</span>`:""}</div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Dayworks</h1>
     <p class="sub">${esc(DB.job)}</p>
     ${vos.length?"":`<div class="card"><h3>Nothing yet</h3>
-      <p>Answer yes to dayworks on a diary and a numbered sheet is raised here automatically.
-      Or raise one by hand below if a day has been missed.</p></div>`}
+      <p>Answer yes to dayworks on a diary and a numbered sheet is raised here automatically. If one has been missed, raise it by hand below.</p></div>`}
     <button class="btn" data-vonew="1">+ New daywork sheet</button>
     ${vos.map(v=>`<button class="card" style="width:100%;text-align:left" data-vo="${v.id}">
       <div style="display:flex;align-items:flex-start;gap:10px">
@@ -3104,8 +3603,7 @@ function voView(){
     <button class="btn" data-voprint="${v.id}">Open sheet to print</button>
     ${signed
       ? `<div class="card" style="background:var(--canvas);box-shadow:none">
-          <p>Signed sheets cannot be amended. That is deliberate — nobody should be able to
-          change something the Principal Contractor has put their name to.</p></div>`
+          <p>Signed sheets cannot be amended. That is deliberate: nobody should be able to change a document the Principal Contractor has put their name to.</p></div>`
       : `<button class="btn ghost" data-voamend="1">Amend this sheet</button>`}
     <button class="btn line" style="color:var(--bad)" data-vodel="${v.id}">Delete this sheet</button>`;
 }
@@ -3162,7 +3660,7 @@ function timesheetView(){
       <div class="tsdays">${days.map((d,i)=>dayCell(p,d,i)).join("")}</div>
     </div>`).join("");
 
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">Timesheet</h1>
     <p class="sub">${esc(DB.job)}</p>
 
@@ -3200,9 +3698,8 @@ function timesheetView(){
 
 function settingsView(){
   const c = cfg();
-  return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
-    <h1 class="greet" style="font-size:22px;margin-top:12px">Settings</h1>
-    <p class="sub">${esc(c.company)}</p>
+  return `<h1 class="greet" style="font-size:26px;margin-top:18px">Profile</h1>
+    <p class="sub">${esc(c.user.name)} · ${esc(c.company)}</p>
 
     <div class="sect">You</div>
     <div class="card">
@@ -3245,8 +3742,7 @@ function settingsView(){
 
     <div class="sect">Fleet engineer</div>
     <div class="card">
-      <p style="margin-bottom:14px">Where plant defect reports go when there is no share sheet
-      to pick from.</p>
+      <p style="margin-bottom:14px">Where plant defect reports are sent when there is no share sheet to choose from.</p>
       <div class="f"><label>Name</label>
         <input class="in" data-cfg="fitter.name" value="${esc((c.fitter||{}).name||"")}"></div>
       <div class="f" style="margin:0"><label>Email</label>
@@ -3306,9 +3802,7 @@ function settingsView(){
 
     <div class="sect">Your data</div>
     <div class="card">
-      <p style="margin-bottom:14px">Records live on this device. Until the Microsoft connection is switched
-      on, send a copy to OneDrive from your phone and bring it in on the laptop — a merge, so nothing is lost
-      either way.</p>
+      <p style="margin-bottom:14px">Records are held on this device. Until the Microsoft connection is switched on, send a copy to OneDrive from your phone and bring it in on the laptop. It merges, so nothing is lost either way.</p>
       <button class="btn" data-share="1">Send a copy to OneDrive</button>
       <button class="btn line" data-export="1">Download a backup</button>
       <button class="btn line" data-import="1" style="margin:0">Bring in a copy from another device</button>
@@ -3460,12 +3954,29 @@ function bind(){
   const app = document.getElementById("app");
 
   app.querySelectorAll("[data-go]").forEach(el=>el.onclick=()=>go(el.dataset.go));
+
   app.querySelectorAll("[data-day]").forEach(el=>el.onclick=()=>{
     view.date = el.dataset.day; viewWeek = weekStart(el.dataset.day); render(); });
   app.querySelectorAll("[data-week]").forEach(el=>el.onclick=()=>{
     viewWeek = addDays(viewWeek, 7*Number(el.dataset.week)); render(); });
   app.querySelectorAll("[data-start]").forEach(el=>el.onclick=()=>startForm(el.dataset.start,"diary"));
   app.querySelectorAll("[data-pick]").forEach(el=>el.onclick=()=>go("pickplant",{date:el.dataset.pick}));
+  app.querySelectorAll("[data-pickexc]").forEach(el=>el.onclick=()=>go("pickexc",{date:el.dataset.pickexc}));
+  app.querySelectorAll("[data-exc]").forEach(el=>el.onclick=()=>
+    startForm(el.dataset.excdate, "excavation", null, el.getAttribute("data-exc")));
+  const ea = app.querySelector("[data-excadd]");
+  if(ea) ea.onclick = ()=>{ excDraftRef = ""; render(); };
+  const ec = app.querySelector("[data-exccancel]");
+  if(ec) ec.onclick = ()=>{ excDraftRef = null; render(); };
+  const er = app.querySelector("[data-excref]");
+  if(er) er.oninput = ()=>{ excDraftRef = er.value; };
+  const eg = app.querySelector("[data-excgo]");
+  if(eg) eg.onclick = ()=>{
+    if(!(excDraftRef||"").trim()){ toast("Give the excavation a reference."); return; }
+    const ref = excDraftRef.trim();
+    excDraftRef = null;
+    startForm(view.date||todayISO(), "excavation", null, ref);
+  };
   app.querySelectorAll("[data-check]").forEach(el=>el.onclick=()=>
     startForm(view.date||todayISO(), "plantcheck", el.dataset.check));
 
@@ -3730,7 +4241,7 @@ function bind(){
   });
   const fxsave = app.querySelector("[data-fixsave]");
   if(fxsave) fxsave.onclick = ()=>{
-    if(!fixDraft.note.trim()){ toast("Say what was done to fix it"); return; }
+    if(!fixDraft.note.trim()){ toast("Say what was done to fix it."); return; }
     const d = DB.defects.find(x=>x.id===view.id);
     d.status="closed"; d.fixNote=fixDraft.note.trim(); d.fixPhotos=fixDraft.photos;
     d.fixedBy=cfg().user.name; d.fixedAt=Date.now();
@@ -3758,7 +4269,7 @@ function bind(){
   app.querySelectorAll("[data-report]").forEach(el=>el.onclick=(e)=>{
     e.stopPropagation();
     try{ reportDefect(el.getAttribute("data-report")); }
-    catch(err){ toast("Could not open sharing — use Defect report instead"); }
+    catch(err){ toast("Sharing is unavailable. Use View report instead."); }
   });
   app.querySelectorAll("[data-pledit]").forEach(el=>el.onclick=()=>{
     plantEditId = el.dataset.pledit; render(); });
@@ -3780,7 +4291,7 @@ function bind(){
   if(pc) pc.onclick = ()=>{ plantDraft = null; render(); };
   const ps = app.querySelector("[data-pladdsave]");
   if(ps) ps.onclick = ()=>{
-    if(!plantDraft.item.trim()){ toast("Give the item a name first"); return; }
+    if(!plantDraft.item.trim()){ toast("Give the item a name first."); return; }
     DB.plant = DB.plant || [];
     DB.plant.push(Object.assign({ id:"pl_"+Date.now(), job:DB.job }, plantDraft));
     plantDraft = null; save(); render(); toast("Added to the register");
@@ -3809,6 +4320,54 @@ function bind(){
   if(td) td.onclick = ()=>{ DB.config.allowDelete = !DB.config.allowDelete; save(); render();
     toast(DB.config.allowDelete?"Deleting turned on":"Deleting turned off"); };
 
+  (DB.lifting||[]).forEach(l=>{
+    app.querySelectorAll('[data-lf-'+l.id+']').forEach(el=>{
+      const key = el.getAttribute("data-lf-"+l.id);
+      el.oninput = () => {
+        l[key] = el.value; save();
+        if(key==="owner") render(); else refreshLiftPill(l.id);
+      };
+      el.onchange = el.oninput;
+    });
+  });
+  app.querySelectorAll("[data-lfedit]").forEach(el=>el.onclick=()=>{ liftEditId=el.dataset.lfedit; render(); });
+  const lfd = app.querySelector("[data-lfdone]");
+  if(lfd) lfd.onclick = ()=>{ liftEditId=null; render(); toast("Saved"); };
+  app.querySelectorAll("[data-lfnd]").forEach(el=>{
+    el.oninput = () => {
+      if(!liftDraft) return;
+      liftDraft[el.dataset.lfnd] = el.value;
+      if(el.dataset.lfnd==="owner") render();
+    };
+    el.onchange = el.oninput;
+  });
+  const lfa = app.querySelector("[data-lfadd]");
+  if(lfa) lfa.onclick = ()=>{ liftDraft = blankLifting(); render(); };
+  const lfc = app.querySelector("[data-lfaddcancel]");
+  if(lfc) lfc.onclick = ()=>{ liftDraft = null; render(); };
+  const lfs = app.querySelector("[data-lfaddsave]");
+  if(lfs) lfs.onclick = ()=>{
+    if(!liftDraft.item.trim()){ toast("Give the item a description first."); return; }
+    DB.lifting = DB.lifting || [];
+    DB.lifting.push(Object.assign({ id:"lf_"+Date.now(), job:DB.job }, liftDraft));
+    liftDraft = null; save(); render(); toast("Added to the register");
+  };
+  app.querySelectorAll("[data-lfoff]").forEach(el=>el.onclick=()=>{
+    const l = DB.lifting.find(x=>x.id===el.dataset.lfoff);
+    if(!l) return; l.offDate = todayISO(); liftEditId=null; save(); render();
+    toast((l.item||"Item")+" moved to off site — "+shortDate(l.offDate));
+  });
+  app.querySelectorAll("[data-lfback]").forEach(el=>el.onclick=()=>{
+    const l = DB.lifting.find(x=>x.id===el.dataset.lfback);
+    if(!l) return; l.offDate=""; l.onDate=todayISO(); save(); render(); toast("Back on site");
+  });
+  app.querySelectorAll("[data-lfrm]").forEach(el=>el.onclick=()=>{
+    const id = el.getAttribute("data-lfrm");
+    const l = (DB.lifting||[]).find(x=>x.id===id);
+    askConfirm("Delete this item?", (l&&l.item?l.item:"This item")+" will be removed from the register.",
+      "Delete", ()=>{ DB.lifting = DB.lifting.filter(x=>x.id!==id); save(); render(); toast("Deleted"); });
+  });
+
   (DB.labour||[]).forEach(l=>{
     app.querySelectorAll('[data-lb-'+l.id+']').forEach(el=>{
       const key = el.getAttribute("data-lb-"+l.id);
@@ -3829,7 +4388,7 @@ function bind(){
   if(lbc) lbc.onclick = ()=>{ labourDraft = null; render(); };
   const lbs = app.querySelector("[data-lbaddsave]");
   if(lbs) lbs.onclick = ()=>{
-    if(!labourDraft.name.trim()){ toast("Enter a name first"); return; }
+    if(!labourDraft.name.trim()){ toast("Enter a name first."); return; }
     DB.labour = DB.labour || [];
     DB.labour.push(Object.assign({ id:"lb_"+Date.now(), job:DB.job }, labourDraft));
     labourDraft = null; save(); render(); toast("Added to the register");
@@ -3905,7 +4464,7 @@ function bind(){
   if(vesave) vesave.onclick = ()=>{
     const v = DB.vos.find(x=>x.id===view.id);
     const ref = (voEditRef||"").trim();
-    if(!ref){ toast("Give the sheet a number"); return; }
+    if(!ref){ toast("Give the sheet a number."); return; }
     const clash = (DB.vos||[]).some(x=>x.id!==v.id && (x.ref||"").toLowerCase()===ref.toLowerCase());
     if(clash){ toast(ref+" is already used by another sheet"); return; }
 
@@ -3951,8 +4510,8 @@ function bind(){
   });
   const vsdone = app.querySelector("[data-vsdone]");
   if(vsdone) vsdone.onclick = ()=>{
-    if(!voSign.name.trim()){ toast("Enter the name of who is signing"); return; }
-    if(!voSign.src){ toast("A signature is needed"); return; }
+    if(!voSign.name.trim()){ toast("Enter the name of whoever is signing."); return; }
+    if(!voSign.src){ toast("A signature is needed."); return; }
     const v = DB.vos.find(x=>x.id===view.id);
     v.status="signed"; v.signedBy=voSign.name.trim(); v.signedCompany=voSign.company.trim();
     v.signature=voSign.src; v.signedAt=Date.now();
@@ -3986,8 +4545,8 @@ function bind(){
   if(lvc) lvc.onclick = ()=>{ leaveDraft = null; render(); };
   const lvs = app.querySelector("[data-lvsave]");
   if(lvs) lvs.onclick = ()=>{
-    if(!leaveDraft.personId){ toast("Choose who is off"); return; }
-    if(leaveDraft.to < leaveDraft.from){ toast("The end date is before the start"); return; }
+    if(!leaveDraft.personId){ toast("Choose who is off."); return; }
+    if(leaveDraft.to < leaveDraft.from){ toast("The end date is before the start date."); return; }
     DB.leave = DB.leave || [];
     DB.leave.push(Object.assign({ id:"lv_"+Date.now() }, leaveDraft));
     leaveDraft = null; save(); render(); toast("Booked");
@@ -4016,8 +4575,10 @@ function saveDraft(){
   const existing = DB.records.find(r=>r.id===id);
   const rec = existing || { id, job:DB.job, date:formState.date, ref:null,
     form: formState.form || "diary", plantId: formState.plantId || null,
+    excRef: formState.excRef || null,
     status:"draft", createdAt:Date.now(), by:cfg().user.name };
   rec.data = formState.values;
+  if(formState.form === "excavation") rec.excRef = formState.values.ref || formState.excRef || "";
   rec.updatedAt = Date.now();
   if(!existing) DB.records.push(rec);
   formState.id = id;
@@ -4125,6 +4686,7 @@ function printRecord(id){
     </div>
     <table>
       <tr><th>Site / depot</th><td>${esc(r.job)}</td></tr>
+      ${r.form==="excavation"?`<tr><th>Excavation</th><td>${esc(r.excRef||"—")}</td></tr>`:""}
       ${(function(){
         if(r.form!=="plantcheck") return "";
         const m = (DB.plant||[]).find(x=>x.id===r.plantId) || {};
@@ -4147,7 +4709,7 @@ document.getElementById("sheetClose").onclick = () =>
   document.getElementById("sheetwrap").classList.remove("open");
 document.getElementById("sheetPrint").onclick = () => {
   window.print();
-  toast("Choose \u201cSave as PDF\u201d in the print options");
+  toast("Choose \u201cSave as PDF\u201d in the print options.");
 };
 
 function printTimesheet(ws){
@@ -4310,8 +4872,8 @@ function importBackup(){
     const fr=new FileReader();
     fr.onload=()=>{
       let d;
-      try{ d = JSON.parse(fr.result); }catch(e){ toast("That file could not be read"); return; }
-      if(!d || !Array.isArray(d.records)){ toast("That is not a diary backup"); return; }
+      try{ d = JSON.parse(fr.result); }catch(e){ toast("That file could not be read."); return; }
+      if(!d || !Array.isArray(d.records)){ toast("That is not a backup file."); return; }
       const before = DB.records.length;
       askConfirm("Merge this backup?",
         "It has "+d.records.length+" diar"+(d.records.length===1?"y":"ies")+". Anything newer in the file wins; nothing on this device is deleted.",
@@ -4319,6 +4881,7 @@ function importBackup(){
           DB.records = mergeInto(DB.records, d.records, "updatedAt");
           DB.plant   = mergeInto(DB.plant||[],  d.plant||[],  "id");
           DB.labour  = mergeInto(DB.labour||[], d.labour||[], "id");
+          DB.lifting = mergeInto(DB.lifting||[], d.lifting||[], "id");
           DB.counter = Math.max(DB.counter||0, d.counter||0);
           if(d.job && !DB.job) DB.job = d.job;
           save(); render();
@@ -4339,6 +4902,7 @@ if(!DB.startDate){
 }
 if(!DB.plant) DB.plant = [];
 if(!DB.labour) DB.labour = [];
+if(!DB.lifting) DB.lifting = [];
 if(!DB.leave) DB.leave = [];
 if(!DB.vos) DB.vos = [];
 (DB.records||[]).forEach(r=>{ if(r.form==="excavator") r.form = "plantcheck"; });
@@ -4361,6 +4925,7 @@ if(!DB.jobHours[DB.job]){
 if(DB.config) delete DB.config.hours;
 if(DB.config.allowDelete === undefined) DB.config.allowDelete = CONFIG.allowDelete;
 save();
+initNav();
 render();
 </script>
 </body>
