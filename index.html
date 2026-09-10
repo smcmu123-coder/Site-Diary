@@ -535,6 +535,8 @@ input[type=date].in,input[type=time].in,
 .pk-h{background:#1F5A2D;color:#fff;font-weight:700;font-size:11px;padding:6px 9px;
   margin:14px 0 6px;border-radius:2px}
 .sheet table.pk{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:10.5px}
+.sheet table.pk.fixed{table-layout:fixed}
+.sheet table.pk.fixed th,.sheet table.pk.fixed td{overflow-wrap:anywhere}
 .sheet table.pk th{background:#EEF3EF;text-align:left;font-weight:700;padding:5px 7px;
   border:1px solid #C9D2CC}
 .sheet table.pk td{padding:5px 7px;border:1px solid #D8DFDA;vertical-align:top}
@@ -995,10 +997,10 @@ function briefingSections(){
    -------------------------------------------------------------------------*/
 function puwerSections(){
   return [
-    { title:"Tools and work equipment", fields:[
+    { title:"Work equipment", fields:[
       { id:"tools", type:"repeater", label:"Items inspected", itemLabel:"Item",
         addLabel:"Add item", required:true, collapsible:true,
-        hint:"Cut-off saws, breakers, vibration plates and the like.",
+        hint:"Loaded from your work equipment register. Add anything else being used.",
         columns:[
           { id:"tool", type:"text", label:"Tool / ID mark or number", required:true },
           { id:"ok", type:"yesno", label:"Inspection satisfactory?", required:true },
@@ -1181,7 +1183,7 @@ function load(){
     if(raw) return JSON.parse(raw);
   }catch(e){}
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
-    job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], leave:[], vos:[], packs:[] };
+    job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], tools:[], leave:[], vos:[], packs:[] };
 }
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
@@ -1272,19 +1274,15 @@ function missedDays(){
    site that day, so the diary only ever asks for hours. */
 /* Was this item on site on a given day? Inclusive of the day it left, since it
    was working that morning — this feeds the diary. */
+/* On site on a given day. The day a machine is taken off is the day it stops
+   appearing — on the diary, on the checks and in the pack alike. */
 function onSitePlant(date){
   const d = date || todayISO();
   return (DB.plant||[]).filter(p => p.job===DB.job
-    && (!p.onDate || p.onDate<=d) && (!p.offDate || p.offDate>=d));
+    && (!p.onDate || p.onDate<=d) && (!p.offDate || p.offDate > d));
 }
 /* Is it on site now? Off hired today counts as gone — this drives the register. */
-/* On site that day, for the record. A machine that left is still part of the
-   day it worked. */
-/* Needing a check that day: once it has gone, it does not. */
-function plantNeedingCheck(date){
-  const d = date || todayISO();
-  return onSitePlant(d).filter(p => !p.offDate || p.offDate > d);
-}
+function plantNeedingCheck(date){ return onSitePlant(date); }
 
 function currentPlant(){
   const t = todayISO();
@@ -1878,7 +1876,10 @@ function openPackSheet(ws, draft){
   const cell = (t, cls) => `<td class="${cls||""}">${esc(t==null?"":String(t))}</td>`;
   const tbl = (head, rows, opts) => {
     opts = opts || {};
-    return `<table class="pk">${head?`<tr>${head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`:""}
+    const cols = opts.cols
+      ? `<colgroup>${opts.cols.map(w=>`<col style="width:${w}">`).join("")}</colgroup>` : "";
+    return `<table class="pk${opts.cols?" fixed":""}">${cols}${
+      head?`<tr>${head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`:""}
       ${rows.map(r=>`<tr>${r.map((v,i)=>{
         const centre = (opts.centre||[]).includes(i);
         const bad = (v==="X" || v==="No" || v==="NO" || v==="Quarantined");
@@ -1891,12 +1892,12 @@ function openPackSheet(ws, draft){
       <div style="text-align:right"><h1>${esc(title)}</h1>
         ${code?`<div style="font-size:10.5px;color:#555">${esc(code)}</div>`:""}</div>
     </div>
-    ${meta ? tbl(null, meta) : ""}`;
-  const declaration = (rows, sig) => `
+    ${meta ? tbl(null, meta, { cols:["19%","31%","19%","31%"] }) : ""}`;
+  const declaration = (rows, sig, cols) => `
     <div class="pk-h">Declaration</div>
     <p style="font-size:10px;color:#555;margin:0 0 6px"><i>Upon inspecting, I confirm that the
       inspection results are accurate and where deemed as safe are fit for purpose.</i></p>
-    ${tbl(null, rows)}
+    ${tbl(null, rows, cols?{cols}:undefined)}
     ${sig&&sig.src?`<img src="${sig.src}" alt="Signature" style="height:46px">`:""}`;
 
   const metaFor = (rec, extra) => [
@@ -1949,21 +1950,24 @@ function openPackSheet(ws, draft){
           `<div class="pk-h">Daily pre-use recorded checks</div>` +
           tbl(["Check"].concat(days.map((d,i)=>DL[i]+" "+parse(d).getDate())),
             sheet.daily.map(t=>[t].concat(days.map(d=>ck((map[d]&&map[d].data||{})["d_"+slug(t)])))),
-            { centre:[1,2,3,4,5,6,7] }) +
+            { centre:[1,2,3,4,5,6,7],
+              cols:["44%","8%","8%","8%","8%","8%","8%","8%"] }) +
           `<div class="pk-h">Weekly recorded checks${weeklyRec
             ? " — completed "+shortDate(weeklyRec.date) : " — not done this week"}</div>` +
           tbl(["Check","Result"],
             sheet.weekly.map(t=>[t, ck((weeklyRec&&weeklyRec.data||{})["w_"+slug(t)]) || "—"]),
-            { centre:[1] }) +
+            { centre:[1], cols:["88%","12%"] }) +
           `<div class="pk-h">Fleet engineer to be advised of defects</div>` +
           tbl(["Check","Defect/s description","Response given and date"],
             defs.length ? defs.map(x=>[x.item, x.description||"—",
               x.status==="closed" ? (x.fixNote||"Fixed")+" — "+shortDate(iso(x.fixedAt)) : "Open"])
-              : [["—","No defects recorded this week",""]]) +
+              : [["—","No defects recorded this week",""]],
+            { cols:["28%","42%","30%"] }) +
           declaration(doneDays.map(d=>[
             ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)],
             map[d].by || "", shortDate(d)+" "+timeOnly(map[d].submittedAt),
-            (map[d].data||{}).signature ? "Signed" : ""]), null));
+            (map[d].data||{}).signature ? "Signed" : ""]), null,
+            ["16%","36%","28%","20%"]));
       });
       return;
     }
@@ -2574,7 +2578,11 @@ async function reportDefect(plantId){
 const DOC_TYPES = ["Thorough examination certificate","LOLER certificate","Test certificate",
   "Service record","Hire agreement","Operator manual","Other"];
 
-function itemsList(kind){ return kind==="lifting" ? (DB.lifting||[]) : (DB.plant||[]); }
+function itemsList(kind){
+  return kind==="lifting" ? (DB.lifting||[])
+    : kind==="tools" ? (DB.tools||[])
+    : (DB.plant||[]);
+}
 function findItem(kind, id){ return itemsList(kind).find(x=>x.id===id) || null; }
 
 function addDoc(kind, id, doc){
@@ -2750,6 +2758,26 @@ function availablePlant(){
     .map(p => p.item + (p.fleetNo ? " ("+p.fleetNo+")" : "")).filter(Boolean);
 }
 
+/* ------------------------------------------------------ work equipment -- */
+/* Everything on site that falls under PUWER: hand tools, small plant, and the
+   equipment around them — fuel bowsers, tool stores, welfare. Checked weekly on
+   the PUWER register rather than examined and certificated. */
+const TOOL_TYPES = [
+  "Breaker","Disc cutter","Angle grinder","Whacker plate","Trench rammer","Concrete poker",
+  "Floor saw","Hammer drill","Drill","Chainsaw","Strimmer","Cement mixer","Site saw",
+  "Generator","Compressor","Pump","Lighting tower","Fuel bowser","Tool store","Welfare unit",
+  "Storage container","Ladder","Step ladder","Trestle","Other"];
+
+function onSiteTools(date){
+  const d = date || todayISO();
+  return (DB.tools||[]).filter(t => t.job===DB.job
+    && (!t.onDate || t.onDate<=d) && (!t.offDate || t.offDate > d));
+}
+function currentTools(){
+  const t = todayISO();
+  return (DB.tools||[]).filter(x => x.job===DB.job && (!x.offDate || x.offDate>t));
+}
+
 /* ---------------------------------------------------- lifting equipment -- */
 /* Slings, shackles, beams and the like. Same thorough examination rules as
    plant: amber a month out, red once it has lapsed. */
@@ -2761,7 +2789,7 @@ const LIFTING_TYPES = ["Single leg chain","2 leg chain","3 leg chain","4 leg cha
 function onSiteLifting(date){
   const d = date || todayISO();
   return (DB.lifting||[]).filter(l => l.job===DB.job
-    && (!l.onDate || l.onDate<=d) && (!l.offDate || l.offDate>=d));
+    && (!l.onDate || l.onDate<=d) && (!l.offDate || l.offDate > d));
 }
 function currentLifting(){
   const t = todayISO();
@@ -2923,7 +2951,7 @@ const ICONS = {
 /* which section of the app a screen belongs to */
 const SECTION = {
   home:"home",
-  project:"project", pack:"project", plant:"project", item:"project", lifting:"project", labour:"project", leave:"project",
+  project:"project", pack:"project", plant:"project", tools:"project", item:"project", lifting:"project", labour:"project", leave:"project",
   timesheet:"project", vos:"project", vo:"project", list:"project", record:"project",
   defect:"project", planthistory:"project", pickplant:"project", pickexc:"project",
   settings:"profile"
@@ -2986,6 +3014,7 @@ function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="lifting"){ liftEditId = null; liftDraft = null; }
+  if(name!=="tools"){ toolDraft = null; }
   if(name!=="plant" && name!=="lifting" && name!=="item"){ examDraft = null; }
   if(name!=="item"){ itemEditing = false; }
   if(name!=="leave"){ leaveDraft = null; leaveDay = null; }
@@ -3530,6 +3559,7 @@ function render(){
   else if(view.name==="project") app.innerHTML = projectView();
   else if(view.name==="pack") app.innerHTML = packView();
   else if(view.name==="lifting") app.innerHTML = liftingView();
+  else if(view.name==="tools") app.innerHTML = toolsView();
   else if(view.name==="item") app.innerHTML = itemView();
   else if(view.name==="leave") app.innerHTML = leaveView();
   else if(view.name==="vos") app.innerHTML = voListView();
@@ -3777,6 +3807,9 @@ function startForm(date, formKey, plantId, excRef){
     ["personnel","plant","activities","progress","deliveries","dwLabour_old"].forEach(k=>{ delete values[k]; });
     values.tasks = values.tasks || [];
     values.plantTable = values.plantTable || [];
+    const stillHere = onSitePlant(date).map(p=>p.id);
+    values.plantTable = values.plantTable.filter(r =>
+      stillHere.includes(r.id) || r.inUse !== undefined);   /* keep anything answered */
     onSitePlant(date).forEach(p=>{ if(!values.plantTable.some(r=>r.id===p.id))
       values.plantTable.push({ id:p.id, item:p.item, fleetNo:p.fleetNo,
         exam:examDateOf(p)?shortDate(examDateOf(p)):"n/a", inUse:undefined }); });
@@ -3814,7 +3847,11 @@ function prefill(date, formKey, excRef){
     return v;
   }
   if(formKey === "puwer"){
-    v.tools = [];
+    /* everything on the tool register, ready to tick */
+    v.tools = onSiteTools(date).map(t=>({
+      tool: (t.item||"") + (t.idNo ? " — " + t.idNo : ""),
+      ok: undefined, defects:"", action:""
+    }));
     v.location = DB.job;
     return v;
   }
@@ -4681,10 +4718,13 @@ function itemView(){
   const it = findItem(kind, view.id);
   if(!it) return `<div class="card"><h3>Not found</h3></div>`;
   const isPlant = kind === "plant";
+  const isTool = kind === "tools";
   const st = lolerState(it);
   const df = isPlant ? defectsFor(it.id) : null;
-  const onSite = (isPlant ? currentPlant() : currentLifting()).some(x=>x.id===it.id);
-  const back = `<button class="chip" data-go="${kind}">&lsaquo; ${isPlant?"Plant":"Lifting"}</button>`;
+  const onSite = (isPlant ? currentPlant() : isTool ? currentTools() : currentLifting())
+    .some(x=>x.id===it.id);
+  const back = `<button class="chip" data-go="${kind}">&lsaquo; ${
+    isPlant?"Plant":isTool?"Equipment":"Lifting"}</button>`;
 
   /* ---------- editing ---------- */
   if(itemEditing){
@@ -4692,15 +4732,18 @@ function itemView(){
       <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
       <p class="sub">Change what needs changing, then save.</p>
       <div class="card">
-        ${isPlant ? plantFields(it, "data-pl-"+it.id) : liftingFields(it, "data-lf-"+it.id)}
+        ${isPlant ? plantFields(it, "data-pl-"+it.id)
+          : isTool ? toolFields(it, "data-tl-"+it.id)
+          : liftingFields(it, "data-lf-"+it.id)}
       </div>
       <button class="btn" data-itemdone="1">Save changes</button>
       ${onSite
-        ? `<button class="btn line" style="color:var(--bad)" data-${isPlant?"ploff":"lfoff"}="${it.id}">
-            Take off site</button>`
-        : `<button class="btn line" data-${isPlant?"plback":"lfback"}="${it.id}">Back on site</button>
-           <button class="btn line" style="color:var(--bad)" data-${isPlant?"plrm":"lfrm"}="${it.id}">
-             Delete this item</button>`}`;
+        ? `<button class="btn line" style="color:var(--bad)"
+            data-${isPlant?"ploff":isTool?"tloff":"lfoff"}="${it.id}">Take off site</button>`
+        : `<button class="btn line" data-${isPlant?"plback":isTool?"tlback":"lfback"}="${it.id}">
+             Back on site</button>
+           <button class="btn line" style="color:var(--bad)"
+             data-${isPlant?"plrm":isTool?"tlrm":"lfrm"}="${it.id}">Delete this item</button>`}`;
   }
 
   /* ---------- reading ---------- */
@@ -4714,6 +4757,12 @@ function itemView(){
       + row("On site from", it.onDate?shortDate(it.onDate):"")
       + row("Off site", it.offDate?shortDate(it.offDate):"")
       + row("Next examination", examDateOf(it)?shortDate(examDateOf(it)):"Not set")
+    : isTool
+    ? row("Type", it.type) + row("ID or serial number", it.idNo)
+      + row("Owned or hired", it.owner)
+      + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) : "")
+      + row("On site from", it.onDate?shortDate(it.onDate):"")
+      + row("Off site", it.offDate?shortDate(it.offDate):"")
     : row("Type", it.type) + row("ID number", it.idNo) + row("Safe working load", it.swl)
       + row("Owned or hired", it.owner)
       + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) : "")
@@ -4741,10 +4790,14 @@ function itemView(){
     <div class="sect">Details</div>
     <div class="card">${details}</div>
 
-    <div class="sect">Examination</div>
-    ${examBlock(kind, it)}
-
-    ${docsBlock(kind, it)}
+    ${isTool ? `<div class="sect">PUWER</div>
+      <div class="card"><p>Checked weekly on the PUWER register with the rest of the equipment.
+      Nothing to certificate.</p>
+      <button class="btn line sm" style="margin:12px 0 0" data-startf="puwer"
+        data-d="${todayISO()}">Open this week&rsquo;s PUWER register</button></div>`
+      : `<div class="sect">Examination</div>
+         ${examBlock(kind, it)}
+         ${docsBlock(kind, it)}`}
 
     ${isPlant ? `<div class="sect">This machine</div>
       <button class="btn ghost" data-history="${it.id}">Defect history${
@@ -4875,6 +4928,95 @@ function plantView(){
     ${offSite.length ? `<div class="sect">Off site (${offSite.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
 }
 
+let toolDraft = null;
+
+function blankTool(){
+  return { item:"", idNo:"", type:"Breaker", owner:"Owned", hireCompany:"",
+    onDate:todayISO(), offDate:"" };
+}
+
+function toolFields(t, attr){
+  return `
+    <div class="f"><label>Description</label>
+      <input class="in" ${attr}="item" value="${esc(t.item||"")}" placeholder="e.g. Hilti breaker"></div>
+    <div class="g2">
+      <div class="f"><label>Type</label>
+        <select class="in" ${attr}="type">
+          ${TOOL_TYPES.map(x=>`<option ${(t.type||"Breaker")===x?"selected":""}>${esc(x)}</option>`).join("")}
+        </select></div>
+      <div class="f"><label>ID or serial number</label>
+        <input class="in" ${attr}="idNo" value="${esc(t.idNo||"")}"></div>
+    </div>
+    <div class="g2">
+      <div class="f"><label>Owned or hired</label>
+        <select class="in" ${attr}="owner">
+          ${["Owned","Hired","Subcontractor"].map(o=>`<option ${t.owner===o?"selected":""}>${esc(o)}</option>`).join("")}
+        </select></div>
+      <div class="f"><label>On site from</label>
+        <input class="in" type="date" ${attr}="onDate" value="${esc(t.onDate||"")}"></div>
+    </div>
+    ${(t.owner||"Owned")!=="Owned" ? `<div class="f" style="margin:0"><label>Supplier</label>
+      <input class="in" ${attr}="hireCompany" value="${esc(t.hireCompany||"")}"></div>` : ""}`;
+}
+
+function toolsView(){
+  const all = (DB.tools||[]).filter(t=>t.job===DB.job);
+  const liveIds = currentTools().map(t=>t.id);
+  const on = all.filter(t=>liveIds.includes(t.id));
+  const off = all.filter(t=>!liveIds.includes(t.id))
+    .sort((a,b)=>(b.offDate||"").localeCompare(a.offDate||""));
+  const lastPuwer = DB.records.filter(r=>r.form==="puwer" && r.job===DB.job && r.status==="submitted")
+    .sort((a,b)=>b.date.localeCompare(a.date))[0];
+
+  const card = t => `<div class="card">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:16.5px;font-weight:650;display:block">${esc(t.item||"Unnamed tool")}</b>
+          <span style="font-size:13px;color:var(--ink-2)">
+            ${esc(t.type||"")}${t.idNo?" · "+esc(t.idNo):""}${
+              t.owner&&t.owner!=="Owned"?" · "+esc(t.owner):""}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+        <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
+          On site ${t.onDate?shortDate(t.onDate):"—"}</span>
+        <button class="btn line sm" style="margin:0" data-openitem="tools:${t.id}">Open</button>
+      </div></div>`;
+
+  const add = toolDraft
+    ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+        <h3 style="margin-bottom:14px">New item of work equipment</h3>
+        ${toolFields(toolDraft, "data-tlnd")}
+        <button class="btn" style="margin:16px 0 8px" data-tladdsave="1">Add to register</button>
+        <button class="btn ghost" style="margin:0" data-tladdcancel="1">Cancel</button></div>`
+    : `<button class="btn" data-tladd="1">+ Add equipment</button>`;
+
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Work equipment</h1>
+    <p class="sub">${esc(DB.job)}</p>
+    <div class="card" style="background:var(--green-50);box-shadow:none">
+      <p>Everything on site that falls under PUWER — hand tools and small plant, and the
+      equipment around them such as the fuel bowser, the tool store and the welfare unit.
+      These are checked once a week on the PUWER register rather than certificated.</p>
+      ${lastPuwer?`<p style="margin-top:8px;font-size:13px;color:var(--ink-3)">
+        Last PUWER register: ${shortDate(lastPuwer.date)}</p>`:""}
+    </div>
+    ${on.length ? `<div class="sect">On site (${on.length})</div><div class="reggrid">${on.map(card).join("")}</div>`
+      : `<div class="card"><h3>Nothing on the register</h3>
+        <p>Add the equipment on this job — breakers and cutters, the bowser, the tool store.</p></div>`}
+    ${add}
+    ${off.length ? `<div class="sect">Off site (${off.length})</div>
+      <div class="reggrid">${off.map(t=>`<div class="card"
+        style="background:var(--canvas);box-shadow:none;opacity:.72">
+        <b style="font-size:15.5px;font-weight:620;display:block;color:var(--ink-2)">${esc(t.item||"Unnamed tool")}</b>
+        <span style="font-size:13px;color:var(--ink-3)">${esc(t.type||"")} · off site ${
+          t.offDate?shortDate(t.offDate):"—"}</span>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn line sm" style="flex:1;margin:0" data-openitem="tools:${t.id}">Open</button>
+          <button class="btn line sm" style="flex:1;margin:0" data-tlback="${t.id}">Back on site</button>
+        </div></div>`).join("")}</div>` : ""}`;
+}
+
 let liftDraft = null;
 let liftEditId = null;
 
@@ -4925,6 +5067,10 @@ const TILE_ICONS = {
     <path d="M13.3 14 8.2 8.8"/>
     <path d="M8.2 8.8 5.3 13.9"/>
     <path d="M5.6 13.2 3.1 15.4l1.5 1.7L7 15z" fill="currentColor" stroke-width="1.2"/></svg>`,
+  tools: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 5.2a3.6 3.6 0 0 0 4.8 4.6l-8.4 8.4a2 2 0 1 1-2.8-2.8z"/>
+    <path d="M6 3.5 9.5 7 7 9.5 3.5 6z"/><path d="M7 9.5 4.5 12"/></svg>`,
   lifting: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/>
     <path d="M12 9 8 15h8z"/><path d="M9 18h6"/><circle cx="12" cy="20.5" r="1.6"/></svg>`,
@@ -5053,6 +5199,8 @@ function projectView(){
       ${tile("lifting", TILE_ICONS.lifting, "Lifting gear",
         liftAl.length ? liftAl.length+" LOLER due" : currentLifting().length+" on site",
         liftLevel, liftAl.length || "")}
+      ${tile("tools", TILE_ICONS.tools, "Work equipment",
+        currentTools().length+" on site", "", "")}
       ${tile("labour", TILE_ICONS.labour, "Labour",
         currentLabour().length+" on the register"+(offToday?" · "+offToday+" off":""), "", "")}
       ${tile("leave", TILE_ICONS.leave, "Time off",
@@ -6597,7 +6745,7 @@ function bind(){
     p.offDate = todayISO();
     plantEditId = null; save();
     if(view.name==="item") go("plant"); else render();
-    toast((p.item||"Item")+" moved to off site — "+shortDate(p.offDate));
+    toast((p.item||"Item")+" off site from "+shortDate(p.offDate)+" — dropped from today\u2019s forms");
   });
   app.querySelectorAll("[data-plback]").forEach(el=>el.onclick=()=>{
     const p = DB.plant.find(x=>x.id===el.dataset.plback);
@@ -6614,6 +6762,50 @@ function bind(){
   const td = app.querySelector("[data-toggle-del]");
   if(td) td.onclick = ()=>{ DB.config.allowDelete = !DB.config.allowDelete; save(); render();
     toast(DB.config.allowDelete?"Deleting turned on":"Deleting turned off"); };
+
+  (DB.tools||[]).forEach(t=>{
+    app.querySelectorAll('[data-tl-'+t.id+']').forEach(el=>{
+      const key = el.getAttribute("data-tl-"+t.id);
+      el.oninput = () => { t[key] = el.value; save(); if(key==="owner") render(); };
+      el.onchange = el.oninput;
+    });
+  });
+  app.querySelectorAll("[data-tlnd]").forEach(el=>{
+    el.oninput = () => {
+      if(!toolDraft) return;
+      toolDraft[el.dataset.tlnd] = el.value;
+      if(el.dataset.tlnd==="owner") render();
+    };
+    el.onchange = el.oninput;
+  });
+  const tla = app.querySelector("[data-tladd]");
+  if(tla) tla.onclick = ()=>{ toolDraft = blankTool(); render(); };
+  const tlc = app.querySelector("[data-tladdcancel]");
+  if(tlc) tlc.onclick = ()=>{ toolDraft = null; render(); };
+  const tls = app.querySelector("[data-tladdsave]");
+  if(tls) tls.onclick = ()=>{
+    if(!toolDraft.item.trim()){ toast("Give the item a description first."); return; }
+    DB.tools = DB.tools || [];
+    DB.tools.push(Object.assign({ id:"tl_"+Date.now(), job:DB.job }, toolDraft));
+    toolDraft = null; save(); render(); toast("Added to the register");
+  };
+  app.querySelectorAll("[data-tloff]").forEach(el=>el.onclick=()=>{
+    const t = (DB.tools||[]).find(x=>x.id===el.dataset.tloff);
+    if(!t) return; t.offDate = todayISO(); save();
+    if(view.name==="item") go("tools"); else render();
+    toast((t.item||"Item")+" moved to off site");
+  });
+  app.querySelectorAll("[data-tlback]").forEach(el=>el.onclick=()=>{
+    const t = (DB.tools||[]).find(x=>x.id===el.dataset.tlback);
+    if(!t) return; t.offDate=""; t.onDate=todayISO(); save(); render(); toast("Back on site");
+  });
+  app.querySelectorAll("[data-tlrm]").forEach(el=>el.onclick=()=>{
+    const id = el.getAttribute("data-tlrm");
+    const t = (DB.tools||[]).find(x=>x.id===id);
+    askConfirm("Delete this item?", (t&&t.item?t.item:"This item")+" will be removed from the register.",
+      "Delete", ()=>{ DB.tools = (DB.tools||[]).filter(x=>x.id!==id); save();
+        if(view.name==="item") go("tools"); else render(); toast("Deleted"); });
+  });
 
   (DB.lifting||[]).forEach(l=>{
     app.querySelectorAll('[data-lf-'+l.id+']').forEach(el=>{
@@ -7188,6 +7380,7 @@ function importBackup(){
           DB.plant   = mergeInto(DB.plant||[],  d.plant||[],  "id");
           DB.labour  = mergeInto(DB.labour||[], d.labour||[], "id");
           DB.lifting = mergeInto(DB.lifting||[], d.lifting||[], "id");
+          DB.tools   = mergeInto(DB.tools||[], d.tools||[], "id");
           DB.counter = Math.max(DB.counter||0, d.counter||0);
           if(d.job && !DB.job) DB.job = d.job;
           save(); render();
@@ -7209,6 +7402,7 @@ if(!DB.startDate){
 if(!DB.plant) DB.plant = [];
 if(!DB.labour) DB.labour = [];
 if(!DB.lifting) DB.lifting = [];
+if(!DB.tools) DB.tools = [];
 if(!DB.leave) DB.leave = [];
 if(!DB.vos) DB.vos = [];
 if(!DB.packs) DB.packs = [];
