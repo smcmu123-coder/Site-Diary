@@ -286,6 +286,15 @@ input[type=date].in,input[type=time].in,
   .tile{min-height:146px;padding:18px}
 }
 
+/* storage warning */
+.savewarn{position:fixed;left:0;right:0;top:0;z-index:110;display:none;
+  background:var(--bad);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+  font-size:13.5px;line-height:1.4;text-align:center}
+.savewarn.show{display:block}
+.savewarn b{font-weight:700}
+.savewarn button{margin-left:8px;background:rgba(255,255,255,.2);color:#fff;
+  border-radius:8px;padding:5px 11px;font-size:13px;font-weight:640}
+
 /* start-up screen */
 .splash{position:fixed;inset:0;z-index:120;background:var(--paper);
   display:grid;place-items:center;
@@ -612,6 +621,11 @@ input[type=date].in,input[type=time].in,
     <div class="sp-sub">Site records</div>
   </div>
   <button class="sp-skip" id="splashSkip">Skip</button>
+</div>
+
+<div class="savewarn" id="savewarn">
+  <b>Not saving</b> — storage is full, so nothing new is being kept.
+  <button data-go="settings">Sort it out</button>
 </div>
 
 <div class="app" id="app"></div>
@@ -1233,9 +1247,73 @@ function load(){
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
     job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], tools:[], leave:[], vos:[], packs:[] };
 }
+let saveFailed = false;
+
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(DB)); }
-  catch(e){ toast("Storage is full. Take a backup, then remove some old photographs."); }
+  try{
+    localStorage.setItem(KEY, JSON.stringify(DB));
+    if(saveFailed){ saveFailed = false; }   /* it is writing again */
+    return true;
+  }catch(e){
+    saveFailed = true;
+    toast("Not saved — storage is full. Open Profile.");
+    const b = document.getElementById("savewarn");
+    if(b) b.classList.add("show");
+    return false;
+  }
+}
+
+/* How much room is left, and what is taking it up. */
+function storageInfo(){
+  const json = JSON.stringify(DB);
+  const bytes = json.length;
+  let photos = 0, photoBytes = 0;
+  const walk = v => {
+    if(!v) return;
+    if(typeof v === "string"){
+      if(v.startsWith("data:image")){ photos++; photoBytes += v.length; }
+      return;
+    }
+    if(Array.isArray(v)) return v.forEach(walk);
+    if(typeof v === "object") return Object.values(v).forEach(walk);
+  };
+  walk(DB);
+  /* browsers give about 5MB per site */
+  const cap = 5 * 1024 * 1024;
+  return { bytes, photos, photoBytes, cap, pct: Math.min(100, Math.round(bytes/cap*100)) };
+}
+
+const kb = n => n < 1024*1024 ? Math.round(n/1024) + " KB"
+  : (Math.round(n/1024/1024*10)/10) + " MB";
+
+/* Strip photographs off anything older than the given date, keeping the words.
+   The records stay; only the images go. */
+function reclaimSpace(before){
+  let removed = 0;
+  /* Take the image out and the thing holding it goes too, so nothing is left
+     rendering an empty frame. */
+  const strip = v => {
+    if(!v || typeof v !== "object") return v;
+    if(Array.isArray(v)) return v.map(strip).filter(x => !(x && x.__gone));
+    Object.keys(v).forEach(k=>{
+      const val = v[k];
+      if(typeof val === "string" && val.startsWith("data:image")){
+        delete v[k]; removed++;
+        if(k === "src") v.__gone = true;
+      } else {
+        v[k] = strip(val);
+        if(v[k] && v[k].__gone) delete v[k];
+      }
+    });
+    return v;
+  };
+  (DB.records||[]).forEach(r=>{ if(r.date < before) strip(r.data); });
+  (DB.defects||[]).forEach(d=>{ if(d.date < before){ 
+    if((d.photos||[]).length){ removed += d.photos.length; d.photos = []; }
+    if((d.fixPhotos||[]).length){ removed += d.fixPhotos.length; d.fixPhotos = []; }
+  }});
+  save();
+  return removed;
 }
 const cfg = () => DB.config || CONFIG;
 
@@ -1289,14 +1367,57 @@ function checksFor(date){
 function checkFor(date, plantId){
   return checksFor(date).find(r => r.plantId===plantId) || null;
 }
+/* A form is only chased from the day it was first used, so switching one on
+   does not suddenly report a month of missing paperwork. */
+function firstUsed(formKey){
+  const dates = DB.records
+    .filter(r=>r.form===formKey && r.job===DB.job && r.status==="submitted")
+    .map(r=>r.date).sort();
+  return dates.length ? dates[0] : null;
+}
+
+/* Everything a working day owes: the diary, the briefing, a check for each
+   machine on site, and an inspection for anything left open the day before. */
+function dayOutstanding(date){
+  const out = [];
+  if(!isWorking(date) || !inScope(date) || date > todayISO()) return out;
+
+  const diary = recordFor(date);
+  if(!diary || diary.status!=="submitted") out.push("Site diary");
+
+  const briefFrom = firstUsed("briefing");
+  if(briefFrom && date >= briefFrom){
+    const brief = dailyRecordFor("briefing", date);
+    if(!brief || brief.status!=="submitted") out.push("Daily activities briefing");
+  }
+
+  const checkFrom = firstUsed("plantcheck");
+  if(checkFrom && date >= checkFrom){
+    plantNeedingCheck(date).forEach(m=>{
+      const c = checkFor(date, m.id);
+      if(!c || c.status!=="submitted")
+        out.push((m.item||"Machine") + (m.fleetNo ? " ("+m.fleetNo+")" : "") + " inspection");
+    });
+  }
+
+  excavationsDue(date).forEach(x=>{
+    const e = excFor(date, x.ref);
+    if(!e || e.status!=="submitted") out.push("Excavation inspection — " + x.ref);
+  });
+
+  return out;
+}
+
 function statusFor(date){
   const t = todayISO();
   const rec = recordFor(date);
-  if(rec && rec.status==="submitted") return "done";
   if(date > t) return "future";
   if(!inScope(date)) return "none";     /* before the app started */
-  if(!isWorking(date)) return rec ? "draft" : "none";
-  if(date === t) return rec ? "draft" : "due";
+  if(!isWorking(date)) return rec ? (rec.status==="submitted"?"done":"draft") : "none";
+
+  const owed = dayOutstanding(date);
+  if(!owed.length) return "done";
+  if(date === t) return (rec || owed.length < 2) ? "draft" : "due";
   if(date === prevWorking(t)) return "amber";
   return "red";
 }
@@ -1311,7 +1432,10 @@ function missedDays(){
   let d = addDays(t,-1);
   for(let i=0;i<60;i++){
     if(!inScope(d)) break;
-    if(isWorking(d) && !recordFor(d)) out.push({date:d, level: d===prevWorking(t) ? "amber":"red"});
+    if(isWorking(d)){
+      const owed = dayOutstanding(d);
+      if(owed.length) out.push({ date:d, owed, level: d===prevWorking(t) ? "amber":"red" });
+    }
     d = addDays(d,-1);
   }
   return out;
@@ -3729,8 +3853,13 @@ function homeView(){
     background:${missed.some(m=>m.level==="red")?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"
     data-day="${missed[0].date}">
     <h3 style="color:${missed.some(m=>m.level==="red")?"var(--bad)":"var(--warn)"}">
-      ${missed.length} diar${missed.length>1?"ies":"y"} outstanding</h3>
-    <p>${missed.slice(0,3).map(m=>shortDate(m.date)).join(", ")}${missed.length>3?" and more":""}</p>
+      ${missed.reduce((n,m)=>n+m.owed.length,0)} outstanding on
+      ${missed.length} day${missed.length>1?"s":""}</h3>
+    ${missed.slice(0,3).map(m=>`<p style="color:var(--ink-2);margin-top:2px">
+      <b style="font-weight:640">${shortDate(m.date)}</b> — ${esc(m.owed.slice(0,3).join(", "))}${
+        m.owed.length>3?" and "+(m.owed.length-3)+" more":""}</p>`).join("")}
+    ${missed.length>3?`<p style="font-size:12.5px;color:var(--ink-3);margin-top:6px">
+      and ${missed.length-3} earlier day${missed.length-3>1?"s":""}</p>`:""}
   </button>` : "";
 
   const wk = days.filter(d => isWorking(d) && d<=t);
@@ -6018,6 +6147,30 @@ function settingsView(){
         <input class="in" data-job="1" value="${esc(DB.job)}"></div>
     </div>
 
+    <div class="sect">Storage</div>
+    ${(function(){
+      const st = storageInfo();
+      const level = st.pct >= 90 ? "red" : st.pct >= 70 ? "amber" : "";
+      const col = level==="red" ? "var(--bad)" : level==="amber" ? "var(--warn)" : "var(--green)";
+      return `<div class="card"${level?` style="background:${level==="red"?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"`:""}>
+        <div class="spread">
+          <b style="font-weight:660${level?`;color:${col}`:""}">${kb(st.bytes)} of about ${kb(st.cap)} used</b>
+          <b style="font-variant-numeric:tabular-nums;color:${col}">${st.pct}%</b>
+        </div>
+        <span class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:${col}"></i></span>
+        <p style="margin-top:10px;font-size:13px;color:var(--ink-2)">
+          ${st.photos} photograph${st.photos===1?"":"s"} and scan${st.photos===1?"":"s"},
+          taking ${kb(st.photoBytes)} of it.</p>
+        ${saveFailed ? `<p style="margin-top:8px;color:var(--bad);font-weight:640">
+          The last save did not go through. Take a backup now, then free up some space.</p>` : ""}
+        <button class="btn line sm" style="margin:12px 0 0" data-reclaim="1">
+          Remove photographs older than a month</button>
+        <p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
+          The records themselves stay — only the images come off. Send a copy to OneDrive first
+          if you want to keep them.</p>
+      </div>`;
+    })()}
+
     <div class="sect">Fleet engineer</div>
     <div class="card">
       <p style="margin-bottom:14px">Where plant defect reports are sent when there is no share sheet to choose from.</p>
@@ -7111,6 +7264,19 @@ function bind(){
     leaveMonth = monthStart(d);
     render();
   });
+
+  const rec2 = app.querySelector("[data-reclaim]");
+  if(rec2) rec2.onclick = ()=>{
+    const before = addDays(todayISO(), -28);
+    askConfirm("Remove older photographs?",
+      "Photographs and scans from before " + shortDate(before) + " will be removed. "
+      + "The diaries, checks and defects themselves are kept. This cannot be undone.",
+      "Remove them", ()=>{
+        const n = reclaimSpace(before);
+        render();
+        toast(n ? n + " image" + (n===1?"":"s") + " removed" : "Nothing old enough to remove");
+      });
+  };
 
   const lva = app.querySelector("[data-lvadd]");
   if(lva) lva.onclick = ()=>{
