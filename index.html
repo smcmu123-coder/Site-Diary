@@ -722,6 +722,7 @@ const DIARY = [
    sheets when they arrive; nothing else needs changing. */
 const CHECKSHEETS = {
   Excavator: {
+    title:"Excavator Daily & Weekly Inspections", code:"CGCivils-003",
     daily: [
       "Engine oil level",
       "Fuel level / leaks",
@@ -755,7 +756,8 @@ const CHECKSHEETS = {
     ]
   },
 
-  Dumper: {   /* CGCivils-004 */
+  Dumper: {
+    title:"Dumper Operator Daily & Weekly Inspections", code:"CGCivils-004",
     daily: [
       "Engine oil level",
       "Fuel level / leaks",
@@ -773,14 +775,15 @@ const CHECKSHEETS = {
       "Wheel nut tightness check",
       "Fan belt tension and condition",
       "Battery and terminals condition",
-      "Wiring for chaffing / damage",
+      "Wiring for chafing / damage",
       "Engine mounting brackets",
       "ROPS condition and operation",
       "Grease and check nipples"
     ]
   },
 
-  Roller: {   /* CGCivils-008 */
+  Roller: {
+    title:"Roller Operator Daily & Weekly Inspections", code:"CGCivils-008",
     daily: [
       "Engine oil level",
       "Fuel level / leaks",
@@ -796,7 +799,7 @@ const CHECKSHEETS = {
       "Drain fuel sediment bowl",
       "Fan belt tension and condition",
       "Battery and terminals condition",
-      "Wiring for chaffing / damage",
+      "Wiring for chafing / damage",
       "Engine mounting brackets",
       "ROPS condition and operation",
       "Grease and check nipples"
@@ -1683,8 +1686,9 @@ function printWeeklyPlantSheet(plantId, ws){
   document.getElementById("sheet").innerHTML = `
     <div class="ph-head">
       <img src="${LOGO}" alt="${esc(c.company)}">
-      <div style="text-align:right"><h1>${esc(m.type||"Excavator")} Daily &amp; Weekly Inspections</h1>
-        <div style="font-size:10.5px;color:#555">Week commencing ${shortDate(ws)}</div></div>
+      <div style="text-align:right"><h1>${esc(sheet.title || ((m.type||"Excavator")+" Daily & Weekly Inspections"))}</h1>
+        <div style="font-size:10.5px;color:#555">Week commencing ${shortDate(ws)}${
+          sheet.code?" · "+esc(sheet.code):""}</div></div>
     </div>
 
     <table>
@@ -4221,6 +4225,87 @@ function pickPlantView(){
           <p>Every machine on site has been checked ${d===todayISO()?"today":"that day"}.</p></div>` : "")}
 
     ${done.length ? `<div class="sect">Checked (${done.length})</div>${done.map(r=>card(r,true)).join("")}` : ""}`;
+}
+
+let itemEditing = false;
+
+function itemView(){
+  const kind = view.kind || "plant";
+  const it = findItem(kind, view.id);
+  if(!it) return `<div class="card"><h3>Not found</h3></div>`;
+  const isPlant = kind === "plant";
+  const st = lolerState(it);
+  const df = isPlant ? defectsFor(it.id) : null;
+  const onSite = (isPlant ? currentPlant() : currentLifting()).some(x=>x.id===it.id);
+  const back = `<button class="chip" data-go="${kind}">&lsaquo; ${isPlant?"Plant":"Lifting"}</button>`;
+
+  /* ---------- editing ---------- */
+  if(itemEditing){
+    return `<div class="top">${back}<span class="pill info">Editing</span></div>
+      <h1 class="greet" style="font-size:21px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
+      <p class="sub">Change what needs changing, then save.</p>
+      <div class="card">
+        ${isPlant ? plantFields(it, "data-pl-"+it.id) : liftingFields(it, "data-lf-"+it.id)}
+      </div>
+      <button class="btn" data-itemdone="1">Save changes</button>
+      ${onSite
+        ? `<button class="btn line" style="color:var(--bad)" data-${isPlant?"ploff":"lfoff"}="${it.id}">
+            Take off site</button>`
+        : `<button class="btn line" data-${isPlant?"plback":"lfback"}="${it.id}">Back on site</button>
+           <button class="btn line" style="color:var(--bad)" data-${isPlant?"plrm":"lfrm"}="${it.id}">
+             Delete this item</button>`}`;
+  }
+
+  /* ---------- reading ---------- */
+  const row = (k,v) => v ? `<div class="kv"><span class="k">${esc(k)}</span>
+    <span class="v">${esc(v)}</span></div>` : "";
+  const details = isPlant
+    ? row("Type", it.type||"Excavator") + row("Fleet number", it.fleetNo)
+      + row("Model", it.model) + row("Owned or hired", it.owner)
+      + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) + row("Hire reference", it.hireRef)
+          + row("Their email", it.hireEmail) + row("Their phone", it.hirePhone) : "")
+      + row("On site from", it.onDate?shortDate(it.onDate):"")
+      + row("Off site", it.offDate?shortDate(it.offDate):"")
+      + row("Next examination", examDateOf(it)?shortDate(examDateOf(it)):"Not set")
+    : row("Type", it.type) + row("ID number", it.idNo) + row("Safe working load", it.swl)
+      + row("Owned or hired", it.owner)
+      + (it.owner!=="Owned" ? row("Supplier", it.hireCompany) : "")
+      + row("On site from", it.onDate?shortDate(it.onDate):"")
+      + row("Off site", it.offDate?shortDate(it.offDate):"")
+      + row("LOLER expiry", examDateOf(it)?shortDate(examDateOf(it)):"Not set");
+
+  return `<div class="top">${back}
+      <span class="pill ${onSite?st.cls:"grey"}">${onSite?esc(st.label):"Off site"}</span>
+    </div>
+
+    <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
+    <p class="sub">${esc([isPlant?(it.type||"Excavator"):it.type,
+      isPlant?it.fleetNo:it.idNo].filter(Boolean).join(" · "))}</p>
+
+    ${df ? `<button class="card" style="width:100%;text-align:left;background:var(--bad-bg);
+      box-shadow:none" data-defopen="${df.items[0].id}">
+      <h3 style="color:var(--bad)">${df.items.length} open defect${df.items.length===1?"":"s"}${
+        df.unsafe?" · not fit for use":""}</h3>
+      ${df.items.map(x=>`<p style="color:var(--ink-2);margin-top:2px">
+        <b style="font-weight:640">${esc(x.item)}</b>${x.description?" — "+esc(x.description):""}
+        · reported ${ageText(x.reportedAt)}</p>`).join("")}
+    </button>` : ""}
+
+    <div class="sect">Details</div>
+    <div class="card">${details}</div>
+
+    <div class="sect">Examination</div>
+    ${examBlock(kind, it)}
+
+    ${docsBlock(kind, it)}
+
+    ${isPlant ? `<div class="sect">This machine</div>
+      <button class="btn ghost" data-history="${it.id}">Defect history${
+        closedDefects(it.id).length?" ("+closedDefects(it.id).length+")":""}</button>
+      <button class="btn ghost" data-weeksheet="${it.id}">This week\u2019s inspection sheet</button>
+      ${df ? `<button class="btn ghost" data-report="${it.id}">Send the defect report</button>` : ""}` : ""}
+
+    <button class="btn" style="margin-top:18px" data-itemedit="1">Edit this item</button>`;
 }
 
 function plantView(){
