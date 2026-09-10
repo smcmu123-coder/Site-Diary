@@ -1237,30 +1237,123 @@ const sectionsFor = k => formDef(k).sections();
 
 /* -------------------------------------------------------------- storage -- */
 const KEY = "cgc.diary.v1";
-let DB = load();
 
-function load(){
-  try{
-    const raw = localStorage.getItem(KEY);
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
+/* ------------------------------------------------------------- storage --
+   localStorage is capped at about 5MB, which a few scanned certificates will
+   fill. IndexedDB is measured in gigabytes, so the store lives there and
+   localStorage is only used to carry across anything saved before.
+   -------------------------------------------------------------------------*/
+const IDB_NAME = "cgc-sitehub", IDB_STORE = "app";
+
+function idb(){
+  return new Promise((res, rej)=>{
+    if(!self.indexedDB){ rej(new Error("no indexeddb")); return; }
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+function idbGet(key){
+  return idb().then(db => new Promise((res, rej)=>{
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const rq = tx.objectStore(IDB_STORE).get(key);
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => rej(rq.error);
+  }));
+}
+function idbSet(key, value){
+  return idb().then(db => new Promise((res, rej)=>{
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = () => res(true);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error || new Error("aborted"));
+  }));
+}
+
+function blankDB(){
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
     job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], tools:[], leave:[], vos:[], packs:[] };
 }
-let saveFailed = false;
 
-function save(){
+/* Read what is there: IndexedDB first, then anything left in localStorage from
+   before the change, then a fresh start. */
+async function loadDB(){
   try{
-    localStorage.setItem(KEY, JSON.stringify(DB));
-    if(saveFailed){ saveFailed = false; }   /* it is writing again */
-    return true;
-  }catch(e){
-    saveFailed = true;
-    toast("Not saved — storage is full. Open Profile.");
-    const b = document.getElementById("savewarn");
-    if(b) b.classList.add("show");
-    return false;
-  }
+    const fromIdb = await idbGet(KEY);
+    if(fromIdb) return fromIdb;
+  }catch(e){ /* fall through to the old store */ }
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(raw){
+      const old = JSON.parse(raw);
+      old.__movedFromLocalStorage = true;
+      return old;
+    }
+  }catch(e){}
+  return blankDB();
+}
+
+let DB = blankDB();
+
+
+let saveFailed = false, savePending = null;
+
+function warnBanner(on){
+  const b = document.getElementById("savewarn");
+  if(b) b.classList.toggle("show", !!on);
+}
+
+/* Writes are batched so a burst of typing is one write, and flushed the moment
+   the app is put into the background. */
+function save(){
+  clearTimeout(savePending);
+  savePending = setTimeout(flushSave, 250);
+  return true;
+}
+
+function flushSave(){
+  clearTimeout(savePending);
+  savePending = null;
+  const snapshot = JSON.parse(JSON.stringify(DB));
+  delete snapshot.__movedFromLocalStorage;
+  return idbSet(KEY, snapshot)
+    .then(()=>{
+      if(saveFailed){ saveFailed = false; warnBanner(false); }
+      /* once it is safely in the new store, the old one can be let go */
+      if(DB.__movedFromLocalStorage){
+        try{ localStorage.removeItem(KEY); }catch(e){}
+        delete DB.__movedFromLocalStorage;
+      }
+      return true;
+    })
+    .catch(()=>{
+      /* fall back to the old store rather than lose the work outright */
+      try{
+        localStorage.setItem(KEY, JSON.stringify(DB));
+        return true;
+      }catch(e){
+        saveFailed = true;
+        warnBanner(true);
+        toast("Not saved — storage is full. Open Profile.");
+        return false;
+      }
+    });
+}
+
+/* The browser will tell us how much room there is, but only asynchronously,
+   so the answer is kept here for the next time the screen is drawn. */
+let quotaBytes = 0, quotaUsed = 0;
+function refreshQuota(){
+  if(!(navigator.storage && navigator.storage.estimate)) return Promise.resolve();
+  return navigator.storage.estimate().then(est=>{
+    quotaBytes = est.quota || 0;
+    quotaUsed = est.usage || 0;
+  }).catch(()=>{});
 }
 
 /* How much room is left, and what is taking it up. */
@@ -1278,13 +1371,15 @@ function storageInfo(){
     if(typeof v === "object") return Object.values(v).forEach(walk);
   };
   walk(DB);
-  /* browsers give about 5MB per site */
-  const cap = 5 * 1024 * 1024;
-  return { bytes, photos, photoBytes, cap, pct: Math.min(100, Math.round(bytes/cap*100)) };
+  /* the real allowance, once the browser has told us; a cautious guess until */
+  const cap = quotaBytes || (2 * 1024 * 1024 * 1024);
+  return { bytes, photos, photoBytes, cap, known: !!quotaBytes,
+    pct: Math.min(100, Math.round(bytes/cap*100)) };
 }
 
 const kb = n => n < 1024*1024 ? Math.round(n/1024) + " KB"
-  : (Math.round(n/1024/1024*10)/10) + " MB";
+  : n < 1024*1024*1024 ? Math.round(n/1024/1024) + " MB"
+  : (Math.round(n/1024/1024/1024*10)/10) + " GB";
 
 /* Strip photographs off anything older than the given date, keeping the words.
    The records stay; only the images go. */
@@ -3737,7 +3832,10 @@ function render(){
   else if(view.name==="vos") app.innerHTML = voListView();
   else if(view.name==="vo") app.innerHTML = voView();
   else if(view.name==="timesheet") app.innerHTML = timesheetView();
-  else if(view.name==="settings") app.innerHTML = settingsView();
+  else if(view.name==="settings"){
+    app.innerHTML = settingsView();
+    if(!quotaBytes) refreshQuota().then(()=>{ if(view.name==="settings") render(); });
+  }
   bind();
   updateNav();
 }
@@ -6154,13 +6252,16 @@ function settingsView(){
       const col = level==="red" ? "var(--bad)" : level==="amber" ? "var(--warn)" : "var(--green)";
       return `<div class="card"${level?` style="background:${level==="red"?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"`:""}>
         <div class="spread">
-          <b style="font-weight:660${level?`;color:${col}`:""}">${kb(st.bytes)} of about ${kb(st.cap)} used</b>
-          <b style="font-variant-numeric:tabular-nums;color:${col}">${st.pct}%</b>
+          <b style="font-weight:660${level?`;color:${col}`:""}">${kb(st.bytes)} of ${
+            st.known ? kb(st.cap) : "roughly " + kb(st.cap)} available</b>
+          <b style="font-variant-numeric:tabular-nums;color:${col}">${
+            st.pct < 1 ? "under 1" : st.pct}%</b>
         </div>
         <span class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:${col}"></i></span>
         <p style="margin-top:10px;font-size:13px;color:var(--ink-2)">
           ${st.photos} photograph${st.photos===1?"":"s"} and scan${st.photos===1?"":"s"},
-          taking ${kb(st.photoBytes)} of it.</p>
+          taking ${kb(st.photoBytes)} of it. Records are held in the browser database,
+          which is measured in gigabytes rather than megabytes.</p>
         ${saveFailed ? `<p style="margin-top:8px;color:var(--bad);font-weight:640">
           The last save did not go through. Take a backup now, then free up some space.</p>` : ""}
         <button class="btn line sm" style="margin:12px 0 0" data-reclaim="1">
@@ -7679,42 +7780,61 @@ function runSplash(){
 }
 
 /* ------------------------------------------------------------------- boot -- */
-if(!DB.config) DB.config = JSON.parse(JSON.stringify(CONFIG));
-if(!DB.job) DB.job = CONFIG.jobs[0];
-if(!DB.startDate){
-  const earliest = (DB.records||[]).map(r=>r.date).sort()[0];
-  DB.startDate = earliest && earliest < todayISO() ? earliest : todayISO();
-}
-if(!DB.plant) DB.plant = [];
-if(!DB.labour) DB.labour = [];
-if(!DB.lifting) DB.lifting = [];
-if(!DB.tools) DB.tools = [];
-if(!DB.leave) DB.leave = [];
-if(!DB.vos) DB.vos = [];
-if(!DB.packs) DB.packs = [];
-(DB.records||[]).forEach(r=>{ if(r.form==="excavator") r.form = "plantcheck"; });
-(DB.plant||[]).forEach(p=>{ if(!p.type) p.type = "Excavator"; });
-if(!DB.defects) DB.defects = [];
-if(!DB.defectsBackfilled){
-  (DB.records||[]).filter(r=>r.form==="plantcheck" && r.status==="submitted").forEach(raiseDefects);
-  DB.defectsBackfilled = true;
-}
-delete DB.voCounter;          /* numbering is derived from the sheets themselves now */
-if(!DB.config.fitter) DB.config.fitter = { name:"", email:"" };
-if(!DB.jobHours) DB.jobHours = {};
-if(!DB.jobHours[DB.job]){
-  /* carry across anything set on the old app-wide setting, otherwise use the default */
-  const old = DB.config && DB.config.hours;
-  DB.jobHours[DB.job] = (old && old.start && old.finish)
-    ? { start:old.start, finish:old.finish, breakMins:Number(old.breakMins)||30 }
-    : JSON.parse(JSON.stringify(CONFIG.hours));
-}
-if(DB.config) delete DB.config.hours;
-if(DB.config.allowDelete === undefined) DB.config.allowDelete = CONFIG.allowDelete;
-save();
-initNav();
-render();
-runSplash();
+runSplash();          /* on screen while the store is opened */
+
+(async function boot(){
+  DB = await loadDB();
+
+  if(!DB.config) DB.config = JSON.parse(JSON.stringify(CONFIG));
+  if(!DB.job) DB.job = CONFIG.jobs[0];
+  if(!DB.startDate){
+    const earliest = (DB.records||[]).map(r=>r.date).sort()[0];
+    DB.startDate = earliest && earliest < todayISO() ? earliest : todayISO();
+  }
+  if(!DB.plant) DB.plant = [];
+  if(!DB.labour) DB.labour = [];
+  if(!DB.lifting) DB.lifting = [];
+  if(!DB.tools) DB.tools = [];
+  if(!DB.leave) DB.leave = [];
+  if(!DB.vos) DB.vos = [];
+  if(!DB.packs) DB.packs = [];
+  (DB.records||[]).forEach(r=>{ if(r.form==="excavator") r.form = "plantcheck"; });
+  (DB.plant||[]).forEach(p=>{ if(!p.type) p.type = "Excavator"; });
+  if(!DB.defects) DB.defects = [];
+  if(!DB.defectsBackfilled){
+    (DB.records||[]).filter(r=>r.form==="plantcheck" && r.status==="submitted").forEach(raiseDefects);
+    DB.defectsBackfilled = true;
+  }
+  delete DB.voCounter;          /* numbering is derived from the sheets themselves now */
+  if(!DB.config.fitter) DB.config.fitter = { name:"", email:"" };
+  if(!DB.jobHours) DB.jobHours = {};
+  if(!DB.jobHours[DB.job]){
+    /* carry across anything set on the old app-wide setting, otherwise use the default */
+    const old = DB.config && DB.config.hours;
+    DB.jobHours[DB.job] = (old && old.start && old.finish)
+      ? { start:old.start, finish:old.finish, breakMins:Number(old.breakMins)||30 }
+      : JSON.parse(JSON.stringify(CONFIG.hours));
+  }
+  if(DB.config) delete DB.config.hours;
+  if(DB.config.allowDelete === undefined) DB.config.allowDelete = CONFIG.allowDelete;
+
+  /* Ask the browser to hold on to it rather than clearing it out when space
+     gets tight. Silently ignored where it is not supported. */
+  try{
+    if(navigator.storage && navigator.storage.persist) await navigator.storage.persist();
+  }catch(e){}
+
+  await flushSave();
+  initNav();
+  render();
+
+  /* Never lose the last few seconds of work when the app is put away. */
+  const flush = () => { if(savePending) flushSave(); };
+  window.addEventListener("visibilitychange", flush);
+  window.addEventListener("pagehide", flush);
+  window.addEventListener("beforeunload", flush);
+})();
+
 </script>
 </body>
 </html>
