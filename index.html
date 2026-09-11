@@ -377,6 +377,17 @@ body.isdemo .app{padding-top:76px}
 .savewarn button{margin-left:8px;background:rgba(255,255,255,.2);color:#fff;
   border-radius:8px;padding:5px 11px;font-size:13px;font-weight:640}
 
+/* a tile for something left behind */
+.hero.warn{background:var(--warn-bg)}
+.hero.warn .lab{color:var(--warn)}
+.hero.warn .ttl{color:#7A5512}
+.hero.warn .begin{background:var(--warn);color:#fff}
+.ctab.warn{background:var(--warn-bg);color:var(--warn)}
+.ctab.warn.on{background:var(--warn);color:#fff}
+.ctab .late{width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block;
+  margin-right:6px;vertical-align:middle}
+.ctab.warn.on .late{background:#fff}
+
 /* start-up screen */
 .splash{position:fixed;inset:0;z-index:120;background:var(--paper);
   display:grid;place-items:center;
@@ -1300,7 +1311,7 @@ function havsSections(){
 /* Every form the app knows about. Adding another is an entry here. */
 const FORMS = {
   diary: { key:"diary", name:"Site Diary", short:"Diary", prefix:"DD",
-    sections:()=>DIARY, perMachine:false, daily:true,
+    sections:()=>DIARY, perMachine:false, daily:true, prepAhead:true,
     blurb:"Conditions, labour, plant, work done and dayworks." },
   plantcheck: { key:"plantcheck", name:"Plant Inspection", short:"Plant", prefix:"PC",
     sections:plantCheckSections, perMachine:true,
@@ -1604,12 +1615,14 @@ function dayOutstanding(date){
   if(!isWorking(date) || !inScope(date) || date > todayISO()) return out;
 
   const diary = recordFor(date);
-  if(!diary || diary.status!=="submitted") out.push("Site diary");
+  if(!diary || diary.status!=="submitted")
+    out.push({ name:"Site Diary", form:"diary" });
 
   const briefFrom = firstUsed("briefing");
   if(briefFrom && date >= briefFrom){
     const brief = dailyRecordFor("briefing", date);
-    if(!brief || brief.status!=="submitted") out.push("Daily activities briefing");
+    if(!brief || brief.status!=="submitted")
+      out.push({ name:"Daily Activities Briefing", form:"briefing" });
   }
 
   const checkFrom = checksOnPaper() ? null : firstUsed("plantcheck");
@@ -1617,13 +1630,15 @@ function dayOutstanding(date){
     plantNeedingCheck(date).forEach(m=>{
       const c = checkFor(date, m.id);
       if(!c || c.status!=="submitted")
-        out.push((m.item||"Machine") + (m.fleetNo ? " ("+m.fleetNo+")" : "") + " inspection");
+        out.push({ name:(m.item||"Machine") + (m.fleetNo ? " ("+m.fleetNo+")" : "") + " inspection",
+          form:"plantcheck", plantId:m.id });
     });
   }
 
   excavationsDue(date).forEach(x=>{
     const e = excFor(date, x.ref);
-    if(!e || e.status!=="submitted") out.push("Excavation inspection — " + x.ref);
+    if(!e || e.status!=="submitted")
+      out.push({ name:"Excavation inspection — " + x.ref, form:"excavation", ref:x.ref });
   });
 
   return out;
@@ -4444,7 +4459,36 @@ function homeView(){
             r ? "Carry on with it" : "Get it ready"}</button></div>` });
     });
   } else {
+    /* excavations first, always — nothing starts until they are looked at */
     if(excDue.length) dailyCards.push({ label:"Excavations", done: excLeft===0, html: excHero });
+
+    /* then anything left from an earlier day, so it is not quietly forgotten */
+    if(isToday){
+      let behind = [];
+      missedDays().slice(0, 2).forEach(m=>{
+        m.owed.forEach(o=>behind.push({ day:m.date, item:o }));
+      });
+      /* an excavation left uninspected comes before anything else */
+      behind.sort((a,b)=>(b.item.form==="excavation") - (a.item.form==="excavation"));
+      behind = behind.slice(0, 3);
+      behind.forEach(({day, item})=>{
+        const when = day === prevWorking(t) ? "yesterday" : shortDate(day);
+        const open = item.form==="plantcheck" ? `data-pick="${day}"`
+          : item.form==="excavation" ? `data-pickexc="${day}"`
+          : `data-startf="${item.form}" data-d="${day}"`;
+        const shortName = item.form==="plantcheck"
+          ? ((DB.plant||[]).find(m2=>m2.id===item.plantId)||{}).fleetNo || "Plant"
+          : item.form==="excavation" ? "Excavation"
+          : (FORMS[item.form] && FORMS[item.form].short) || "Missed";
+        dailyCards.push({ label:shortName, done:false, warn:true, html:
+          `<div class="hero warn">
+            <div class="lab">From ${when}</div>
+            <div class="ttl">${esc(item.name)}</div>
+            <div class="why">Don&rsquo;t forget this one — it is still needed for
+              ${day===prevWorking(t) ? "yesterday" : shortDate(day)} and for the week&rsquo;s pack.</div>
+            <button class="begin" ${open}>Fill it in</button></div>` });
+      });
+    }
     dailyCards.push({ label:"Briefing", done: isDone(dailyRecordFor("briefing", sel)),
       html: dailyCard("briefing") });
     if(checksOnPaper()){
@@ -4507,8 +4551,9 @@ function homeView(){
 
   const carousel = (id, cards) => `
     <div class="ctabs" data-car="${id}">${cards.map((c,i)=>`
-      <button class="ctab ${i?"":"on"}" data-cgo="${i}">
-        ${c.done ? `<span class="tick">&#10003;</span>` : `<span class="todo"></span>`}
+      <button class="ctab ${i?"":"on"} ${c.warn?"warn":""}" data-cgo="${i}">
+        ${c.done ? `<span class="tick">&#10003;</span>`
+          : c.warn ? `<span class="late"></span>` : `<span class="todo"></span>`}
         ${esc(c.label)}</button>`).join("")}</div>
     <div class="carousel" data-car="${id}">${cards.map(c=>c.html).join("")}</div>`;
 
@@ -4596,7 +4641,8 @@ function homeView(){
          ${missed.reduce((n,m)=>n+m.owed.length,0)} outstanding on
          ${missed.length} day${missed.length>1?"s":""}</h3>
        ${missed.slice(0,3).map(m=>`<p style="color:var(--ink-2);margin-top:2px">
-         <b style="font-weight:640">${shortDate(m.date)}</b> — ${esc(m.owed.slice(0,3).join(", "))}${
+         <b style="font-weight:640">${shortDate(m.date)}</b> — ${
+           esc(m.owed.slice(0,3).map(x=>x.name).join(", "))}${
            m.owed.length>3?" and "+(m.owed.length-3)+" more":""}</p>`).join("")}
      </button>` : ""}
 
@@ -7863,7 +7909,12 @@ function bind(){
   app.querySelectorAll("[data-day]").forEach(el=>el.onclick=()=>{
     view.date = el.dataset.day; viewWeek = weekStart(el.dataset.day); render(); });
   app.querySelectorAll("[data-week]").forEach(el=>el.onclick=()=>{
-    viewWeek = addDays(viewWeek, 7*Number(el.dataset.week)); render(); });
+    /* the strip follows the day being looked at */
+    const from = view.date || todayISO();
+    view.date = addDays(from, 7*Number(el.dataset.week));
+    viewWeek = weekStart(view.date);
+    render();
+  });
   app.querySelectorAll("[data-start]").forEach(el=>el.onclick=()=>startForm(el.dataset.start,"diary"));
   app.querySelectorAll("[data-pick]").forEach(el=>el.onclick=()=>go("pickplant",{date:el.dataset.pick}));
   app.querySelectorAll("[data-pw]").forEach(el=>el.onclick=()=>{
