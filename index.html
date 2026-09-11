@@ -751,6 +751,7 @@ const CONFIG = {
   workingDays: [1,2,3,4,5],          // Mon-Fri. Sat/Sun optional, never chased.
   refPrefix: "DD",
   hours: { start:"07:30", finish:"17:00", breakMins:30 },
+  plantChecks: "app",          /* or "paper" while the lads are still on the sheets */
 
   /* TESTING ONLY. Set to false before this goes out to site teams — a submitted
      diary is a contractual record and should never be deletable by a normal
@@ -1611,7 +1612,7 @@ function dayOutstanding(date){
     if(!brief || brief.status!=="submitted") out.push("Daily activities briefing");
   }
 
-  const checkFrom = firstUsed("plantcheck");
+  const checkFrom = checksOnPaper() ? null : firstUsed("plantcheck");
   if(checkFrom && date >= checkFrom){
     plantNeedingCheck(date).forEach(m=>{
       const c = checkFor(date, m.id);
@@ -1991,6 +1992,23 @@ PdfDoc.prototype.blob = function(){
    one document with a cover, a contents page and a section per form. */
 const PACK_ORDER = ["briefing","toolboxtalk","havs","plantcheck","puwer","loler","excavation"];
 
+/* Plant checks can be kept on paper while the lads are still on the sheets.
+   The app then expects scanned sheets in the pack instead of its own records. */
+function checksOnPaper(){ return cfg().plantChecks === "paper"; }
+
+/* The last working day of a week — when the paper sheets are wanted. */
+function lastWorkingDay(ws){
+  const days = weekDays(ws).filter(isWorking);
+  return days.length ? days[days.length-1] : weekDays(ws)[4];
+}
+function scansDue(ws){ return todayISO() >= lastWorkingDay(ws); }
+
+/* Paper sheets scanned in and filed against a week. */
+function scansFor(ws, kind){
+  return (DB.scans||[]).filter(x => x.job===DB.job && x.week===ws
+    && (!kind || x.kind===kind));
+}
+
 function packSections(ws){
   const days = weekDays(ws);
   return PACK_ORDER
@@ -2002,8 +2020,9 @@ function packSections(ws){
         .sort((a,b)=>a.date<b.date?-1:1);
       let expected;
       if(k === "plantcheck"){
-        /* a check for every machine on site, every working day so far */
-        expected = days.filter(isWorking).filter(d=>d<=todayISO())
+        /* on paper this week: the app expects a scanned sheet for each machine */
+        if(checksOnPaper()) expected = 0;
+        else expected = days.filter(isWorking).filter(d=>d<=todayISO())
           .reduce((n,d)=>n + plantNeedingCheck(d).length, 0);
       } else {
         expected = def.daily ? days.filter(isWorking).filter(d=>d<=todayISO()).length
@@ -2012,13 +2031,28 @@ function packSections(ws){
       }
       return { key:k, name:def.name, items, expected, def };
     })
-    .filter(sec=>sec.items.length || sec.expected>0);
+    .filter(sec=>sec.items.length || sec.expected>0
+      || (sec.key==="plantcheck" && checksOnPaper()));
 }
 
 function packGaps(ws){
   const out = [];
   packSections(ws).forEach(sec=>{
     if(sec.key === "plantcheck"){
+      if(checksOnPaper()){
+        /* not chased until the end of the week — the sheets are still in the cab */
+        if(!scansDue(ws)) return;
+        const seen = new Set();
+        weekDays(ws).filter(isWorking).filter(d=>d<=todayISO())
+          .forEach(d=>plantNeedingCheck(d).forEach(m=>seen.add(m.id)));
+        [...seen].forEach(id=>{
+          const m = (DB.plant||[]).find(x=>x.id===id) || {};
+          if(!scansFor(ws,"plantcheck").some(x=>x.plantId===id))
+            out.push({ name:"Paper sheet — " + (m.item||"Machine")
+              + (m.fleetNo?" ("+m.fleetNo+")":""), date:null });
+        });
+        return;
+      }
       weekDays(ws).filter(isWorking).filter(d=>d<=todayISO()).forEach(d=>{
         plantNeedingCheck(d).forEach(m=>{
           if(!sec.items.some(r=>r.date===d && r.plantId===m.id))
@@ -2303,11 +2337,13 @@ function ckMark(v){
    -------------------------------------------------------------------------*/
 function openPackSheet(ws, draft){
   const c = cfg();
-  const secs = packSections(ws).filter(x=>x.items.length);
+  const secs = packSections(ws).filter(x=>x.items.length
+    || (x.key==="plantcheck" && checksOnPaper() && scansFor(ws,"plantcheck").length));
   const gaps = packGaps(ws);
   const pack = packFor(ws);
   const ref = pack ? pack.ref : (draft ? "Not yet published" : nextPackRef(ws));
-  const count = secs.reduce((n,x)=>n+x.items.length,0);
+  const count = secs.reduce((n,x)=>n+x.items.length,0)
+    + (checksOnPaper() ? scansFor(ws,"plantcheck").reduce((n,x)=>n+x.pages.length,0) : 0);
 
   const yn = v => v===true ? "Yes" : v===false ? "No" : "—";
   const ck = v => !v || v.v===undefined ? "" : v.v===true ? "Y" : v.v==="na" ? "N/A" : "X";
@@ -2360,6 +2396,11 @@ function openPackSheet(ws, draft){
 
   html += page(`<div class="pk-h">Contents</div>
     ${tbl(["Section","Sheets"], secs.map((sec,i)=>{
+      if(sec.key==="plantcheck" && checksOnPaper()){
+        const sc = scansFor(ws,"plantcheck");
+        const pages = sc.reduce((t,x)=>t+x.pages.length,0);
+        return [(i+1)+".  "+sec.name+" (paper)", pages + (pages===1?" sheet":" sheets")];
+      }
       const n = sec.key==="plantcheck"
         ? [...new Set(sec.items.map(r=>r.plantId))].length : sec.items.length;
       return [(i+1)+".  "+sec.name, n + (sec.key==="plantcheck"
@@ -2368,6 +2409,22 @@ function openPackSheet(ws, draft){
 
   /* ---- a page per sheet ---- */
   secs.forEach(sec=>{
+    if(sec.key === "plantcheck" && checksOnPaper()){
+      scansFor(ws, "plantcheck").forEach(sc=>{
+        const m = (DB.plant||[]).find(x=>x.id===sc.plantId) || {};
+        sc.pages.forEach((pg,i)=>{
+          html += page(`<div class="pk-h">${esc(sc.title || (m.item||"Plant inspection"))}</div>
+            ${tbl(["",""],[
+              ["Machine", (m.item||"—") + (m.fleetNo?" · "+m.fleetNo:"")],
+              ["Week commencing", shortDate(ws)],
+              ["Sheet", (i+1)+" of "+sc.pages.length],
+              ["Scanned", shortDate(iso(new Date(sc.addedAt))) + " by " + esc(sc.by||"")]
+            ])}
+            <img src="${pg.src}" style="width:100%;border:1px solid #CBD3CD;margin-top:10px">`);
+        });
+      });
+      return;
+    }
     if(sec.key === "plantcheck"){
       const DL = ["M","T","W","T","F","S","S"];
       [...new Set(sec.items.map(r=>r.plantId))].forEach(pid=>{
@@ -2536,7 +2593,8 @@ function openPackSheet(ws, draft){
 
 async function buildPackPdf(ws, draft){
   const c = cfg();
-  const secs = packSections(ws).filter(x=>x.items.length);
+  const secs = packSections(ws).filter(x=>x.items.length
+    || (x.key==="plantcheck" && checksOnPaper() && scansFor(ws,"plantcheck").length));
   const gaps = packGaps(ws);
   const existing = packFor(ws);
   const ref = existing ? existing.ref : (draft ? "Not yet published" : nextPackRef(ws));
@@ -3580,7 +3638,8 @@ const ICONS = {
 const SECTION = {
   home:"home", plan:"plan",
   project:"project", pack:"project", plant:"project", tools:"project", item:"project",
-  deliveries:"project", delivery:"project", deltotals:"project", exchange:"project", job:"project", lifting:"project", labour:"project", leave:"project",
+  deliveries:"project", delivery:"project", deltotals:"project", exchange:"project", job:"project",
+  scans:"project", lifting:"project", labour:"project", leave:"project",
   timesheet:"project", vos:"project", vo:"project", list:"project", record:"project",
   defect:"project", planthistory:"project", pickplant:"project", pickexc:"project",
   settings:"profile"
@@ -3647,6 +3706,7 @@ function go(name, opts){
   if(name!=="deliveries"){ delDraft = null; }
   if(name!=="delivery"){ dropDraft = null; }
   if(name!=="plan"){ eventDraft = null; hireDraft = null; planPick = null; exchPick = false; }
+  if(name!=="scans"){ scanDraft = null; }
   if(name!=="plant" && name!=="lifting" && name!=="item"){ examDraft = null; }
   if(name!=="item"){ itemEditing = false; }
 
@@ -4210,6 +4270,7 @@ function render(){
   else if(view.name==="project") app.innerHTML = projectView();
   else if(view.name==="job") app.innerHTML = jobView();
   else if(view.name==="pack") app.innerHTML = packView();
+  else if(view.name==="scans") app.innerHTML = scansView();
   else if(view.name==="lifting") app.innerHTML = liftingView();
   else if(view.name==="tools") app.innerHTML = toolsView();
   else if(view.name==="plan") app.innerHTML = planView();
@@ -4369,7 +4430,8 @@ function homeView(){
   if(excDue.length) dailyCards.push({ label:"Excavations", done: excLeft===0, html: excHero });
   dailyCards.push({ label:"Briefing", done: isDone(dailyRecordFor("briefing", sel)),
     html: dailyCard("briefing") });
-  dailyCards.push({ label:"Plant",    done: allChecked,              html: plantHero });
+  if(!checksOnPaper())
+    dailyCards.push({ label:"Plant", done: allChecked, html: plantHero });
   dailyCards.push({ label:"Diary",    done: diaryDone,               html: hero });
   dailyCards.push({ label:"HAVs",     done: isDone(dailyRecordFor("havs", sel)),
     html: dailyCard("havs", true) });
@@ -6410,6 +6472,92 @@ const TILE_ICONS = {
     stroke-width="1.9" stroke-linecap="round"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>`
 };
 
+let scanDraft = null;
+
+/* Paper sheets, scanned in and filed with the week so they come out in the pack. */
+function scansView(){
+  const ws = view.week || weekStart(todayISO());
+  const list = scansFor(ws);
+  const machines = (function(){
+    const seen = new Set();
+    weekDays(ws).filter(isWorking).filter(d=>d<=todayISO())
+      .forEach(d=>plantNeedingCheck(d).forEach(m=>seen.add(m.id)));
+    return [...seen].map(id=>(DB.plant||[]).find(x=>x.id===id)).filter(Boolean);
+  })();
+
+  const missing = machines.filter(m=>!list.some(x=>x.plantId===m.id));
+
+  const draft = scanDraft ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+      <h3 style="margin-bottom:10px">${scanDraft.pages.length
+        ? scanDraft.pages.length + " page" + (scanDraft.pages.length===1?"":"s") + " scanned"
+        : "Scan the sheet"}</h3>
+      ${scanDraft.pages.length ? `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px">
+        ${scanDraft.pages.map((pg,i)=>`<div class="ph" style="flex:none;width:104px;aspect-ratio:auto;
+          height:140px"><img src="${pg.src}" style="height:100%;object-fit:cover">
+          <button type="button" data-scanrm="${i}" aria-label="Remove">&times;</button></div>`).join("")}
+      </div>` : ""}
+      <div class="g2">
+        <button class="btn line" style="margin:0" data-scanpage="1">${
+          scanDraft.pages.length ? "Scan another page" : "Scan it"}</button>
+        <button class="btn line" style="margin:0" data-scanup="1">Upload a photo</button>
+      </div>
+
+      <div class="f" style="margin-top:14px"><label>What is it?</label>
+        <select class="in" data-scanf="plantId">
+          <option value="">Not one machine — a general sheet</option>
+          ${(DB.plant||[]).filter(m=>m.job===DB.job).map(m=>`<option value="${m.id}"
+            ${scanDraft.plantId===m.id?"selected":""}>${esc(m.item||"Machine")}${
+            m.fleetNo?" — "+esc(m.fleetNo):""}</option>`).join("")}
+        </select></div>
+      <div class="f" style="margin:0"><label>Title on the pack</label>
+        <input class="in" data-scanf="title" value="${esc(scanDraft.title||"")}"
+          placeholder="e.g. Excavator daily and weekly checks"></div>
+
+      <button class="btn" style="margin:14px 0 8px" data-scansave="1">File it with this week</button>
+      <button class="btn ghost" style="margin:0" data-scancancel="1">Cancel</button>
+    </div>` : `<button class="btn add" data-scanstart="1">+ Scan a paper sheet</button>`;
+
+  return `<div class="top"><button class="chip" data-pw="0">&lsaquo; Pack</button>
+      <span class="pill ${missing.length?"amber":"ok"}">${list.length} scanned</span></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Paper sheets</h1>
+    <p class="sub">Week commencing ${shortDate(ws)}</p>
+
+    <div class="card" style="background:var(--green-50);box-shadow:none">
+      <p>Plant checks are being kept on paper this week. Scan the sheets in on
+      ${["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][
+        parse(lastWorkingDay(ws)).getDay()]} and they go into the pack with everything else,
+      one page each.</p>
+    </div>
+
+    ${missing.length ? `<div class="card" style="background:${
+      scansDue(ws)?"var(--warn-bg)":"var(--canvas)"};box-shadow:none">
+      <h3 style="color:${scansDue(ws)?"var(--warn)":"var(--ink)"}">${missing.length} ${
+        scansDue(ws) ? "still to scan" : "to scan at the end of the week"}</h3>
+      ${missing.map(m=>`<p style="color:var(--ink-2);margin-top:2px">
+        <b style="font-weight:640">${esc(m.item||"Machine")}</b>${
+        m.fleetNo?" · "+esc(m.fleetNo):""}</p>`).join("")}
+    </div>` : ""}
+
+    ${list.length ? `<div class="sect">Scanned in (${list.length})</div>
+      ${list.map(x=>{
+        const m = (DB.plant||[]).find(p2=>p2.id===x.plantId);
+        return `<div class="card" style="padding:0 14px">
+          <button class="row" style="width:100%;border:0" data-scanopen="${x.id}">
+            <span class="n"><b>${esc(x.title || (m? (m.item||"Machine") : "Paper sheet"))}</b>
+              <span>${m&&m.fleetNo?esc(m.fleetNo)+" · ":""}${x.pages.length} page${
+                x.pages.length===1?"":"s"} · scanned ${shortDate(iso(new Date(x.addedAt)))}</span></span>
+            <span class="pill ok">In the pack</span>
+          </button>
+          <div style="border-top:1px solid var(--line-2);padding:10px 0;text-align:right">
+            <button class="btn line sm" style="margin:0;color:var(--bad)"
+              data-scandel="${x.id}">Remove it</button>
+          </div>
+        </div>`;
+      }).join("")}` : ""}
+
+    ${draft}`;
+}
+
 function packView(){
   const ws = view.week || weekStart(todayISO());
   const secs = packSections(ws);
@@ -6437,6 +6585,27 @@ function packView(){
       <div><div class="big">${have}</div><div class="lab">records in the pack</div></div>
       <div class="side">${gaps.length ? gaps.length+" outstanding" : "Nothing missing"}</div>
     </div>
+
+    ${checksOnPaper() ? (function(){
+      const sc = scansFor(ws, "plantcheck");
+      const pages = sc.reduce((t,x)=>t+x.pages.length,0);
+      const due = scansDue(ws);
+      const chase = due && !sc.length;
+      return `<button class="card" style="width:100%;text-align:left;background:${
+        chase?"var(--warn-bg)":"var(--green-50)"};box-shadow:none" data-scansgo="${ws}">
+        <h3 style="color:${chase?"var(--warn)":"var(--green-700)"}">
+          Plant checks are on paper this week</h3>
+        <p style="margin-top:2px;color:var(--ink-2)">${sc.length
+          ? pages + " sheet" + (pages===1?"":"s") + " scanned in, going into the pack"
+          : due ? "Scan the sheets in and they go into the pack with everything else"
+                : "Scan them in on " + ["Sunday","Monday","Tuesday","Wednesday","Thursday",
+                    "Friday","Saturday"][parse(lastWorkingDay(ws)).getDay()]
+                  + " and they go into the pack"}</p>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <span style="font-size:13px;font-weight:640;color:var(--green-700)">
+            ${sc.length?"Add or check them":"Scan them in"} &rsaquo;</span></div>
+      </button>` ;
+    })() : ""}
 
     <div class="sect">Sections</div>
     <div class="card">
@@ -7330,6 +7499,17 @@ function settingsView(){
       <div class="f" style="margin:0"><label>Email</label><input class="in" data-cfg="user.email" value="${esc(c.user.email)}"></div>
     </div>
 
+    <div class="sect">Plant checks</div>
+    <div class="card">
+      <p style="margin-bottom:12px">While the lads are still on the paper sheets, switch this to
+      paper. The app stops asking for its own checks and expects the sheets to be scanned in on
+      the Friday instead.</p>
+      <span class="yn">
+        <button type="button" class="${!checksOnPaper()?"y":""}" data-pcmode="app">In the app</button>
+        <button type="button" class="${checksOnPaper()?"n":""}" data-pcmode="paper">On paper</button>
+      </span>
+    </div>
+
     <div class="sect">Diaries</div>
     <div class="card">
       <div class="f" style="margin:0"><label>Chasing diaries from</label>
@@ -7676,7 +7856,8 @@ function bind(){
       }
     }
 
-    const secs = packSections(ws).filter(x=>x.items.length);
+    const secs = packSections(ws).filter(x=>x.items.length
+    || (x.key==="plantcheck" && checksOnPaper() && scansFor(ws,"plantcheck").length));
     DB.packs = (DB.packs||[]).concat([{
       id:"pk_"+Date.now(), job:DB.job, weekCommencing:ws, ref: nextPackRef(ws),
       publishedBy:cfg().user.name, publishedAt:Date.now(),
@@ -9029,6 +9210,12 @@ function bind(){
   });
 
   /* the job: its details, and the hours for each day */
+  app.querySelectorAll("[data-pcmode]").forEach(el=>el.onclick=()=>{
+    DB.config.plantChecks = el.getAttribute("data-pcmode");
+    save(); render();
+    toast(checksOnPaper() ? "Checks are on paper — scan them in on the Friday"
+                          : "Checks are back in the app");
+  });
   app.querySelectorAll("[data-jw]").forEach(el=>el.onclick=()=>{
     const [i,key,val] = el.getAttribute("data-jw").split(":");
     setJobDay(Number(i), { [key]: val === "1" });
@@ -9066,6 +9253,73 @@ function bind(){
       save();
     };
     el.onchange = el.oninput;
+  });
+
+  /* scanning the paper sheets in */
+  const ss = app.querySelector("[data-scanstart]");
+  if(ss) ss.onclick = ()=>{ scanDraft = { pages:[], plantId:"", title:"" }; render(); };
+  const sc = app.querySelector("[data-scancancel]");
+  if(sc) sc.onclick = ()=>{ scanDraft = null; render(); };
+  const sp = app.querySelector("[data-scanpage]");
+  if(sp) sp.onclick = ()=>openScanner(doc=>{
+    if(!scanDraft) return;
+    scanDraft.pages.push({ src:doc.src, at:Date.now() });
+    render();
+  });
+  const su = app.querySelector("[data-scanup]");
+  if(su) su.onclick = ()=>{
+    const inp = document.createElement("input");
+    inp.type="file"; inp.accept="image/*";
+    inp.onchange = async () => {
+      try{
+        const doc = await compressDoc(inp.files[0]);
+        scanDraft.pages.push({ src:doc.src, at:Date.now() });
+        render();
+      }catch(e){ toast("That file could not be read."); }
+    };
+    inp.click();
+  };
+  app.querySelectorAll("[data-scanrm]").forEach(el=>el.onclick=()=>{
+    const i = Number(el.getAttribute("data-scanrm"));
+    scanDraft.pages = scanDraft.pages.filter((_,ix)=>ix!==i);
+    render();
+  });
+  app.querySelectorAll("[data-scanf]").forEach(el=>{
+    el.oninput = () => {
+      if(!scanDraft) return;
+      scanDraft[el.dataset.scanf] = el.value;
+      if(el.dataset.scanf==="plantId" && !scanDraft.title){
+        const m = (DB.plant||[]).find(x=>x.id===el.value);
+        if(m){
+          const sheet = sheetFor(m.type||"Excavator");
+          scanDraft.title = (sheet && sheet.title) || ((m.item||"Machine") + " checks");
+          render();
+        }
+      }
+    };
+    el.onchange = el.oninput;
+  });
+  const sv = app.querySelector("[data-scansave]");
+  if(sv) sv.onclick = ()=>{
+    if(!scanDraft.pages.length){ toast("Scan at least one page."); return; }
+    const ws = view.week || weekStart(todayISO());
+    DB.scans = DB.scans || [];
+    DB.scans.push({ id:"sc_"+Date.now(), job:DB.job, week:ws, kind:"plantcheck",
+      plantId:scanDraft.plantId||"", title:scanDraft.title||"", pages:scanDraft.pages,
+      addedAt:Date.now(), by:cfg().user.name });
+    scanDraft = null; save(); render(); toast("Filed with this week");
+  };
+  app.querySelectorAll("[data-scansgo]").forEach(el=>el.onclick=()=>
+    go("scans", { week: el.getAttribute("data-scansgo") }));
+  app.querySelectorAll("[data-scandel]").forEach(el=>el.onclick=()=>{
+    const id = el.getAttribute("data-scandel");
+    askConfirm("Remove this sheet?", "It comes out of the pack. The paper copy is unaffected.",
+      "Remove", ()=>{ DB.scans = (DB.scans||[]).filter(x=>x.id!==id); save(); render();
+        toast("Removed"); });
+  });
+  app.querySelectorAll("[data-scanopen]").forEach(el=>el.onclick=()=>{
+    const x = (DB.scans||[]).find(y=>y.id===el.getAttribute("data-scanopen"));
+    if(x && x.pages[0]) showPhoto(x.pages[0].src, x.pages[0].at);
   });
 
   const rec2 = app.querySelector("[data-reclaim]");
