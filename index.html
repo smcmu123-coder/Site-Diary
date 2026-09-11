@@ -1308,7 +1308,7 @@ const FORMS = {
   excavation: { key:"excavation", name:"Excavation Inspection", short:"Excavation", prefix:"EX",
     sections:excavationSections, perMachine:false,
     blurb:"Raised by anything left open overnight." },
-  briefing: { key:"briefing", name:"Daily Activities Briefing", short:"Briefing", prefix:"DB",
+  briefing: { key:"briefing", name:"Daily Activities Briefing", short:"Briefing", prepAhead:true, prefix:"DB",
     sections:briefingSections, daily:true, inPack:true,
     blurb:"Activities, hazards and the pre-start checklist." },
   havs: { key:"havs", name:"HAVs Record", short:"HAVs", prefix:"HV",
@@ -4355,8 +4355,9 @@ function homeView(){
     const wknd = !isWorking(d);
     const dot = st==="done" ? "ok" : st==="amber" ? "amber" : st==="red" ? "red"
       : st==="due" ? "due" : "";
+    const reachable = d <= t || (isWorking(d) && d <= addDays(t, 7));
     return `<button class="wd ${d===sel?"on":""} ${wknd?"we":""} ${d>t?"fut":""}"
-      data-day="${d}" ${d>t?"disabled":""}>
+      data-day="${d}" ${reachable?"":"disabled"}>
       <span class="l">${["Mo","Tu","We","Th","Fr","Sa","Su"][i]}</span>
       <span class="n">${parse(d).getDate()}</span>
       <span class="s ${wknd?"":dot}"></span></button>`;
@@ -4425,16 +4426,65 @@ function homeView(){
           r?"Continue":optional?"Add one":"Begin"}</button></div>`;
   };
 
+  const ahead = sel > t;
+
   /* the order the day actually runs in */
   const dailyCards = [];
-  if(excDue.length) dailyCards.push({ label:"Excavations", done: excLeft===0, html: excHero });
-  dailyCards.push({ label:"Briefing", done: isDone(dailyRecordFor("briefing", sel)),
-    html: dailyCard("briefing") });
-  if(!checksOnPaper())
-    dailyCards.push({ label:"Plant", done: allChecked, html: plantHero });
-  dailyCards.push({ label:"Diary",    done: diaryDone,               html: hero });
-  dailyCards.push({ label:"HAVs",     done: isDone(dailyRecordFor("havs", sel)),
-    html: dailyCard("havs", true) });
+  if(ahead){
+    /* only the ones that can honestly be written in advance */
+    Object.values(FORMS).filter(f=>f.prepAhead).forEach(f=>{
+      const r = dailyRecordFor(f.key, sel);
+      dailyCards.push({ label:f.short, done:false, html:
+        `<div class="hero">
+          <div class="lab">${shortDate(sel)}</div>
+          <div class="ttl">${esc(f.name)}</div>
+          <div class="why">${r ? "Written up ready. Sign it on the morning with whoever attends."
+            : "Write it up now and sign it on the morning with whoever attends."}</div>
+          <button class="begin" data-startf="${f.key}" data-d="${sel}">${
+            r ? "Carry on with it" : "Get it ready"}</button></div>` });
+    });
+  } else {
+    if(excDue.length) dailyCards.push({ label:"Excavations", done: excLeft===0, html: excHero });
+    dailyCards.push({ label:"Briefing", done: isDone(dailyRecordFor("briefing", sel)),
+      html: dailyCard("briefing") });
+    if(checksOnPaper()){
+      /* still on the home screen, but as a reminder about the paper sheets */
+      const pws = weekStart(sel);
+      const sc = scansFor(pws, "plantcheck");
+      const pages = sc.reduce((n,x)=>n+x.pages.length, 0);
+      const machines = (function(){
+        const seen = new Set();
+        weekDays(pws).filter(isWorking).filter(x=>x<=todayISO())
+          .forEach(x=>plantNeedingCheck(x).forEach(m=>seen.add(m.id)));
+        return [...seen];
+      })();
+      const left = machines.filter(id=>!sc.some(x=>x.plantId===id)).length;
+      const due = scansDue(pws);
+      const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][
+        parse(lastWorkingDay(pws)).getDay()];
+
+      dailyCards.push({ label:"Plant", done: due && machines.length>0 && left===0, html:
+        (due && left)
+        ? `<div class="hero">
+            <div class="lab">This week</div>
+            <div class="ttl">Plant Inspection</div>
+            <div class="count">On paper — ${left} sheet${left===1?"":"s"} still to scan</div>
+            <button class="begin" data-scansgo="${pws}">Scan them in</button></div>`
+        : `<div class="hero calm">
+            <div class="lab">This week</div>
+            <div class="ttl">Plant Inspection</div>
+            <div class="count">${sc.length
+              ? pages + " sheet" + (pages===1?"":"s") + " scanned in"
+              : "On paper — scan them in on " + dayName}</div>
+            <button class="begin" data-scansgo="${pws}">${
+              sc.length ? "Check them" : "Paper sheets"}</button></div>` });
+    } else {
+      dailyCards.push({ label:"Plant", done: allChecked, html: plantHero });
+    }
+    dailyCards.push({ label:"Diary",    done: diaryDone,               html: hero });
+    dailyCards.push({ label:"HAVs",     done: isDone(dailyRecordFor("havs", sel)),
+      html: dailyCard("havs", true) });
+  }
 
   /* ---- the week's forms ---- */
   const weeklyCards = Object.values(FORMS).filter(f=>f.weekly).map(f=>{
@@ -4478,7 +4528,8 @@ function homeView(){
      <div class="week">
        <button class="warrow" data-week="-1" aria-label="Previous week">&lsaquo;</button>
        ${strip}
-       <button class="warrow" data-week="1" ${canFwd?"":"disabled"} aria-label="Next week">&rsaquo;</button>
+       <button class="warrow" data-week="1" ${weekStart(sel) <= weekStart(t) ? "" : "disabled"}
+         aria-label="Next week">&rsaquo;</button>
      </div>
 
      <div class="sect" style="margin-top:6px">What&rsquo;s on ${isToday?"today":shortDate(sel)}</div>
@@ -4518,12 +4569,16 @@ function homeView(){
        </div>`;
      })()}
 
-     <div class="sect">Today&rsquo;s forms</div>
+     <div class="sect">${ahead ? "Getting ahead" : "Today&rsquo;s forms"}</div>
+     ${ahead ? `<div class="card" style="background:var(--green-50);box-shadow:none;margin-bottom:10px">
+       <p style="margin:0">Anything written now is kept as a draft against ${shortDate(sel)}.
+       It can only be signed and submitted on the day itself.</p></div>` : ""}
      ${carousel("daily", dailyCards)}
 
-     ${weeklyCards.length ? `<div class="sect">This week</div>` + carousel("weekly", weeklyCards) : ""}
+     ${!ahead && weeklyCards.length ? `<div class="sect">This week</div>`
+       + carousel("weekly", weeklyCards) : ""}
 
-     ${faulty.length ? `<button class="card" style="width:100%;text-align:left;
+     ${!ahead && faulty.length ? `<button class="card" style="width:100%;text-align:left;
        background:var(--bad-bg);box-shadow:none" data-go="plant">
        <h3 style="color:var(--bad)">${faulty.reduce((n,x)=>n+x.df.items.length,0)} plant defect${
          faulty.reduce((n,x)=>n+x.df.items.length,0)===1?"":"s"}</h3>
@@ -4534,7 +4589,7 @@ function homeView(){
            ageText(x.df.oldest)} · ${x.to.priority?"our fitter":"on hire from "+esc(x.to.name)}</span></p>`).join("")}
      </button>` : ""}
 
-     ${missed.length ? `<button class="card" style="width:100%;text-align:left;
+     ${!ahead && missed.length ? `<button class="card" style="width:100%;text-align:left;
        background:${missed.some(m=>m.level==="red")?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"
        data-day="${missed[0].date}">
        <h3 style="color:${missed.some(m=>m.level==="red")?"var(--bad)":"var(--warn)"}">
@@ -5036,8 +5091,15 @@ function formView(){
       <div class="kv"><span class="k">Site</span><span class="v">${esc(DB.job)}</span></div>
     </div>` : ""}
     ${body}
-    <button class="btn" data-submit="1">Submit ${esc(def.name.toLowerCase())}</button>
-    <button class="btn ghost" data-draft="1">Save draft and close</button>`;
+    ${formState.date > todayISO() ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
+      <h3 style="color:var(--warn)">Ready for ${shortDate(formState.date)}</h3>
+      <p>Write it up now and it is kept as a draft. On the morning, add who attended, sign it,
+      and it submits then.</p>
+    </div>
+    <button class="btn ghost" data-draft="1" style="margin-top:4px">Save it for
+      ${shortDate(formState.date)}</button>`
+    : `<button class="btn" data-submit="1">Submit ${esc(def.name.toLowerCase())}</button>
+    <button class="btn ghost" data-draft="1">Save draft and close</button>`}`;
 }
 
 /* --------------------------------------------------------------- records -- */
@@ -9391,6 +9453,11 @@ function saveDraft(){
   return rec;
 }
 function submitForm(){
+  if(formState.date > todayISO()){
+    toast("This is for " + shortDate(formState.date)
+      + " — it can be signed on the morning.");
+    return;
+  }
   formState.touched = true;
   formState.errors = validate();
   const n = Object.keys(formState.errors).length;
