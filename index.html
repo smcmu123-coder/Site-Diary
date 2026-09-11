@@ -360,6 +360,14 @@ input[type=date].in,input[type=time].in,
   .tile{min-height:146px;padding:18px}
 }
 
+/* a demo copy */
+.demobar{position:fixed;left:0;right:0;top:0;z-index:108;display:none;
+  background:#8A3B62;color:#fff;padding:calc(8px + env(safe-area-inset-top)) 16px 8px;
+  font-size:12.5px;line-height:1.35;text-align:center}
+.demobar.show{display:block}
+.demobar b{font-weight:700}
+body.isdemo .app{padding-top:76px}
+
 /* storage warning */
 .savewarn{position:fixed;left:0;right:0;top:0;z-index:110;display:none;
   background:var(--bad);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
@@ -699,6 +707,8 @@ input[type=date].in,input[type=time].in,
   </div>
   <button class="sp-skip" id="splashSkip">Skip</button>
 </div>
+
+<div class="demobar" id="demobar"></div>
 
 <div class="savewarn" id="savewarn">
   <b>Not saving</b> — storage is full, so nothing new is being kept.
@@ -1314,14 +1324,19 @@ const formDef = k => FORMS[k] || FORMS.diary;
 const sectionsFor = k => formDef(k).sections();
 
 /* -------------------------------------------------------------- storage -- */
-const KEY = "cgc.diary.v1";
+let KEY = "cgc.diary.v1";
+/* A demo copy is a separate app as far as the browser is concerned: its own
+   records, its own database, nothing shared with the real one. */
+const IS_DEMO = typeof window !== "undefined" && !!window.__DEMO__;
 
 /* ------------------------------------------------------------- storage --
    localStorage is capped at about 5MB, which a few scanned certificates will
    fill. IndexedDB is measured in gigabytes, so the store lives there and
    localStorage is only used to carry across anything saved before.
    -------------------------------------------------------------------------*/
-const IDB_NAME = "cgc-sitehub", IDB_STORE = "app";
+let IDB_NAME = "cgc-sitehub";
+const IDB_STORE = "app";
+if(IS_DEMO){ KEY += ".demo"; IDB_NAME += "-demo"; }
 
 function idb(){
   return new Promise((res, rej)=>{
@@ -5356,16 +5371,42 @@ function pickExcView(){
   const due = excavationsDue(d);
   const extra = excsFor(d).filter(r=>!due.some(x=>x.ref===r.excRef));
 
-  const row = (ref, src, rec) => {
-    const done = rec && rec.status==="submitted";
-    return `<button class="task" data-exc="${esc(ref)}" data-excdate="${d}">
-      <span class="n"><b>${esc(ref||"No reference")}</b>
-        <span>${esc((src&&src.location)||"")}${src&&src.location?" · ":""}${
-          done ? "inspected "+timeOnly(rec.submittedAt)
-               : rec ? "draft saved"
-               : src ? "left open "+shortDate(src.fromDate) : "added by hand"}</span></span>
-      ${done?`<span class="pill ok">Done</span>`:`<span class="pill grey">To do</span>`}
-    </button>`;
+  const rows = due.map(x => ({ ref:x.ref, src:x, rec:excFor(d, x.ref) }))
+    .concat(extra.map(r => ({ ref:r.excRef, src:null, rec:r })));
+  const todo = rows.filter(r => !(r.rec && r.rec.status==="submitted"));
+  const done = rows.filter(r =>  (r.rec && r.rec.status==="submitted"));
+
+  const card = (r) => {
+    const isDone = r.rec && r.rec.status==="submitted";
+    const dt = (r.rec && r.rec.data) || {};
+    const where = (r.src && r.src.location) || dt.location || "";
+    const depth = (r.src && r.src.depth) || dt.depth;
+    const support = (r.src && r.src.support) || dt.support;
+    const detail = [where, depth ? depth+"m deep" : "", support].filter(Boolean).join(" · ");
+
+    return `<div class="card" style="padding:0 14px${isDone
+        ? ";background:var(--green-50);box-shadow:none" : ""}">
+      <button class="row" style="width:100%;border:0"
+        ${isDone ? `data-open="${r.rec.id}"` : `data-exc="${esc(r.ref)}" data-excdate="${d}"`}>
+        <span class="n">
+          <b style="font-size:16px">${esc(r.ref||"No reference")}</b>
+          <span style="font-size:13px">${esc(detail || "No details yet")}</span>
+          <span style="font-size:13px;color:${isDone?"var(--ok)":"var(--ink-3)"};font-weight:${
+            isDone?"640":"400"}">${
+            isDone ? "Inspected " + timeOnly(r.rec.submittedAt) + " · " + esc(r.rec.ref||"")
+                   : r.rec ? "Draft saved — not submitted"
+                   : r.src ? "Left open " + whenLeft(r.src.fromDate, d)
+                           : "Added by hand"}</span>
+        </span>
+        ${isDone
+          ? `<span style="color:var(--ink-3);font-size:22px;padding-left:8px">&rsaquo;</span>`
+          : `<span class="pill grey">To do</span>`}
+      </button>
+      ${isDone && dt.safe===false ? `<div style="border-top:1px solid var(--line-2);padding:9px 0">
+        <span class="pill red">Not safe to continue</span>
+        <span style="font-size:13px;color:var(--ink-2);margin-left:8px">${
+          esc(dt.action||"Action recorded on the sheet")}</span></div>` : ""}
+    </div>`;
   };
 
   return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button></div>
@@ -5375,8 +5416,10 @@ function pickExcView(){
     ${due.length ? `<div class="card" style="background:var(--green-50);box-shadow:none">
       <p>Raised by the diary — these were left open on ${shortDate(due[0].fromDate)}.</p></div>` : ""}
 
-    ${due.map(x=>row(x.ref, x, excFor(d, x.ref))).join("")}
-    ${extra.map(r=>row(r.excRef, null, r)).join("")}
+    ${todo.length ? `<div class="sect">To inspect (${todo.length})</div>
+      ${todo.map(card).join("")}` : ""}
+    ${done.length ? `<div class="sect">Inspected (${done.length})</div>
+      ${done.map(card).join("")}` : ""}
 
     ${(!due.length && !extra.length) ? `<div class="card"><h3>Nothing raised</h3>
       <p>Nothing was left open on the last working day. You can still add an inspection below.</p></div>` : ""}
@@ -7421,10 +7464,10 @@ function settingsView(){
       <button class="btn line" data-export="1">Download a backup</button>
       <button class="btn line" data-import="1">Bring in a copy from another device</button>
       <div class="sect" style="margin:18px 0 8px">Showing it to someone</div>
-      <p style="margin-bottom:12px">Sends the app and everything in it as one file. They open it
-      and see the job exactly as it stands — no installing, no importing, and nothing they do
-      touches your records.</p>
-      <button class="btn add" data-demo="1" style="margin:0">Send a working copy</button>
+      <p style="margin-bottom:12px">Makes a copy of the app with everything currently in it, to
+      put online as its own link. Anyone can open it and tap through the job as it stands.
+      It keeps its own records, so nothing they do touches yours.</p>
+      <button class="btn add" data-demo="1" style="margin:0">Make a demo link</button>
       ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
         Last copy sent ${stamp(DB.lastShared)}</p>`:""}
     </div>`;
@@ -9368,40 +9411,78 @@ function exportBackup(){
   a.click();
   toast("Backup saved");
 }
-/* A file somebody else can just open. It is this page with the records baked
-   into it, so there is nothing to install and nothing to import. */
-async function shareDemo(){
-  toast("Building it — a moment.");
+/* A demo build: this page with the records baked into it. Uploaded alongside
+   the app, it becomes a link anybody can open. */
+async function buildDemo(){
+  toast("Building it \u2014 a moment.");
   let src = "";
   try{
     const res = await fetch(location.href, { cache:"no-store" });
     src = await res.text();
   }catch(e){
     toast("That only works from the website, not a downloaded file.");
-    return;
+    return null;
   }
   const TAG = "<" + "script>";
-  if(src.indexOf(TAG) === -1){ toast("Could not read the app."); return; }
+  if(src.indexOf(TAG) === -1){ toast("Could not read the app."); return null; }
 
   const snapshot = JSON.parse(JSON.stringify(DB));
   delete snapshot.__movedFromLocalStorage;
-  const seed = TAG + "window.__SEED__ = "
-    + JSON.stringify(snapshot).replace(/<\//g, "<\\/")
-    + ";<" + "/script>\n";
+  delete snapshot.__fromSnapshot;
 
-  const out = src.replace(TAG, seed + TAG);
-  const name = "SiteHUB - " + DB.job.replace(/[^\w\s-]/g,"") + " - " + todayISO() + ".html";
-  const file = new File([out], name, { type:"text/html" });
+  const head = TAG
+    + "window.__DEMO__ = true;window.__DEMO_AT__ = " + Date.now() + ";"
+    + "window.__SEED__ = " + JSON.stringify(snapshot).replace(/<\//g, "<\\/") + ";"
+    + "<" + "/script>\n";
 
+  return { text: src.replace(TAG, head + TAG), name: "demo.html" };
+}
+
+async function shareDemo(){
+  const built = await buildDemo();
+  if(!built) return;
+
+  /* save it first, then show what to do with it */
+  const blob = new Blob([built.text], { type:"text/html" });
+  const file = new File([blob], built.name, { type:"text/html" });
+  let saved = false;
   if(navigator.canShare && navigator.canShare({ files:[file] })){
-    try{ await navigator.share({ files:[file], title:"SiteHUB — a working copy" }); return; }
+    try{ await navigator.share({ files:[file], title:"SiteHUB demo" }); saved = true; }
     catch(e){ return; }
   }
-  const url = URL.createObjectURL(new Blob([out], { type:"text/html" }));
-  const a = document.createElement("a");
-  a.href = url; a.download = name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(url), 4000);
-  toast("Saved — send them that file.");
+  if(!saved){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = built.name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }
+
+  const base = location.href.replace(/[^/]*$/, "");
+  const link = base + "demo.html";
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg" style="text-align:left">
+      <h3>Now put it online</h3>
+      <p>The file is saved. Upload it to the same place as the app and it becomes a link
+      anybody can open \u2014 no installing, nothing to import.</p>
+      <ol style="margin:12px 0 14px;padding-left:18px;color:var(--ink-2);font-size:14px">
+        <li style="margin-bottom:6px">Open your repository on GitHub</li>
+        <li style="margin-bottom:6px">Add file \u2192 Upload files \u2192 drop <b>demo.html</b> in</li>
+        <li style="margin-bottom:6px">Commit changes, then wait a minute</li>
+        <li>Send them this link:</li>
+      </ol>
+      <div class="card" style="background:var(--canvas);box-shadow:none;word-break:break-all;
+        font-size:13px;padding:12px">${esc(link)}</div>
+      <button class="btn" style="margin:14px 0 8px" data-copy>Copy the link</button>
+      <button class="btn ghost" style="margin:0" data-x>Done</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.querySelector("[data-x]").onclick = () => wrap.remove();
+  wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
+  wrap.querySelector("[data-copy]").onclick = async () => {
+    try{ await navigator.clipboard.writeText(link); toast("Link copied"); }
+    catch(e){ toast("Copy it from the box above."); }
+  };
 }
 
 async function shareBackup(){
@@ -9514,11 +9595,21 @@ runSplash();          /* on screen while the store is opened */
 (async function boot(){
   DB = await loadDB();
 
-  /* Opened from a shared working copy: use what came with the file, but only
-     when this device has nothing of its own to lose. */
+  /* A demo build carries its own records. They are loaded once, into the demo's
+     own store, so anyone can tap about without touching the real app. */
   if(window.__SEED__ && !(DB.records||[]).length && !(DB.plant||[]).length){
     DB = window.__SEED__;
     DB.__fromSnapshot = true;
+  }
+  if(IS_DEMO){
+    const bar = document.getElementById("demobar");
+    if(bar){
+      bar.innerHTML = "<b>Demo copy</b> \u2014 " + esc(DB.job||"a live job")
+        + (window.__DEMO_AT__ ? ", as it stood on " + shortDate(iso(new Date(window.__DEMO_AT__))) : "")
+        + ". Have a look around; nothing here affects the real records.";
+      bar.classList.add("show");
+    }
+    if(document.body) document.body.className += " isdemo";
   }
 
   if(!DB.config) DB.config = JSON.parse(JSON.stringify(CONFIG));
