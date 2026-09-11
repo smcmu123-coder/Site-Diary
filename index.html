@@ -794,9 +794,6 @@ const DIARY = [
       options:["Dry / clear","Overcast","Light rain","Heavy rain","Windy","Frost / ice","Snow","Fog"] },
     { id:"ground", type:"select", label:"Ground conditions", required:true,
       options:["Good","Damp","Wet","Waterlogged","Frozen"] },
-    { id:"weatherStop", type:"yesno", label:"Did weather stop or delay work?", required:true },
-    { id:"weatherHours", type:"number", label:"Time lost", suffix:"hours",
-      showIf:{field:"weatherStop",equals:true} }
   ]},
 
   { title:"Who was on site", fields:[
@@ -873,9 +870,17 @@ const DIARY = [
 
   { title:"Issues and safety", fields:[
     { id:"delays", type:"yesno", label:"Any delays or disruption?", required:true },
-    { id:"delayDetail", type:"textarea", label:"Delay details", required:true,
-      showIf:{field:"delays",equals:true},
-      hint:"Cause, duration and who was affected. This may be needed for a claim." },
+    { id:"delayList", type:"repeater", label:"The delays", itemLabel:"Delay",
+      addLabel:"Add a delay", required:true, showIf:{field:"delays",equals:true},
+      hint:"One entry for each. They add up in the delay tracker on the Project page.",
+      columns:[
+        { id:"cause", type:"select", label:"What caused it", required:true,
+          options:["Waiting on materials","Waiting on information","Plant breakdown",
+            "Services / utilities","Other trades","Access","Design change","Weather","Other"] },
+        { id:"detail", type:"text", label:"What happened", required:true },
+        { id:"time", type:"duration", label:"Time lost", required:true },
+        { id:"affected", type:"text", label:"Who or what was held up" }
+      ] },
     { id:"hsObs", type:"yesno", label:"Any H&S observations or near misses?", required:true },
     { id:"hsDetail", type:"textarea", label:"Details", required:true, showIf:{field:"hsObs",equals:true} },
     { id:"accident", type:"yesno", label:"Any accident or incident?", required:true },
@@ -3610,6 +3615,7 @@ function durText(v){
   return parts.join(" ");
 }
 const durEmpty = v => !v || (typeof v==="object" && !(Number(v.h)||0) && !(Number(v.m)||0));
+const durMins = v => !v ? 0 : (Number(v.h)||0)*60 + (Number(v.m)||0);
 
 /* Hours worked = finish minus start, less the break. */
 const toMins = t => { if(!t||t.indexOf(":")<0) return null;
@@ -3654,7 +3660,7 @@ const SECTION = {
   home:"home", plan:"plan",
   project:"project", pack:"project", plant:"project", tools:"project", item:"project",
   deliveries:"project", delivery:"project", deltotals:"project", exchange:"project", job:"project",
-  scans:"project", lifting:"project", labour:"project", leave:"project",
+  scans:"project", delays:"project", lifting:"project", labour:"project", leave:"project",
   timesheet:"project", vos:"project", vo:"project", list:"project", record:"project",
   defect:"project", planthistory:"project", pickplant:"project", pickexc:"project",
   settings:"profile"
@@ -4284,6 +4290,7 @@ function render(){
   else if(view.name==="labour") app.innerHTML = labourView();
   else if(view.name==="project") app.innerHTML = projectView();
   else if(view.name==="job") app.innerHTML = jobView();
+  else if(view.name==="delays") app.innerHTML = delaysView();
   else if(view.name==="pack") app.innerHTML = packView();
   else if(view.name==="scans") app.innerHTML = scansView();
   else if(view.name==="lifting") app.innerHTML = liftingView();
@@ -6552,6 +6559,9 @@ const TILE_ICONS = {
     <path d="M13.3 14 8.2 8.8"/>
     <path d="M8.2 8.8 5.3 13.9"/>
     <path d="M5.6 13.2 3.1 15.4l1.5 1.7L7 15z" fill="currentColor" stroke-width="1.2"/></svg>`,
+  delay: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12.5" r="8"/>
+    <path d="M12 8v5l3 2M9 2.5h6"/></svg>`,
   delivery: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.8" stroke-linejoin="round"><path d="M3 7.5h10v9H3z"/>
     <path d="M13 11h4l3 3v2.5h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></svg>`,
@@ -6757,6 +6767,95 @@ function packView(){
           : "Everything is in and it is ready to publish."}</p>`}`;
 }
 
+/* Every delay recorded in a diary, in one place. Each can be counted in or out
+   of the total, because not everything lost is time you would claim for. */
+function allDelays(){
+  const out = [];
+  (DB.records||[]).filter(r=>r.job===DB.job && (r.form||"diary")==="diary"
+    && r.status==="submitted").forEach(r=>{
+    const d = r.data || {};
+    (d.delayList||[]).forEach((x,i)=>{
+      const mins = durMins(x.time);
+      if(!mins) return;
+      out.push({ recId:r.id, idx:i, date:r.date, cause:x.cause||"Other",
+        detail:x.detail||"", affected:x.affected||"", mins,
+        counted: x.counted !== false });
+    });
+  });
+  return out.sort((a,b)=>b.date.localeCompare(a.date));
+}
+
+function setDelayCounted(recId, idx, on){
+  const r = (DB.records||[]).find(x=>x.id===recId);
+  if(!r) return;
+  if(r.data.delayList && r.data.delayList[idx]) r.data.delayList[idx].counted = on;
+  save();
+}
+
+const hm = mins => {
+  const h = Math.floor(mins/60), m = mins%60;
+  return (h ? h + "h" : "") + (h && m ? " " : "") + (m ? m + "m" : (h ? "" : "0m"));
+};
+
+function delaysView(){
+  const all = allDelays();
+  const counted = all.filter(x=>x.counted);
+  const total = counted.reduce((n,x)=>n+x.mins, 0);
+  const excluded = all.filter(x=>!x.counted).reduce((n,x)=>n+x.mins, 0);
+  const day = normalHours() || 9;
+
+  const byCause = {};
+  counted.forEach(x=>{ byCause[x.cause] = (byCause[x.cause]||0) + x.mins; });
+  const causes = Object.keys(byCause).sort((a,b)=>byCause[b]-byCause[a]);
+  const worst = causes.length ? byCause[causes[0]] : 0;
+
+  const groups = {};
+  all.forEach(x=>{ (groups[x.date] = groups[x.date] || []).push(x); });
+
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">Delays</h1>
+    <p class="sub">${esc(DB.job)}</p>
+
+    <div class="tstotal">
+      <div><div class="big">${hm(total)}</div><div class="lab">lost on site</div></div>
+      <div class="side">${total ? (Math.round(total/60/day*10)/10) + " working days" : "Nothing counted"}</div>
+    </div>
+    ${excluded ? `<p class="sub" style="margin:-6px 0 14px">${hm(excluded)} recorded but not
+      counted towards the total.</p>` : ""}
+
+    ${causes.length ? `<div class="sect">Where it went</div>
+      <div class="card">
+        ${causes.map(c=>`<div style="margin-bottom:10px">
+          <div class="spread" style="font-size:13.5px">
+            <span>${esc(c)}</span><b style="font-variant-numeric:tabular-nums">${hm(byCause[c])}</b>
+          </div>
+          <span class="bar" style="margin-top:5px"><i style="width:${
+            worst ? Math.round(byCause[c]/worst*100) : 0}%"></i></span>
+        </div>`).join("")}
+      </div>` : ""}
+
+    ${all.length ? Object.keys(groups).map(d=>`
+      <div class="sect">${longDate(d)}</div>
+      <div class="card" style="padding:2px 14px">
+        ${groups[d].map(x=>`<div class="row" style="align-items:flex-start">
+          <span class="n" style="flex:1">
+            <b>${esc(x.cause)} — ${hm(x.mins)}</b>
+            <span>${esc(x.detail)}${x.affected?" · "+esc(x.affected):""}</span>
+          </span>
+          <span class="yn" style="flex:none;width:118px">
+            <button type="button" class="${x.counted?"y":""}"
+              data-dcount="${x.recId}:${x.idx}:1">In</button>
+            <button type="button" class="${x.counted?"":"n"}"
+              data-dcount="${x.recId}:${x.idx}:0">Out</button>
+          </span>
+        </div>`).join("")}
+      </div>`).join("") : `<div class="card"><h3>No delays recorded</h3>
+        <p>Anything logged in a diary as a delay appears here, with the time lost.</p></div>`}
+
+    ${all.length ? `<p style="font-size:12.5px;color:var(--ink-3);padding:10px 4px 0">
+      Taking one out leaves it on the diary — it just stops counting towards the total.</p>` : ""}`;
+}
+
 function jobView(){
   const week = jobWeek();
   const c = cfg();
@@ -6857,6 +6956,11 @@ function projectView(){
       ${tile("lifting", TILE_ICONS.lifting, "Lifting gear",
         liftAl.length ? liftAl.length+" LOLER due" : currentLifting().length+" on site",
         liftLevel, liftAl.length || "")}
+      ${(function(){
+        const mins = allDelays().filter(x=>x.counted).reduce((n,x)=>n+x.mins,0);
+        return tile("delays", TILE_ICONS.delay, "Delays",
+          mins ? hm(mins) + " lost on site" : "Nothing recorded", mins ? "amber" : "", "");
+      })()}
       ${(function(){
         const dueT = deliveriesDueToday().length;
         const late = deliveries().filter(d=>d.dueDate && d.dueDate < todayISO()
@@ -9323,6 +9427,11 @@ function bind(){
   });
 
   /* the job: its details, and the hours for each day */
+  app.querySelectorAll("[data-dcount]").forEach(el=>el.onclick=()=>{
+    const [recId, idx, on] = el.getAttribute("data-dcount").split(":");
+    setDelayCounted(recId, Number(idx), on==="1");
+    render();
+  });
   app.querySelectorAll("[data-pcmode]").forEach(el=>el.onclick=()=>{
     DB.config.plantChecks = el.getAttribute("data-pcmode");
     save(); render();
@@ -10018,6 +10127,25 @@ if(!DB.events) DB.events = [];
   }
   if(DB.config) delete DB.config.hours;
   if(DB.config.allowDelete === undefined) DB.config.allowDelete = CONFIG.allowDelete;
+
+  /* Weather used to have its own stoppage question. Anything recorded that way
+     becomes an ordinary delay so the time is not lost. */
+  (DB.records||[]).forEach(r=>{
+    const d = r && r.data;
+    if(!d || d.weatherStop !== true) return;
+    const mins = (Number((d.weatherHours||{}).h)||0)*60 + (Number((d.weatherHours||{}).m)||0);
+    if(mins){
+      d.delayList = d.delayList || [];
+      if(!d.delayList.some(x=>x.__fromWeather)){
+        d.delayList.push({ cause:"Weather",
+          detail:(d.weather||"Weather") + (d.ground ? ", ground " + d.ground.toLowerCase() : ""),
+          time:{ h:Math.floor(mins/60), m:mins%60 }, affected:"",
+          counted: d.weatherCounted !== false, __fromWeather:true });
+        d.delays = true;
+      }
+    }
+    delete d.weatherStop; delete d.weatherHours; delete d.weatherCounted;
+  });
 
   /* Ask the browser to hold on to it rather than clearing it out when space
      gets tight. Silently ignored where it is not supported. */
