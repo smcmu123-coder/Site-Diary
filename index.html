@@ -1426,8 +1426,12 @@ function flushSave(){
 
 /* The browser will tell us how much room there is, but only asynchronously,
    so the answer is kept here for the next time the screen is drawn. */
-let quotaBytes = 0, quotaUsed = 0;
+let quotaBytes = 0, quotaUsed = 0, quotaAsked = false;
 function refreshQuota(){
+  /* asked once only: where the browser cannot tell us, asking again on every
+     redraw would spin forever */
+  if(quotaAsked) return Promise.resolve();
+  quotaAsked = true;
   if(!(navigator.storage && navigator.storage.estimate)) return Promise.resolve();
   return navigator.storage.estimate().then(est=>{
     quotaBytes = est.quota || 0;
@@ -1506,7 +1510,7 @@ function jobWeek(job){
     DB.jobWeek[j] = WEEKDAYS.map((_,i)=>({
       working: i < 5,
       start: base.start, finish: base.finish,
-      breakMins: Number(base.breakMins) || 30
+      breakMins: Number.isFinite(Number(base.breakMins)) ? Number(base.breakMins) : 30
     }));
   }
   return DB.jobWeek[j];
@@ -1526,10 +1530,9 @@ function setJobDay(i, patch){
   week[i] = Object.assign({}, week[i], patch);
   save();
 }
+/* Kept for anything still calling it: it now sets every working day at once. */
 function setJobHours(patch){
-  DB.jobHours = DB.jobHours || {};
-  DB.jobHours[DB.job] = Object.assign({}, hoursFor(DB.job), patch);
-  save();
+  jobWeek().forEach((d,i)=>{ if(d.working) setJobDay(i, patch); });
 }
 
 /* ---------------------------------------------------------------- dates -- */
@@ -3527,7 +3530,8 @@ function workedHours(start, finish, date){
   const a=toMins(start), b=toMins(finish);
   if(a==null||b==null) return null;
   let mins = b-a; if(mins<0) mins += 24*60;
-  mins -= (Number(hoursFor(null, date).breakMins) || 30);
+  const brk = Number(hoursFor(null, date).breakMins);
+  mins -= Number.isFinite(brk) ? brk : 30;      /* a nil break means none, not the default */
   if(mins<0) mins = 0;
   return Math.round((mins/60)*100)/100;
 }
@@ -4205,7 +4209,9 @@ function render(){
   else if(view.name==="timesheet") app.innerHTML = timesheetView();
   else if(view.name==="settings"){
     app.innerHTML = settingsView();
-    if(!quotaBytes) refreshQuota().then(()=>{ if(view.name==="settings") render(); });
+    if(!quotaAsked) refreshQuota().then(()=>{
+      if(quotaBytes && view.name==="settings") render();   /* only if it told us something */
+    });
   }
   bind();
   updateNav();
@@ -7289,24 +7295,20 @@ function settingsView(){
         <input class="in" type="date" data-start="1" value="${esc(DB.startDate||todayISO())}"></div>
     </div>
 
-    <div class="sect">Working hours — ${esc(DB.job)}</div>
-    <div class="card">
-      <p style="margin-bottom:14px">Set per job, so a different site can run different hours.
-      Used for anyone marked as working normal hours, and for the break taken off every
-      timesheet entry.</p>
-      <div class="g2">
-        <div class="f"><label>Start</label>
-          <input class="in" type="time" data-jh="start" value="${esc(hoursFor().start)}"></div>
-        <div class="f"><label>Finish</label>
-          <input class="in" type="time" data-jh="finish" value="${esc(hoursFor().finish)}"></div>
+    <div class="sect">Working hours</div>
+    <button class="card" style="width:100%;text-align:left" data-go="job">
+      <div class="kv"><span class="k">Usual day</span>
+        <span class="v">${esc(hoursFor().start)} – ${esc(hoursFor().finish)}</span></div>
+      <div class="kv"><span class="k">Break taken off</span>
+        <span class="v">${hoursFor().breakMins} min</span></div>
+      <div class="kv"><span class="k">A normal day</span>
+        <span class="v">${normalHours()} hours</span></div>
+      <p class="sub" style="margin-top:8px">Set per day of the week — a short Friday, a different
+      break, a worked Saturday.</p>
+      <div style="display:flex;justify-content:flex-end;margin-top:6px">
+        <span style="font-size:13px;font-weight:640;color:var(--green-700)">Edit the job &rsaquo;</span>
       </div>
-      <div class="f" style="margin:0"><label>Unpaid break (minutes)</label>
-        <input class="in" type="number" data-jh="breakMins" value="${esc(hoursFor().breakMins)}"></div>
-      <div class="card" style="background:var(--canvas);box-shadow:none;margin:14px 0 0">
-        <span style="font-size:12.5px;color:var(--ink-2)">A normal day on this job is
-        <b id="normalTotal">${normalHours()} hours</b>.</span>
-      </div>
-    </div>
+    </button>
 
     <div class="sect">Job</div>
     <div class="card">
@@ -7935,14 +7937,7 @@ function bind(){
       if(pv) pv.textContent = previewPath();
     };
   });
-  app.querySelectorAll("[data-jh]").forEach(el=>{
-    el.oninput = () => {
-      setJobHours({ [el.dataset.jh]: el.value });
-      const t = document.getElementById("normalTotal");
-      if(t) t.textContent = (normalHours()||0) + " hours";   /* live, no redraw */
-    };
-    el.onchange = el.oninput;
-  });
+
 
   const sd = app.querySelector("[data-start]");
   if(sd) sd.oninput = ()=>{ if(sd.value){ DB.startDate = sd.value; save(); } };
@@ -8994,7 +8989,8 @@ function bind(){
   app.querySelectorAll("[data-jwv]").forEach(el=>{
     el.oninput = () => {
       const [i,key] = el.dataset.jwv.split(":");
-      setJobDay(Number(i), { [key]: key==="breakMins" ? (Number(el.value)||0) : el.value });
+      setJobDay(Number(i), { [key]: key==="breakMins"
+        ? (el.value==="" ? 0 : Number(el.value)) : el.value });
     };
     el.onchange = () => { el.oninput(); render(); };
   });
@@ -9280,7 +9276,7 @@ function printTimesheet(ws){
       ${people.map(p=>days.filter(d=>p.days[d]&&!p.days[d].leave).map(d=>`<tr>
         <td>${esc(p.name)}</td><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d)}</td>
         <td>${esc(p.days[d].start)}</td><td>${esc(p.days[d].finish)}</td>
-        <td>${hoursFor().breakMins} min</td><td>${p.days[d].hours}</td>
+        <td>${hoursFor(null, d).breakMins} min</td><td>${p.days[d].hours}</td>
         <td>${esc(p.days[d].reason||"")}</td></tr>`).join("")).join("")}
     </table>
     <div class="foot"><span>${esc(c.company)} · timesheet w/c ${shortDate(ws)}</span>
