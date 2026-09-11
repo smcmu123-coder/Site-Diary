@@ -7419,7 +7419,12 @@ function settingsView(){
       <p style="margin-bottom:14px">Records are held on this device. Until the Microsoft connection is switched on, send a copy to OneDrive from your phone and bring it in on the laptop. It merges, so nothing is lost either way.</p>
       <button class="btn" data-share="1">Send a copy to OneDrive</button>
       <button class="btn line" data-export="1">Download a backup</button>
-      <button class="btn line" data-import="1" style="margin:0">Bring in a copy from another device</button>
+      <button class="btn line" data-import="1">Bring in a copy from another device</button>
+      <div class="sect" style="margin:18px 0 8px">Showing it to someone</div>
+      <p style="margin-bottom:12px">Sends the app and everything in it as one file. They open it
+      and see the job exactly as it stands — no installing, no importing, and nothing they do
+      touches your records.</p>
+      <button class="btn add" data-demo="1" style="margin:0">Send a working copy</button>
       ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
         Last copy sent ${stamp(DB.lastShared)}</p>`:""}
     </div>`;
@@ -9069,6 +9074,7 @@ function bind(){
   const sh = app.querySelector("[data-share]"); if(sh) sh.onclick = shareBackup;
   const ex = app.querySelector("[data-export]"); if(ex) ex.onclick = exportBackup;
   const im = app.querySelector("[data-import]"); if(im) im.onclick = importBackup;
+  const dm = app.querySelector("[data-demo]"); if(dm) dm.onclick = shareDemo;
 }
 function after(){ if(formState.touched) formState.errors = validate(); render(); }
 
@@ -9362,6 +9368,42 @@ function exportBackup(){
   a.click();
   toast("Backup saved");
 }
+/* A file somebody else can just open. It is this page with the records baked
+   into it, so there is nothing to install and nothing to import. */
+async function shareDemo(){
+  toast("Building it — a moment.");
+  let src = "";
+  try{
+    const res = await fetch(location.href, { cache:"no-store" });
+    src = await res.text();
+  }catch(e){
+    toast("That only works from the website, not a downloaded file.");
+    return;
+  }
+  const TAG = "<" + "script>";
+  if(src.indexOf(TAG) === -1){ toast("Could not read the app."); return; }
+
+  const snapshot = JSON.parse(JSON.stringify(DB));
+  delete snapshot.__movedFromLocalStorage;
+  const seed = TAG + "window.__SEED__ = "
+    + JSON.stringify(snapshot).replace(/<\//g, "<\\/")
+    + ";<" + "/script>\n";
+
+  const out = src.replace(TAG, seed + TAG);
+  const name = "SiteHUB - " + DB.job.replace(/[^\w\s-]/g,"") + " - " + todayISO() + ".html";
+  const file = new File([out], name, { type:"text/html" });
+
+  if(navigator.canShare && navigator.canShare({ files:[file] })){
+    try{ await navigator.share({ files:[file], title:"SiteHUB — a working copy" }); return; }
+    catch(e){ return; }
+  }
+  const url = URL.createObjectURL(new Blob([out], { type:"text/html" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  toast("Saved — send them that file.");
+}
+
 async function shareBackup(){
   const f = backupFile();
   if(navigator.canShare && navigator.canShare({ files:[f] })){
@@ -9471,6 +9513,13 @@ runSplash();          /* on screen while the store is opened */
 
 (async function boot(){
   DB = await loadDB();
+
+  /* Opened from a shared working copy: use what came with the file, but only
+     when this device has nothing of its own to lose. */
+  if(window.__SEED__ && !(DB.records||[]).length && !(DB.plant||[]).length){
+    DB = window.__SEED__;
+    DB.__fromSnapshot = true;
+  }
 
   if(!DB.config) DB.config = JSON.parse(JSON.stringify(CONFIG));
   if(!DB.job) DB.job = CONFIG.jobs[0];
