@@ -21,7 +21,27 @@
   --bad:#A72B22; --bad-bg:#F8E6E3; --info:#1E4E8C; --info-bg:#E7EEF7;
   --sh:0 1px 2px rgba(20,34,24,.05), 0 10px 24px -18px rgba(20,34,24,.35);
   --r:20px;
+  color-scheme:light;
 }
+
+/* Dark: the same layout, read at night or in a dim cabin. */
+html[data-theme="dark"]{
+  --green:#4E9E68; --green-700:#3C8253; --green-50:#1B2620; --green-100:#22332A;
+  --ink:#E8EDE9; --ink-2:#A6B1A9; --ink-3:#7C877F;
+  --line:#2C342E; --line-2:#232A25; --paper:#151A17; --canvas:#0E1210;
+  --ok:#56A96F; --ok-bg:#1A2A1F; --warn:#D39A3C; --warn-bg:#2E2517;
+  --bad:#D9705F; --bad-bg:#2E1C19; --info:#6C9BD2; --info-bg:#182231;
+  --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 24px -18px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+html[data-theme="dark"] .sheet,
+html[data-theme="dark"] .sheet *{ color:#111; }      /* printed sheets stay on white paper */
+html[data-theme="dark"] .navpill{ background:rgba(21,26,23,.72);
+  border-color:rgba(78,158,104,.28) }
+html[data-theme="dark"] .btn.ghost{ background:var(--line-2) }
+html[data-theme="dark"] .splash{ background:var(--paper) }
+html[data-theme="dark"] .pi b{ filter:brightness(1.35) }
+html[data-theme="dark"] .pi{ filter:brightness(.92) }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;overflow-x:hidden}
 img,canvas,table{max-width:100%}
@@ -265,47 +285,54 @@ input[type=date].in,input[type=time].in,
 .dayoff .who{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:14.5px}
 .dayoff .who i{width:9px;height:9px;border-radius:50%;flex:none}
 
-/* the two week look ahead */
-.plkey{display:flex;flex-wrap:wrap;gap:8px 14px;margin-bottom:12px;font-size:12.5px;color:var(--ink-2)}
-.plkey span{display:inline-flex;align-items:center;gap:6px}
-.plkey i{width:10px;height:10px;border-radius:3px;display:block}
+/* the week ahead */
+.plkey{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.plkey span{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+  color:var(--ink-2);background:var(--canvas);border-radius:999px;padding:5px 10px 5px 7px}
+.plkey i{width:9px;height:9px;border-radius:3px;display:block}
 .pldow{display:none}
 
-/* phone: an agenda — the date on the left, whatever is on that day beside it */
-.plgrid{display:grid;grid-template-columns:1fr;gap:4px}
-.plday{display:grid;grid-template-columns:46px 1fr;gap:10px;align-items:start;
-  background:var(--paper);border-radius:11px;box-shadow:var(--sh);padding:7px 11px}
-.plday.empty{background:transparent;box-shadow:none;padding:3px 11px;
-  border-bottom:1px solid var(--line-2);border-radius:0}
-.plday.empty .dn{color:var(--ink-3);font-weight:600}
+/* phone: an agenda, the date held to the left */
+.plgrid{display:grid;grid-template-columns:1fr;gap:6px}
+.plday{display:grid;grid-template-columns:54px 1fr;gap:12px;align-items:start;
+  background:var(--paper);border-radius:14px;box-shadow:var(--sh);padding:10px 13px}
+.plday.empty{background:transparent;box-shadow:none;padding:2px 13px 6px;
+  border-radius:0;align-items:center}
+.plday.empty .dn{color:var(--ink-3);font-weight:600;font-size:13px}
+.plday.empty .dw{color:var(--ink-3);opacity:.65}
 .plday.we{background:var(--canvas);box-shadow:none}
 .plday.we.empty{background:transparent}
 .plday.today{box-shadow:inset 0 0 0 1.5px var(--green)}
-.plday .ph{display:flex;align-items:baseline;gap:5px;padding-top:1px}
-.plday .ph .dn{font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap}
-.plday .ph .dw{font-size:10.5px;color:var(--ink-3);font-weight:600}
+.plday .ph{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1}
+.plday .ph .dw{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3)}
+.plday .ph .dn{font-size:19px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.plday.today .ph .dn{color:var(--green)}
 .plday .ph .ct{display:none}
-.plday .pl{display:grid;gap:3px;min-width:0}
+.plday .pl{display:grid;gap:5px;min-width:0}
 .plday .pl:empty{display:none}
-.pi{display:block;width:100%;text-align:left;border-radius:7px;border-left:3px solid;
-  padding:4px 8px;line-height:1.25}
-.pi b{display:block;font-weight:640;font-size:12.5px}
-.pi span{display:block;color:var(--ink-3);font-size:11px}
+.pi{display:flex;align-items:baseline;gap:7px;width:100%;text-align:left;border-radius:9px;
+  padding:7px 10px;line-height:1.3}
+.pi .pt{flex:none;width:7px;height:7px;border-radius:50%;margin-top:5px}
+.pi .px{min-width:0}
+.pi b{display:block;font-weight:640;font-size:13px;color:var(--ink)}
+.pi span.ps{display:block;color:var(--ink-2);font-size:11.5px;opacity:.9}
 
-/* tablet and up: the grid, still sized to its contents */
+/* tablet and up: the week across, cells sized to what is on them */
 @media(min-width:760px){
-  .pldow{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;
-    font-size:11px;font-weight:700;color:var(--ink-3);padding:0 2px 4px;text-align:center}
-  .plgrid{grid-template-columns:repeat(7,1fr);gap:5px;align-items:start}
-  .plday{display:block;padding:6px 7px 7px;border-radius:9px;min-height:0}
-  .plday.empty{background:var(--canvas);box-shadow:none;border:0;border-radius:9px;padding:6px 7px}
-  .plday .ph{display:flex;justify-content:space-between;margin-bottom:4px;padding:0}
+  .pldow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;
+    font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-3);padding:0 4px 6px;text-align:center}
+  .plgrid{grid-template-columns:repeat(7,1fr);gap:6px;align-items:start}
+  .plday{display:block;padding:8px 8px 9px;border-radius:12px}
+  .plday.empty{background:var(--canvas);box-shadow:none;padding:8px;border-radius:12px}
+  .plday .ph{flex-direction:row;align-items:baseline;gap:6px;margin-bottom:6px}
   .plday .ph .dw{display:none}
-  .plday .ph .ct{display:inline;font-size:10px;color:var(--ink-3)}
-  .plday .pl{gap:3px}
-  .pi{padding:4px 6px}
+  .plday .ph .dn{font-size:15px}
+  .plday .pl{gap:4px}
+  .pi{padding:5px 7px;gap:6px}
   .pi b{font-size:11px}
-  .pi span{font-size:10px}
+  .pi span.ps{font-size:10px}
 }
 
 /* project tiles */
@@ -1466,10 +1493,38 @@ const cfg = () => DB.config || CONFIG;
 
 /* Working hours are set per job — a footway job and a deep drainage job rarely
    run the same day. Falls back to the app default for a job never set up. */
-function hoursFor(job){
+/* Monday first, so a Friday finish can differ from the rest of the week. */
+const WEEKDAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const dayIndex = d => (parse(d).getDay() + 6) % 7;
+
+function jobWeek(job){
   const j = job || DB.job;
-  const h = (DB.jobHours || {})[j];
-  return h || CONFIG.hours;
+  DB.jobWeek = DB.jobWeek || {};
+  if(!DB.jobWeek[j]){
+    /* start from whatever the job already had, or the defaults */
+    const base = (DB.jobHours || {})[j] || CONFIG.hours;
+    DB.jobWeek[j] = WEEKDAYS.map((_,i)=>({
+      working: i < 5,
+      start: base.start, finish: base.finish,
+      breakMins: Number(base.breakMins) || 30
+    }));
+  }
+  return DB.jobWeek[j];
+}
+
+/* The hours that apply. Pass a date for that day's hours; leave it out for the
+   job's usual ones. */
+function hoursFor(job, date){
+  const week = jobWeek(job);
+  if(date) return week[dayIndex(date)];
+  const usual = week.find(d=>d.working) || week[0];
+  return usual;
+}
+
+function setJobDay(i, patch){
+  const week = jobWeek();
+  week[i] = Object.assign({}, week[i], patch);
+  save();
 }
 function setJobHours(patch){
   DB.jobHours = DB.jobHours || {};
@@ -1495,7 +1550,7 @@ const timeOnly = t => { const d=new Date(t);
   return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); };
 function weekStart(s){ const d=parse(s); const n=(d.getDay()+6)%7; d.setDate(d.getDate()-n); return iso(d); }
 function weekDays(ws){ const out=[]; for(let i=0;i<7;i++) out.push(addDays(ws,i)); return out; }
-const isWorking = s => cfg().workingDays.includes(parse(s).getDay());
+const isWorking = s => !!jobWeek()[dayIndex(s)].working;
 const initials = n => n.split(" ").map(p=>p[0]).slice(0,2).join("").toUpperCase();
 
 /* ------------------------------------------------------------ diary state --
@@ -3132,14 +3187,25 @@ function availablePlant(){
    Two weeks ahead: what is coming in, who is off, what falls due, and anything
    put in the diary by hand.
    -------------------------------------------------------------------------*/
+const LEAVE_LABEL = { HOL:"Holiday", SICK:"Off sick", TRN:"Training", OFF:"Day off" };
+
 const PLAN_KINDS = {
-  delivery:    { label:"Delivery",    colour:"#1B4F7A", bg:"#E7EFF7" },
-  appointment: { label:"Appointment", colour:"#5B3E8C", bg:"#EFEAF7" },
-  hire:        { label:"On / off hire", colour:"#0F6B63", bg:"#E3F1EF" },
-  exchange:    { label:"Exchange",      colour:"#8A3B62", bg:"#F6EAF0" },
-  exchange:    { label:"Exchange",      colour:"#8A3B62", bg:"#F6E9EF" },
-  absence:     { label:"Off site",    colour:"#A9761B", bg:"#FBF1DF" },
-  inspection:  { label:"Due",         colour:"#1F5A2D", bg:"#E7F0E9" }
+  delivery:    { label:"Delivery",      one:"delivery",       many:"deliveries",
+                 colour:"#1B4F7A", bg:"#E7EFF7" },
+  appointment: { label:"Appointment",   one:"appointment",    many:"appointments",
+                 colour:"#5B3E8C", bg:"#EFEAF7" },
+  hire:        { label:"On / off hire", one:"hire movement",  many:"hire movements",
+                 colour:"#0F6B63", bg:"#E3F1EF" },
+  exchange:    { label:"Exchange",      one:"exchange",       many:"exchanges",
+                 colour:"#8A3B62", bg:"#F6EAF0" },
+  repair:      { label:"Repair",        one:"repair",         many:"repairs",
+                 colour:"#B4551E", bg:"#FBEDE4" },
+  holiday:     { label:"Holiday",       one:"holiday",        many:"holidays",
+                 colour:"#1B7F8C", bg:"#E2F1F3" },
+  absence:     { label:"Off site",      one:"absence",        many:"absences",
+                 colour:"#A9761B", bg:"#FBF1DF" },
+  inspection:  { label:"Due",           one:"inspection due", many:"inspections due",
+                 colour:"#1F5A2D", bg:"#E7F0E9" }
 };
 
 /* Plant, lifting gear and equipment arriving or going off hire. */
@@ -3169,9 +3235,10 @@ function planItems(date){
 
   (DB.leave||[]).filter(l=>l.from<=date && l.to>=date).forEach(l=>{
     const who = ((DB.labour||[]).find(x=>x.id===l.personId)||{}).name || "Someone";
-    out.push({ kind:"absence", time:"", sort:2, text:who + " — " + l.type,
-      sub:shortDate(l.from)+" to "+shortDate(l.to), go:{ name:"leave" },
-      ref:{ type:"leave", id:l.id } });
+    out.push({ kind: l.type==="HOL" ? "holiday" : "absence", time:"", sort:2,
+      text: who + " — " + LEAVE_LABEL[l.type] || who,
+      sub: l.from===l.to ? "" : shortDate(l.from)+" to "+shortDate(l.to),
+      go:{ name:"leave" }, ref:{ type:"leave", id:l.id } });
   });
 
   HIRE_REGISTERS.forEach(reg=>{
@@ -3200,6 +3267,17 @@ function planItems(date){
           ref:{ type:"exchange", kind:reg.kind, id:x.id } });
     });
   });
+
+  /* repairs booked against an open defect */
+  (DB.defects||[]).filter(x=>x.status==="open" && x.repair && x.repair.date===date)
+    .forEach(x=>{
+      const m = (DB.plant||[]).find(p=>p.id===x.plantId) || {};
+      out.push({ kind:"repair", time:"", sort:1,
+        text:(m.item||"Machine") + " booked in for repair",
+        sub:(m.fleetNo?m.fleetNo+" · ":"") + x.item + (x.repair.note?" · "+x.repair.note:""),
+        go:{ name:"defect", id:x.id },
+        ref:{ type:"repair", id:x.id } });
+    });
 
   /* examinations falling due, and the weekly registers on a Friday */
   currentPlant().forEach(m=>{
@@ -3445,19 +3523,22 @@ const durEmpty = v => !v || (typeof v==="object" && !(Number(v.h)||0) && !(Numbe
 /* Hours worked = finish minus start, less the break. */
 const toMins = t => { if(!t||t.indexOf(":")<0) return null;
   const [h,m]=t.split(":").map(Number); return h*60+m; };
-function workedHours(start, finish){
+function workedHours(start, finish, date){
   const a=toMins(start), b=toMins(finish);
   if(a==null||b==null) return null;
   let mins = b-a; if(mins<0) mins += 24*60;
-  mins -= (Number(hoursFor().breakMins)||30);
+  mins -= (Number(hoursFor(null, date).breakMins) || 30);
   if(mins<0) mins = 0;
   return Math.round((mins/60)*100)/100;
 }
-const normalHours = (job) => workedHours(hoursFor(job).start, hoursFor(job).finish);
-function rowHours(row){
+const normalHours = (job, date) => {
+  const h = hoursFor(job, date);
+  return workedHours(h.start, h.finish, date);
+};
+function rowHours(row, date){
   if(!row || row.onSite!==true) return 0;
-  if(row.normal===true) return normalHours() || 0;
-  return workedHours(row.start, row.finish) || 0;
+  if(row.normal===true) return normalHours(null, date) || 0;
+  return workedHours(row.start, row.finish, date) || 0;
 }
 
 /* ---------------------------------------------------------------- nav -- */
@@ -3480,7 +3561,7 @@ const ICONS = {
 const SECTION = {
   home:"home", plan:"plan",
   project:"project", pack:"project", plant:"project", tools:"project", item:"project",
-  deliveries:"project", delivery:"project", deltotals:"project", exchange:"project", lifting:"project", labour:"project", leave:"project",
+  deliveries:"project", delivery:"project", deltotals:"project", exchange:"project", job:"project", lifting:"project", labour:"project", leave:"project",
   timesheet:"project", vos:"project", vo:"project", list:"project", record:"project",
   defect:"project", planthistory:"project", pickplant:"project", pickexc:"project",
   settings:"profile"
@@ -4108,6 +4189,7 @@ function render(){
   else if(view.name==="planthistory") app.innerHTML = plantHistoryView();
   else if(view.name==="labour") app.innerHTML = labourView();
   else if(view.name==="project") app.innerHTML = projectView();
+  else if(view.name==="job") app.innerHTML = jobView();
   else if(view.name==="pack") app.innerHTML = packView();
   else if(view.name==="lifting") app.innerHTML = liftingView();
   else if(view.name==="tools") app.innerHTML = toolsView();
@@ -4322,10 +4404,12 @@ function homeView(){
            <div class="pl" style="display:grid;gap:5px">
              ${onToday.map(it=>{
                const k = PLAN_KINDS[it.kind];
-               return `<button class="pi" style="background:${k.bg};border-left-color:${k.colour}"
+               return `<button class="pi" style="background:${k.bg}"
                  data-homeitem="${esc(JSON.stringify(it.go))}">
-                 <b style="color:${k.colour}">${it.time?esc(it.time)+" ":""}${esc(it.text)}</b>
-                 ${it.sub?`<span>${esc(it.sub)}</span>`:""}</button>`;
+                 <span class="pt" style="background:${k.colour}"></span>
+                 <span class="px">
+                   <b>${it.time?esc(it.time)+" ":""}${esc(it.text)}</b>
+                   ${it.sub?`<span class="ps">${esc(it.sub)}</span>`:""}</span></button>`;
              }).join("")}
            </div>
            <button class="btn line sm" style="margin:10px 0 0" data-go="plan">The week ahead</button>
@@ -4753,7 +4837,7 @@ function fieldHtml(f, v, err, path){
       c = `<div class="ttable">
         <div class="thead"><span class="c1">Name</span><span class="c3">On site</span></div>`+
         (rows.length ? rows.map((r,i)=>{
-          const hrs = rowHours(r);
+          const hrs = rowHours(r, formState && formState.date);
           if(r.leave){
             return `<div class="trow" style="background:var(--info-bg)"><div class="main">
               <span class="c1"><b>${esc(r.name||"Unnamed")}</b>
@@ -4768,7 +4852,9 @@ function fieldHtml(f, v, err, path){
               <button type="button" class="${r.onSite===false?"n":""}" data-tbl="labourTable" data-i="${i}" data-k="onSite" data-v="0">No</button>
             </span></div>
             ${r.onSite===true ? `<div class="more">
-              <span class="lbl">Normal hours — ${esc(hoursFor().start)} to ${esc(hoursFor().finish)}, ${normalHours()} hours?</span>
+              <span class="lbl">Normal hours — ${esc(hoursFor(null, formState&&formState.date).start)} to ${
+                esc(hoursFor(null, formState&&formState.date).finish)}, ${
+                normalHours(null, formState&&formState.date)} hours?</span>
               <span class="yn" style="width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px">
                 <button type="button" class="${r.normal===true?"y":""}" data-tbl="labourTable" data-i="${i}" data-k="normal" data-v="1">Yes</button>
                 <button type="button" class="${r.normal===false?"n":""}" data-tbl="labourTable" data-i="${i}" data-k="normal" data-v="0">No</button>
@@ -4782,7 +4868,8 @@ function fieldHtml(f, v, err, path){
                 <input class="in" style="min-height:46px;margin-top:8px" placeholder="Reason — e.g. left early for an appointment"
                   value="${esc(r.reason||"")}" data-tin="labourTable" data-i="${i}" data-k="reason" aria-label="Reason">
                 ` : `<div style="margin-top:8px;font-size:13px;color:var(--ink-2)">
-                  ${normalHours()} hours, ${esc(hoursFor().breakMins)} minute break deducted</div>`}
+                  ${normalHours(null, formState&&formState.date)} hours, ${
+                    esc(hoursFor(null, formState&&formState.date).breakMins)} minute break deducted</div>`}
             </div>` : ""}
           </div>`;
         }).join("") : `<div class="tempty">Nobody on the labour register for this job yet.</div>`)+
@@ -4919,11 +5006,11 @@ function tableRows(f, val){
     <th style="text-align:left">Finish</th><th style="text-align:left">Hours</th>
     <th style="text-align:left">Reason if different</th></tr>`+
     rows.map(r=>{
-      const h = rowHours(r);
+      const h = rowHours(r, (view && DB.records.find(x=>x.id===view.id)||{}).date);
       return `<tr><td>${esc(r.name||"")}</td><td>${esc(r.trade||"")}</td>
         <td>${r.onSite===true?"Yes":r.onSite===false?"No":"—"}</td>
-        <td>${esc(r.onSite&&r.normal===false?r.start:(r.onSite?hoursFor().start:"—"))}</td>
-        <td>${esc(r.onSite&&r.normal===false?r.finish:(r.onSite?hoursFor().finish:"—"))}</td>
+        <td>${esc(r.onSite&&r.normal===false?r.start:(r.onSite?hoursFor(null,r.__date).start:"—"))}</td>
+        <td>${esc(r.onSite&&r.normal===false?r.finish:(r.onSite?hoursFor(null,r.__date).finish:"—"))}</td>
         <td>${r.onSite?h:"—"}</td>
         <td>${esc(r.reason||"")}</td></tr>`;
     }).join("")+`</table>`;
@@ -5165,6 +5252,42 @@ function defectView(){
 
     <div class="sect">${open?"Close out":"Fix"}</div>
     ${closeBlock}
+
+    ${open ? `<div class="sect">Booked in</div>
+      ${d.repair
+        ? `<div class="card" style="background:#FBEDE4;box-shadow:none">
+            <div class="spread">
+              <div><h3 style="color:#B4551E">Booked in for repair</h3>
+                <p class="sub">${shortDate(d.repair.date)}${
+                  d.repair.note?" · "+esc(d.repair.note):""}</p></div>
+            </div>
+            <div class="g2" style="margin-top:12px">
+              <button class="btn line sm" style="margin:0" data-repdate="${d.id}">Change the date</button>
+              <button class="btn line sm" style="margin:0;color:var(--bad)"
+                data-repclear="${d.id}">Repair cancelled</button>
+            </div>
+          </div>`
+        : m.exchangeDate
+        ? `<div class="card" style="background:#F6EAF0;box-shadow:none">
+            <div class="spread">
+              <div><h3 style="color:#8A3B62">Booked in for exchange</h3>
+                <p class="sub">${shortDate(m.exchangeDate)}${
+                  m.exchangeNote?" · "+esc(m.exchangeNote):""}</p></div>
+            </div>
+            <button class="btn line sm" style="margin:12px 0 0"
+              data-openitem="plant:${m.id}">Open the machine</button>
+          </div>`
+        : `<div class="card">
+            <p class="sub">${esc(m.owner||"Hired")==="Owned"
+              ? "Book it in with the fitter, or swap the machine out."
+              : "Book it in with the hire company, or have the machine swapped."}</p>
+            <div class="g2" style="margin-top:12px">
+              <button class="btn line sm" style="margin:0" data-repbook="${d.id}">
+                Booked in for repair</button>
+              <button class="btn line sm" style="margin:0" data-exbookdef="${d.id}">
+                Booked in for exchange</button>
+            </div>
+          </div>`}` : ""}
 
     <div class="sect">Report it</div>
     ${(function(){
@@ -5556,7 +5679,8 @@ function plantView(){
         ${df.items.map(x=>`<button class="row" style="width:100%;padding:9px 0;border:0"
           data-defopen="${x.id}">
           <span class="n"><b style="font-size:14.5px">${esc(x.item)}</b>
-            <span>${esc(x.description||"")}${x.description?" · ":""}reported ${ageText(x.reportedAt)}</span></span>
+            <span>${esc(x.description||"")}${x.description?" · ":""}reported ${ageText(x.reportedAt)}${
+              x.repair ? " · repair booked "+shortDate(x.repair.date) : ""}</span></span>
           <span style="color:var(--ink-3)">&rsaquo;</span>
         </button>`).join("")}
         ${(function(){
@@ -5738,18 +5862,21 @@ function planView(){
     return `<div class="plday ${d===t?"today":""} ${weekend?"we":""} ${items.length?"":"empty"}"
       data-planday="${d}">
       <div class="ph">
+        <span class="dw">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][(dt.getDay()+6)%7]}</span>
         <span class="dn">${dt.getDate()}${dt.getDate()===1||d===days[0]
           ? " " + MON[dt.getMonth()].slice(0,3) : ""}</span>
-        <span class="dw">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][(dt.getDay()+6)%7]}</span>
         ${items.length?`<span class="ct">${items.length}</span>`:""}
       </div>
       <div class="pl">
         ${items.map(it=>{
           const k = PLAN_KINDS[it.kind];
-          return `<button class="pi" style="background:${k.bg};border-left-color:${k.colour}"
+          return `<button class="pi" style="background:${k.bg}"
             data-planpick="${esc(JSON.stringify({ ref:it.ref, text:it.text, kind:it.kind, date:d }))}">
-            <b style="color:${k.colour}">${it.time?esc(it.time)+" ":""}${esc(it.text)}</b>
-            ${it.sub?`<span>${esc(it.sub)}</span>`:""}
+            <span class="pt" style="background:${k.colour}"></span>
+            <span class="px">
+              <b>${it.time?esc(it.time)+" ":""}${esc(it.text)}</b>
+              ${it.sub?`<span class="ps">${esc(it.sub)}</span>`:""}
+            </span>
           </button>`;
         }).join("")}
       </div>
@@ -5777,24 +5904,25 @@ function planView(){
         <button class="btn ghost" style="margin:0" data-exchcancel="1">Cancel</button>
       </div>`;
     }
-    const rows = [];
-    HIRE_REGISTERS.forEach(reg=>{
-      reg.list().filter(x=>x.job===DB.job && !(x.offDate && x.offDate <= todayISO()))
-        .forEach(x=>rows.push({ reg, x }));
-    });
+    const group = (reg) => {
+      const items = reg.list().filter(x=>x.job===DB.job
+        && !(x.offDate && x.offDate <= todayISO()));
+      if(!items.length) return "";
+      return `<div class="sect" style="margin:16px 0 6px">${esc(reg.label)}</div>
+        <div class="card" style="padding:2px 14px;box-shadow:none;background:var(--canvas)">
+          ${items.map(x=>`<button class="row" style="width:100%;border:0;text-align:left"
+            data-exchpickitem="${reg.kind}:${x.id}">
+            <span class="n"><b>${esc(x.item||"Item")}</b>
+              <span>${esc(x.fleetNo||x.idNo||"No number")}${x.hireCompany?" · "+esc(x.hireCompany):""}${
+                x.exchangeDate ? " · already booked "+shortDate(x.exchangeDate) : ""}</span></span>
+            <span style="color:var(--ink-3)">&rsaquo;</span></button>`).join("")}
+        </div>`;
+    };
+    const groups = HIRE_REGISTERS.map(group).join("");
     return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
       <h3 style="margin-bottom:4px">Book an exchange</h3>
       <p class="sub">Pick what is going back.</p>
-      ${rows.length ? `<div class="card" style="padding:2px 14px;box-shadow:none;
-        background:var(--canvas);margin-top:12px">
-        ${rows.map(o=>`<button class="row" style="width:100%;border:0;text-align:left"
-          data-exchpickitem="${o.reg.kind}:${o.x.id}">
-          <span class="n"><b>${esc(o.x.item||"Item")}</b>
-            <span>${esc(o.reg.label)}${o.x.fleetNo||o.x.idNo
-              ? " · "+esc(o.x.fleetNo||o.x.idNo) : ""}${
-              o.x.exchangeDate ? " · already booked "+shortDate(o.x.exchangeDate) : ""}</span></span>
-          <span style="color:var(--ink-3)">&rsaquo;</span></button>`).join("")}
-      </div>` : `<p class="sub" style="margin-top:10px">Nothing on the registers yet.</p>`}
+      ${groups || `<p class="sub" style="margin-top:10px">Nothing on the registers yet.</p>`}
       <button class="btn ghost" style="margin:12px 0 0" data-exchclose="1">Close</button>
     </div>`;
   })();
@@ -5813,6 +5941,11 @@ function planView(){
       actions.push(`<button class="btn line" data-pkopen="1">Open the order</button>`);
       actions.push(`<button class="btn line" style="color:var(--bad)" data-pkcancel="1">
         Delivery cancelled</button>`);
+    } else if(r.type === "repair"){
+      actions.push(`<button class="btn" data-pkopen="1">Open the defect</button>`);
+      actions.push(`<button class="btn line" data-pkedit="1">Change the date</button>`);
+      actions.push(`<button class="btn line" style="color:var(--bad)" data-pkcancel="1">
+        Repair cancelled</button>`);
     } else if(r.type === "exchange"){
       actions.push(`<button class="btn" data-pkexchange="1">Do the exchange</button>`);
       actions.push(`<button class="btn line" data-pkedit="1">Change the date</button>`);
@@ -5864,31 +5997,32 @@ function planView(){
         <button class="btn ghost" style="margin:0" data-hirecancel="1">Cancel</button>
       </div>`;
     }
-    const onSiteNow = [];
-    const offSiteNow = [];
-    HIRE_REGISTERS.forEach(reg=>{
-      reg.list().filter(x=>x.job===DB.job).forEach(x=>{
-        const gone = x.offDate && x.offDate <= todayISO();
-        (gone ? offSiteNow : onSiteNow).push({ reg, x });
-      });
-    });
-    const row = (o, action) => `<button class="row" style="width:100%;border:0;text-align:left"
-        data-hirepick="${o.reg.kind}:${o.x.id}:${action}">
-        <span class="n"><b>${esc(o.x.item||"Item")}</b>
-          <span>${esc(o.reg.label)}${o.x.fleetNo||o.x.idNo?" · "+esc(o.x.fleetNo||o.x.idNo):""}${
-            action==="off" && o.x.offDate ? " · off "+shortDate(o.x.offDate) : ""}</span></span>
+    const row = (reg, x, action) => `<button class="row" style="width:100%;border:0;text-align:left"
+        data-hirepick="${reg.kind}:${x.id}:${action}">
+        <span class="n"><b>${esc(x.item||"Item")}</b>
+          <span>${esc(x.fleetNo||x.idNo||"No number")}${x.hireCompany?" · "+esc(x.hireCompany):""}${
+            action==="off" && x.offDate ? " · off "+shortDate(x.offDate) : ""}</span></span>
         <span style="color:var(--ink-3)">&rsaquo;</span></button>`;
+
+    const group = (reg) => {
+      const all = reg.list().filter(x=>x.job===DB.job);
+      const on  = all.filter(x=>!(x.offDate && x.offDate <= todayISO()));
+      const off = all.filter(x=>  x.offDate && x.offDate <= todayISO());
+      if(!all.length) return "";
+      return `<div class="sect" style="margin:16px 0 6px">${esc(reg.label)}</div>
+        <div class="card" style="padding:2px 14px;box-shadow:none;background:var(--canvas)">
+          ${on.map(x=>row(reg,x,"off")).join("")}
+          ${off.length ? `<div style="padding:8px 0 2px;font-size:12px;color:var(--ink-3);
+            border-top:1px solid var(--line-2);margin-top:4px">Off site</div>`+
+            off.map(x=>row(reg,x,"on")).join("") : ""}
+        </div>`;
+    };
+
+    const groups = HIRE_REGISTERS.map(group).join("");
     return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
       <h3 style="margin-bottom:4px">On or off hire</h3>
       <p class="sub">Book something off when it leaves, or back on when it returns.</p>
-      ${onSiteNow.length ? `<div class="sect" style="margin:14px 0 6px">On site (${onSiteNow.length})</div>
-        <div class="card" style="padding:2px 14px;box-shadow:none;background:var(--canvas)">
-          ${onSiteNow.map(o=>row(o,"off")).join("")}</div>` : ""}
-      ${offSiteNow.length ? `<div class="sect" style="margin:14px 0 6px">Off site (${offSiteNow.length})</div>
-        <div class="card" style="padding:2px 14px;box-shadow:none;background:var(--canvas)">
-          ${offSiteNow.map(o=>row(o,"on")).join("")}</div>` : ""}
-      ${(!onSiteNow.length && !offSiteNow.length) ? `<p class="sub" style="margin-top:10px">
-        Nothing on the registers yet.</p>` : ""}
+      ${groups || `<p class="sub" style="margin-top:10px">Nothing on the registers yet.</p>`}
       <div class="g2" style="margin-top:14px">
         <button class="btn line" style="margin:0" data-go="plant">Add plant</button>
         <button class="btn line" style="margin:0" data-go="tools">Add equipment</button>
@@ -5933,6 +6067,16 @@ function planView(){
       ${Object.keys(PLAN_KINDS).map(k=>`<span><i style="background:${PLAN_KINDS[k].colour}"></i>${
         esc(PLAN_KINDS[k].label)}</span>`).join("")}
     </div>
+
+    ${(function(){
+      const counts = {};
+      days.forEach(d=>planItems(d).forEach(it=>{ counts[it.kind] = (counts[it.kind]||0)+1; }));
+      const bits = Object.keys(counts).map(k=>
+        counts[k] + " " + (counts[k]===1 ? PLAN_KINDS[k].one : PLAN_KINDS[k].many));
+      return bits.length
+        ? `<p class="sub" style="margin:-4px 0 12px">${esc(bits.join(" · "))}</p>`
+        : `<p class="sub" style="margin:-4px 0 12px">Nothing booked in this week yet.</p>`;
+    })()}
 
     <div class="pldow">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(x=>`<span>${x}</span>`).join("")}</div>
     ${week(0,7)}
@@ -6287,6 +6431,69 @@ function packView(){
           : "Everything is in and it is ready to publish."}</p>`}`;
 }
 
+function jobView(){
+  const week = jobWeek();
+  const c = cfg();
+
+  const dayRow = (d,i) => `<div class="card" style="padding:12px 14px${
+      d.working?"":";background:var(--canvas);box-shadow:none"}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <b style="flex:1;font-weight:650${d.working?"":";color:var(--ink-3)"}">${WEEKDAYS[i]}</b>
+        <span class="yn" style="width:132px">
+          <button type="button" class="${d.working?"y":""}" data-jw="${i}:working:1">Working</button>
+          <button type="button" class="${d.working?"":"n"}" data-jw="${i}:working:0">Off</button>
+        </span>
+      </div>
+      ${d.working ? `
+        <div class="g2" style="margin-top:12px">
+          <div class="f" style="margin:0"><label>Start</label>
+            <input class="in" type="time" data-jwv="${i}:start" value="${esc(d.start)}"></div>
+          <div class="f" style="margin:0"><label>Finish</label>
+            <input class="in" type="time" data-jwv="${i}:finish" value="${esc(d.finish)}"></div>
+        </div>
+        <div class="g2" style="margin-top:10px;align-items:end">
+          <div class="f" style="margin:0"><label>Unpaid break (minutes)</label>
+            <input class="in" type="number" min="0" data-jwv="${i}:breakMins" value="${esc(d.breakMins)}"></div>
+          <div class="card" style="background:var(--green-50);box-shadow:none;margin:0;padding:10px 12px">
+            <span style="font-size:12.5px;color:var(--ink-2)">Normal day</span>
+            <b style="display:block;font-size:17px">${workedHours(d.start, d.finish, null) === null ? "—"
+              : Math.round((Math.max(0,(toMins(d.finish)-toMins(d.start)) - (Number(d.breakMins)||0))/60)*100)/100} hrs</b>
+          </div>
+        </div>` : ""}
+    </div>`;
+
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">The job</h1>
+    <p class="sub">${esc(DB.job)}</p>
+
+    <div class="sect">Details</div>
+    <div class="card">
+      <div class="f"><label>Job name</label>
+        <div class="hint">It appears on every record and every sheet.</div>
+        <input class="in" data-jobf="name" value="${esc(DB.job)}"></div>
+      <div class="f"><label>Principal contractor</label>
+        <input class="in" data-jobf="pc" value="${esc((DB.jobInfo&&DB.jobInfo.pc)||"")}"></div>
+      <div class="f"><label>Site address</label>
+        <input class="in" data-jobf="address" value="${esc((DB.jobInfo&&DB.jobInfo.address)||"")}"></div>
+      <div class="g2">
+        <div class="f"><label>Our contract reference</label>
+          <input class="in" data-jobf="ref" value="${esc((DB.jobInfo&&DB.jobInfo.ref)||"")}"></div>
+        <div class="f"><label>Their order reference</label>
+          <input class="in" data-jobf="theirRef" value="${esc((DB.jobInfo&&DB.jobInfo.theirRef)||"")}"></div>
+      </div>
+      <div class="f" style="margin:0"><label>Chasing diaries from</label>
+        <div class="hint">Anything before this date is left alone.</div>
+        <input class="in" type="date" data-jobf="startDate" value="${esc(DB.startDate||todayISO())}"></div>
+    </div>
+
+    <div class="sect">Working hours</div>
+    <div class="card" style="background:var(--green-50);box-shadow:none">
+      <p>Set each day separately — a short Friday, a different break, or a Saturday worked.
+      The diary, the timesheet and the dots on the week strip all follow what is set here.</p>
+    </div>
+    ${week.map(dayRow).join("")}`;
+}
+
 function projectView(){
   const t = todayISO();
   const plantAl = lolerAlerts(), liftAl = liftingAlerts();
@@ -6362,13 +6569,16 @@ function projectView(){
     </div>
 
     <div class="sect">The job</div>
-    <div class="card">
+    <button class="card" style="width:100%;text-align:left" data-go="job">
       <div class="kv"><span class="k">Job</span><span class="v">${esc(DB.job)}</span></div>
       <div class="kv"><span class="k">Working hours</span>
         <span class="v">${esc(hoursFor().start)} – ${esc(hoursFor().finish)} · ${normalHours()} hrs</span></div>
       <div class="kv"><span class="k">Diaries chased from</span>
         <span class="v">${shortDate(startDate())}</span></div>
-    </div>`;
+      <div style="display:flex;justify-content:flex-end;margin-top:10px">
+        <span style="font-size:13px;font-weight:640;color:var(--green-700)">Edit the job &rsaquo;</span>
+      </div>
+    </button>`;
 }
 
 function liftingView(){
@@ -6867,9 +7077,9 @@ function timesheetWeek(ws){
       }
       if(row.onSite!==true) return;
       if(!people[key]) people[key] = { name:row.name, trade:row.trade, key, days:{}, total:0 };
-      const h = rowHours(row);
-      people[key].days[d] = { hours:h, start: row.normal===false?row.start:hoursFor().start,
-        finish: row.normal===false?row.finish:hoursFor().finish, normal: row.normal!==false,
+      const h = rowHours(row, d);
+      people[key].days[d] = { hours:h, start: row.normal===false?row.start:hoursFor(null,d).start,
+        finish: row.normal===false?row.finish:hoursFor(null,d).finish, normal: row.normal!==false,
         reason: row.reason||"", recId: rec.id };
       people[key].total += h;
     });
@@ -6887,7 +7097,7 @@ function editTimesheetDay(date, personKey){
   const row = rows.find(r=>(r.id||r.name)===personKey);
   if(!row){ toast("That person is not on that day\u2019s diary."); return; }
 
-  const h = hoursFor();
+  const h = hoursFor(null, date);
   const draft = {
     onSite: row.onSite !== false,
     normal: row.normal !== false,
@@ -6930,7 +7140,7 @@ function editTimesheetDay(date, personKey){
               placeholder="Overtime, early finish"></div>` : ""}
         <div class="card" style="background:var(--green-50);box-shadow:none;margin-bottom:16px">
           <div class="spread"><span>Hours for the day</span>
-            <b style="font-size:17px">${Math.round(rowHours(Object.assign({},row,draft,{onSite:true}))*100)/100}</b></div>
+            <b style="font-size:17px">${Math.round(rowHours(Object.assign({},row,draft,{onSite:true}), date)*100)/100}</b></div>
         </div>` : ""}
       <button class="btn" data-save>Save the change</button>
       <button class="btn ghost" style="margin:0" data-x>Cancel</button>`}
@@ -7050,7 +7260,7 @@ function timesheetView(){
         <span><i style="background:var(--info-bg)"></i>Booked off</span>
       </div>
       <p style="font-size:12.5px;color:var(--ink-3);padding:8px 4px 0">
-        Hours are finish minus start, less a ${hoursFor().breakMins} minute break.
+        Hours are finish minus start, less that day&rsquo;s break.
         Tap any day to correct it — the change goes back into that day&rsquo;s diary.</p>
 
       <button class="btn" style="margin-top:16px" data-tsprint="${ws}">Open timesheet PDF</button>`
@@ -7102,6 +7312,17 @@ function settingsView(){
     <div class="card">
       <div class="f" style="margin:0"><label>Current job</label>
         <input class="in" data-job="1" value="${esc(DB.job)}"></div>
+    </div>
+
+    <div class="sect">Appearance</div>
+    <div class="card">
+      <div class="f" style="margin:0"><label>Theme</label>
+        <div class="hint">Dark is easier on the eyes in the cabin and at the end of the day.</div>
+        <div style="display:grid;gap:8px;margin-top:8px">
+          ${[["auto","Match the phone"],["light","Light"],["dark","Dark"]].map(([k,label])=>`
+            <button type="button" class="cb ${(c.theme||"auto")===k?"on":""}" data-theme="${k}">
+              <span class="b">${(c.theme||"auto")===k?"&#10003;":""}</span>${esc(label)}</button>`).join("")}
+        </div></div>
     </div>
 
     <div class="sect">Storage</div>
@@ -7793,6 +8014,38 @@ function bind(){
       d.status="open"; delete d.fixedAt; save(); render(); toast("Reopened");
     });
   };
+  app.querySelectorAll("[data-repbook]").forEach(el=>el.onclick=()=>{
+    const d = (DB.defects||[]).find(x=>x.id===el.getAttribute("data-repbook"));
+    if(!d) return;
+    askDate("When is it booked in for?", todayISO(), when=>{
+      d.repair = { date:when, note:"", bookedBy:cfg().user.name, bookedAt:Date.now() };
+      save(); render(); toast("Booked in for " + shortDate(when));
+    });
+  });
+  app.querySelectorAll("[data-repdate]").forEach(el=>el.onclick=()=>{
+    const d = (DB.defects||[]).find(x=>x.id===el.getAttribute("data-repdate"));
+    if(!d || !d.repair) return;
+    askDate("When is it booked in for?", d.repair.date, when=>{
+      d.repair.date = when; save(); render(); toast("Moved to " + shortDate(when));
+    });
+  });
+  app.querySelectorAll("[data-repclear]").forEach(el=>el.onclick=()=>{
+    const d = (DB.defects||[]).find(x=>x.id===el.getAttribute("data-repclear"));
+    if(!d) return;
+    askConfirm("Repair cancelled?", "It comes off the planner. The defect stays open.",
+      "Cancelled", ()=>{ delete d.repair; save(); render(); toast("Cancelled"); });
+  });
+  app.querySelectorAll("[data-exbookdef]").forEach(el=>el.onclick=()=>{
+    const d = (DB.defects||[]).find(x=>x.id===el.getAttribute("data-exbookdef"));
+    const m = d && (DB.plant||[]).find(x=>x.id===d.plantId);
+    if(!m) return;
+    askDate("When is it being swapped?", todayISO(), when=>{
+      m.exchangeDate = when;
+      m.exchangeNote = "Defect — " + d.item;
+      save(); render(); toast("Exchange booked for " + shortDate(when));
+    });
+  });
+
   app.querySelectorAll("[data-defdel]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-defdel");
     const d = (DB.defects||[]).find(x=>x.id===id);
@@ -8144,6 +8397,7 @@ function bind(){
   if(pko) pko.onclick = ()=>{
     const r = planPick.ref || {};
     planPick = null;
+    if(r.type === "repair")   return go("defect", { id:r.id });
     if(r.type === "delivery") return go("delivery", { id:r.id });
     if(r.type === "hire")     return go("item", { kind:r.kind, id:r.id });
     if(r.type === "leave")    return go("leave");
@@ -8163,6 +8417,14 @@ function bind(){
       const d = deliveries().find(x=>x.id===r.id);
       if(d){ delDraft = Object.assign({}, d); delDraft.__editing = d.id; }
       planPick = null; go("deliveries"); return;
+    }
+    if(r.type === "repair"){
+      const d = (DB.defects||[]).find(x=>x.id===r.id);
+      planPick = null;
+      if(d && d.repair) askDate("When is it booked in for?", d.repair.date, when=>{
+        d.repair.date = when; save(); render(); toast("Moved to " + shortDate(when));
+      });
+      return;
     }
     if(r.type === "exchange"){
       const reg = HIRE_REGISTERS.find(x=>x.kind===r.kind);
@@ -8213,6 +8475,15 @@ function bind(){
       return;
     }
 
+    if(r.type === "repair"){
+      askConfirm("Repair cancelled?", "It comes off the planner. The defect stays open.",
+        "Cancelled", ()=>{
+        const d = (DB.defects||[]).find(x=>x.id===r.id);
+        if(d) delete d.repair;
+        planPick = null; save(); render(); toast("Cancelled");
+      });
+      return;
+    }
     if(r.type === "exchange"){
       askConfirm("Exchange cancelled?", "It stays as it is and comes off the calendar.",
         "Cancelled", ()=>{
@@ -8709,6 +8980,50 @@ function bind(){
     render();
   });
 
+  app.querySelectorAll("[data-theme]").forEach(el=>el.onclick=()=>{
+    DB.config.theme = el.getAttribute("data-theme");
+    save(); applyTheme(); render();
+  });
+
+  /* the job: its details, and the hours for each day */
+  app.querySelectorAll("[data-jw]").forEach(el=>el.onclick=()=>{
+    const [i,key,val] = el.getAttribute("data-jw").split(":");
+    setJobDay(Number(i), { [key]: val === "1" });
+    render();
+  });
+  app.querySelectorAll("[data-jwv]").forEach(el=>{
+    el.oninput = () => {
+      const [i,key] = el.dataset.jwv.split(":");
+      setJobDay(Number(i), { [key]: key==="breakMins" ? (Number(el.value)||0) : el.value });
+    };
+    el.onchange = () => { el.oninput(); render(); };
+  });
+  app.querySelectorAll("[data-jobf]").forEach(el=>{
+    el.oninput = () => {
+      const k = el.dataset.jobf;
+      if(k === "name"){
+        const from = DB.job, to = el.value;
+        if(!to.trim()) return;
+        DB.job = to;
+        /* carry the job's own settings and records across with it */
+        if(DB.jobWeek && DB.jobWeek[from]){ DB.jobWeek[to] = DB.jobWeek[from]; }
+        if(DB.jobHours && DB.jobHours[from]){ DB.jobHours[to] = DB.jobHours[from]; }
+        ["records","plant","labour","lifting","tools","deliveries","events","vos","packs"]
+          .forEach(list=>(DB[list]||[]).forEach(x=>{ if(x.job===from) x.job = to; }));
+        if(!(DB.config.jobs||[]).includes(to)){
+          DB.config.jobs = (DB.config.jobs||[]).map(j=>j===from?to:j);
+        }
+        save();
+        return;
+      }
+      if(k === "startDate"){ DB.startDate = el.value; save(); return; }
+      DB.jobInfo = DB.jobInfo || {};
+      DB.jobInfo[k] = el.value;
+      save();
+    };
+    el.onchange = el.oninput;
+  });
+
   const rec2 = app.querySelector("[data-reclaim]");
   if(rec2) rec2.onclick = ()=>{
     const before = addDays(todayISO(), -28);
@@ -9112,6 +9427,18 @@ function importBackup(){
 const SPLASH_MS = 5000;
 let splashDone = false, splashStarted = false;
 
+/* Light, dark, or whatever the phone is set to. */
+function applyTheme(){
+  const pref = (cfg().theme || "auto");
+  const dark = pref === "dark" ||
+    (pref === "auto" && window.matchMedia &&
+     window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const root = document.documentElement;
+  if(root) root.setAttribute("data-theme", dark ? "dark" : "light");
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta && meta.setAttribute) meta.setAttribute("content", dark ? "#151A17" : "#1F5A2D");
+}
+
 function runSplash(){
   const el = document.getElementById("splash");
   if(!el || splashStarted || splashDone) return;
@@ -9189,6 +9516,14 @@ if(!DB.events) DB.events = [];
   try{
     if(navigator.storage && navigator.storage.persist) await navigator.storage.persist();
   }catch(e){}
+
+  applyTheme();
+  if(window.matchMedia){
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => { if((cfg().theme||"auto")==="auto") applyTheme(); };
+    if(mq.addEventListener) mq.addEventListener("change", onChange);
+    else if(mq.addListener) mq.addListener(onChange);
+  }
 
   await flushSave();
   initNav();
