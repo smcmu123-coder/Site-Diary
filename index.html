@@ -1704,6 +1704,7 @@ function warnBanner(on){
 /* Writes are batched so a burst of typing is one write, and flushed the moment
    the app is put into the background. */
 function save(){
+  if(typeof boardTouch === "function") boardTouch();
   clearTimeout(savePending);
   savePending = setTimeout(flushSave, 250);
   return true;
@@ -3766,6 +3767,10 @@ function availablePlant(){
    -------------------------------------------------------------------------*/
 const LEAVE_LABEL = { HOL:"Holiday", SICK:"Off sick", TRN:"Training", OFF:"Day off" };
 
+/* what an entry in the diary actually is — not everything is a visitor */
+const EVENT_KINDS = ["Appointment","Visitor","Meeting","Inspection","Audit","Survey",
+  "Training","Other"];
+
 const PLAN_KINDS = {
   delivery:    { label:"Delivery",      one:"delivery",       many:"deliveries",
                  colour:"#1B4F7A", bg:"#E7EFF7" },
@@ -3797,17 +3802,21 @@ function planItems(date){
 
   deliveriesOn(date).forEach(d=>{
     const got = receivedTotal(d);
+    const loads = loadsOrdered(d);
     out.push({ kind:"delivery", time:"", sort:1,
-      text:(d.description || d.type) + (d.qty ? " · " + d.qty + " " + (d.unit||"") : ""),
-      sub:(d.supplier||"") + (got ? " · " + got + " received" : ""),
+      text:(d.description || d.type)
+        + (loads ? " · " + loads + " load" + (loads===1?"":"s")
+                 : d.qty ? " · " + d.qty + " " + (d.unit||"") : ""),
+      sub:(d.supplier||"") + (got ? " · " + deliveryProgress(d) + " in" : ""),
       go:{ name:"delivery", id:d.id },
       ref:{ type:"delivery", id:d.id } });
   });
 
   (DB.events||[]).filter(e=>e.job===DB.job && e.date===date).forEach(e=>{
     out.push({ kind:"appointment", time:e.time||"", sort:0,
-      text:e.title, sub:e.notes||"", go:{ name:"plan", date },
-      ref:{ type:"event", id:e.id } });
+      text:e.title, sub:[e.kind && e.kind!=="Appointment" ? e.kind : "", e.notes||""]
+        .filter(Boolean).join(" · "),
+      go:{ name:"plan", date }, ref:{ type:"event", id:e.id } });
   });
 
   jobLeave().filter(l=>l.from<=date && l.to>=date).forEach(l=>{
@@ -3899,6 +3908,29 @@ function planItems(date){
 const DELIVERY_TYPES = ["Stone","Sand","Concrete","Materials","Tools","Plant","Misc"];
 const DELIVERY_UNITS = { Stone:"tonnes", Sand:"tonnes", Concrete:"m³",
   Materials:"items", Tools:"items", Plant:"items", Misc:"items" };
+/* muckaway and aggregate come by the wagon, so these are counted in loads */
+const DELIVERY_LOADS = { Stone:20, Sand:20 };
+
+function loadSizeOf(d){
+  const n = Number(d && d.loadSize);
+  if(Number.isFinite(n) && n > 0) return n;
+  return DELIVERY_LOADS[d && d.type] || 0;
+}
+function loadsOrdered(d){
+  const size = loadSizeOf(d), want = Number(d.qty)||0;
+  return size && want ? Math.ceil(want/size) : 0;
+}
+function loadsIn(d){
+  const size = loadSizeOf(d);
+  return size ? Math.floor(receivedTotal(d)/size) : 0;
+}
+/* "2 of 4 loads" where it makes sense, "40 of 80 tonnes" where it does not */
+function deliveryProgress(d){
+  const want = Number(d.qty)||0, got = receivedTotal(d), unit = d.unit||"";
+  const n = loadsOrdered(d);
+  if(n) return loadsIn(d) + " of " + n + " load" + (n===1?"":"s");
+  return got + " of " + want + (unit?" "+unit:"");
+}
 const DELIVERY_COLOURS = { Stone:"#6B5B3E", Sand:"#A9761B", Concrete:"#4A5568",
   Materials:"#1B4F7A", Tools:"#5B3E8C", Plant:"#1F5A2D", Misc:"#6B6B6B" };
 
@@ -5039,12 +5071,14 @@ function homeView(){
     if(!d) return it;
     const got = receivedTotal(d), want = Number(d.qty)||0;
     const unit = d.unit || "";
+    const loads = loadsOrdered(d);
     return Object.assign({}, it, {
       text: d.description || d.type,
       sub: !want ? (d.supplier||"")
-        : got >= want ? got + " " + unit + " received"
-        : got ? got + " of " + want + " " + unit + " received"
-        : want + " " + unit + (d.supplier ? " · " + d.supplier : ""),
+        : got >= want ? (loads ? loads + " load" + (loads===1?"":"s") + " in" : got + " " + unit + " received")
+        : got ? deliveryProgress(d) + " received"
+        : (loads ? loads + " load" + (loads===1?"":"s") + " · " + want + " " + unit
+                 : want + " " + unit) + (d.supplier ? " · " + d.supplier : ""),
       settled: !!(want && got >= want)
     });
   });
@@ -6633,7 +6667,8 @@ let delDraft = null, dropDraft = null, totalsType = null;
 
 function blankDelivery(){
   return { type:"Stone", description:"", supplier:"", orderRef:"",
-    qty:"", unit:DELIVERY_UNITS.Stone, dueDate:todayISO(), notes:"" };
+    qty:"", unit:DELIVERY_UNITS.Stone, loadSize:DELIVERY_LOADS.Stone || "",
+    dueDate:todayISO(), notes:"" };
 }
 
 function deliveryFields(d, attr){
@@ -6655,6 +6690,14 @@ function deliveryFields(d, attr){
       <div class="f"><label>Unit</label>
         <input class="in" ${attr}="unit" value="${esc(d.unit||"")}"></div>
     </div>
+    ${DELIVERY_LOADS[d.type] || d.loadSize ? `<div class="f">
+      <label>A load is</label>
+      <div class="hint">${esc(d.unit||"tonnes")} on a wagon. Leave it if it is not delivered
+        by the load.</div>
+      <input class="in" type="number" step="0.5" ${attr}="loadSize" value="${esc(d.loadSize||"")}">
+      ${loadsOrdered(d) ? `<p class="sub" style="margin-top:6px">
+        That is <b>${loadsOrdered(d)} load${loadsOrdered(d)===1?"":"s"}</b>.</p>` : ""}
+    </div>` : ""}
     <div class="g2">
       <div class="f"><label>Supplier</label>
         <input class="in" ${attr}="supplier" value="${esc(d.supplier||"")}"></div>
@@ -6683,7 +6726,8 @@ function deliveryLine(d){
       </div>
       ${want ? `<div style="margin-top:10px">
         <div class="spread" style="font-size:13px;color:var(--ink-2)">
-          <span>${got} of ${want} ${esc(d.unit||"")}</span>
+          <span>${esc(deliveryProgress(d))}${loadsOrdered(d)
+            ? " · " + got + " of " + want + " " + esc(d.unit||"") : ""}</span>
           <b style="font-variant-numeric:tabular-nums">${pct}%</b></div>
         <span class="bar" style="margin-top:6px"><i style="width:${pct}%;
           background:${pct>=100?"var(--ok)":DELIVERY_COLOURS[d.type]||"var(--green)"}"></i></span>
@@ -6757,7 +6801,7 @@ function planAction(act, r, text){
         + "there is a record that it was booked.", "Cancelled", ()=>{
         const d = deliveries().find(x=>x.id===r.id);
         if(d){ d.cancelled = true; d.cancelledAt = Date.now(); }
-        save(); render(); toast("Marked as cancelled");
+        save(); boardMaybePush(); render(); toast("Marked as cancelled");
       });
     }
     if(r.type === "repair"){
@@ -7052,6 +7096,11 @@ function planView(){
       <div class="f"><label>What is it?</label>
         <input class="in" data-ev="title" value="${esc(eventDraft.title||"")}"
           placeholder="e.g. Client site visit"></div>
+      <div class="f"><label>Type</label>
+        <select class="in" data-ev="kind">
+          ${EVENT_KINDS.map(k=>`<option ${
+            (eventDraft.kind||"Appointment")===k?"selected":""}>${k}</option>`).join("")}
+        </select></div>
       <div class="g2">
         <div class="f"><label>Date</label>
           <input class="in" type="date" data-ev="date" value="${esc(eventDraft.date)}"></div>
@@ -7175,9 +7224,14 @@ function deliveryView(){
     <p class="sub">${esc(d.type)}${d.supplier?" · "+esc(d.supplier):""}</p>
 
     <div class="tstotal">
-      <div><div class="big">${got}</div><div class="lab">of ${want||"—"} ${esc(d.unit||"")} received</div></div>
-      <div class="side">${left ? left+" outstanding" : "Complete"}</div>
+      <div><div class="big">${loadsOrdered(d) ? loadsIn(d) : got}</div>
+        <div class="lab">${loadsOrdered(d)
+          ? "of " + loadsOrdered(d) + " load" + (loadsOrdered(d)===1?"":"s") + " received"
+          : "of " + (want||"—") + " " + esc(d.unit||"") + " received"}</div></div>
+      <div class="side">${left ? left + " " + esc(d.unit||"") + " outstanding" : "Complete"}</div>
     </div>
+    ${loadsOrdered(d) ? `<p class="sub" style="margin:-6px 0 14px">
+      ${got} of ${want} ${esc(d.unit||"")} · a load is ${loadSizeOf(d)} ${esc(d.unit||"")}.</p>` : ""}
     ${want ? `<span class="bar" style="margin-bottom:16px"><i style="width:${pct}%;
       background:${pct>=100?"var(--ok)":DELIVERY_COLOURS[d.type]||"var(--green)"}"></i></span>` : ""}
 
@@ -9478,7 +9532,7 @@ function bind(){
     if(!d) return;
     askDate("When is it booked in for?", todayISO(), when=>{
       d.repair = { date:when, note:"", bookedBy:cfg().user.name, bookedAt:Date.now() };
-      save(); render(); toast("Booked in for " + shortDate(when));
+      save(); boardMaybePush(); render(); toast("Booked in for " + shortDate(when));
     });
   });
   app.querySelectorAll("[data-repdate]").forEach(el=>el.onclick=()=>{
@@ -9726,7 +9780,7 @@ function bind(){
     else if(d.kind==="lifting") DB.lifting.push(fresh);
     else                        DB.tools.push(fresh);
 
-    swapDraft = null; save();
+    swapDraft = null; save(); boardMaybePush();
     go("item", { kind:d.kind, id:fresh.id });
     toast("Swapped over — " + d.item + " is on the register");
   };
@@ -9830,7 +9884,7 @@ function bind(){
   });
   app.querySelectorAll("[data-planday]").forEach(el=>el.onclick=()=>{
     planPick = null;
-    eventDraft = { date: el.dataset.planday, title:"", time:"", notes:"" };
+    eventDraft = { date: el.dataset.planday, title:"", kind:"Appointment", time:"", notes:"" };
     render();
   });
   app.querySelectorAll("[data-planpick]").forEach(el=>el.onclick=(e)=>{
@@ -9872,12 +9926,12 @@ function bind(){
       it.onDate = hireDraft.date || todayISO();
       toast((it.item||"Item")+" on site from "+shortDate(it.onDate));
     }
-    hireDraft = null; save(); render();
+    hireDraft = null; save(); boardMaybePush(); render();
   };
 
   const eva = app.querySelector("[data-evadd]");
   if(eva) eva.onclick = ()=>{
-    eventDraft = { date: eva.dataset.evadd, title:"", time:"", notes:"" };
+    eventDraft = { date: eva.dataset.evadd, title:"", kind:"Appointment", time:"", notes:"" };
     render();
   };
   app.querySelectorAll("[data-ev]").forEach(el=>{
@@ -9910,9 +9964,17 @@ function bind(){
     el.oninput = () => {
       if(!delDraft) return;
       delDraft[el.dataset.dnd] = el.value;
-      if(el.dataset.dnd==="type"){ delDraft.unit = DELIVERY_UNITS[el.value] || ""; render(); }
+      if(el.dataset.dnd==="type"){
+        delDraft.unit = DELIVERY_UNITS[el.value] || "";
+        delDraft.loadSize = DELIVERY_LOADS[el.value] || "";
+        render();
+      }
     };
-    el.onchange = el.oninput;
+    el.onchange = () => {
+      el.oninput();
+      /* redraw once the field is finished with, so "that is 4 loads" keeps up */
+      if(el.dataset.dnd==="qty" || el.dataset.dnd==="loadSize") render();
+    };
   });
   const da = app.querySelector("[data-deladd]");
   if(da) da.onclick = ()=>{ delDraft = blankDelivery(); render(); };
@@ -9933,7 +9995,7 @@ function bind(){
     DB.deliveries = DB.deliveries || [];
     DB.deliveries.push(Object.assign({ id:"dl_"+Date.now(), job:DB.job,
       createdAt:Date.now(), received:[] }, delDraft));
-    delDraft = null; save(); render(); toast("Booked in");
+    delDraft = null; save(); boardMaybePush(); render(); toast("Booked in");
   };
   app.querySelectorAll("[data-deledit]").forEach(el=>el.onclick=()=>{
     const d = deliveries().find(x=>x.id===el.getAttribute("data-deledit"));
@@ -9949,7 +10011,7 @@ function bind(){
       "It comes off the calendar and the running totals, but stays on the list so there is a record of it.",
       "Cancelled", ()=>{
         d.cancelled = true; d.cancelledAt = Date.now();
-        save(); render(); toast("Marked as cancelled");
+        save(); boardMaybePush(); render(); toast("Marked as cancelled");
       });
   });
   app.querySelectorAll("[data-delback]").forEach(el=>el.onclick=()=>{
@@ -9971,7 +10033,11 @@ function bind(){
   const dst = app.querySelector("[data-dropstart]");
   if(dst) dst.onclick = ()=>{
     const d = deliveries().find(x=>x.id===view.id);
-    dropDraft = { qty: outstandingQty(d) || "", date: todayISO(), ticket:"", note:"" };
+    /* a wagon at a time where it comes by the load, otherwise whatever is left */
+    const size = loadSizeOf(d);
+    const left2 = outstandingQty(d);
+    dropDraft = { qty: (size ? Math.min(size, left2 || size) : left2) || "",
+      date: todayISO(), ticket:"", note:"" };
     render();
   };
   app.querySelectorAll("[data-drop]").forEach(el=>{
@@ -9988,8 +10054,10 @@ function bind(){
     d.received.push({ qty:Number(dropDraft.qty), date:dropDraft.date||todayISO(),
       ticket:dropDraft.ticket||"", note:dropDraft.note||"",
       by:cfg().user.name, at:Date.now() });
-    dropDraft = null; save(); render();
-    toast(outstandingQty(d) ? outstandingQty(d)+" "+(d.unit||"")+" still to come" : "That order is complete");
+    dropDraft = null; save(); boardMaybePush(); render();
+    toast(outstandingQty(d)
+      ? (loadsOrdered(d) ? deliveryProgress(d) + " in" : outstandingQty(d)+" "+(d.unit||"")+" still to come")
+      : "That order is complete");
   };
   app.querySelectorAll("[data-droprm]").forEach(el=>el.onclick=()=>{
     const i = Number(el.getAttribute("data-droprm"));
@@ -10407,7 +10475,7 @@ function bind(){
     DB.scans.push({ id:"sc_"+Date.now(), job:DB.job, week:ws, kind:"plantcheck",
       plantId:scanDraft.plantId||"", title:scanDraft.title||"", pages:scanDraft.pages,
       addedAt:Date.now(), by:cfg().user.name });
-    scanDraft = null; save(); render(); toast("Filed with this week");
+    scanDraft = null; save(); boardMaybePush(); render(); toast("Filed with this week");
   };
   app.querySelectorAll("[data-scansgo]").forEach(el=>el.onclick=()=>
     go("scans", { week: el.getAttribute("data-scansgo") }));
@@ -10449,7 +10517,7 @@ function bind(){
     if(leaveDraft.to < leaveDraft.from){ toast("The end date is before the start date."); return; }
     DB.leave = DB.leave || [];
     DB.leave.push(Object.assign({ id:"lv_"+Date.now(), job:DB.job }, leaveDraft));
-    leaveDraft = null; save(); render(); toast("Booked");
+    leaveDraft = null; save(); boardMaybePush(); render(); toast("Booked");
   };
   app.querySelectorAll("[data-lvrm]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-lvrm");
@@ -10889,8 +10957,8 @@ function boardSnapshot(){
     job: DB.job,
     config: { jobs: DB.config.jobs || [DB.job] },
     records: (DB.records||[]).filter(r=>r.status==="submitted")
-      .map(r=>({ id:r.id, job:r.job, date:r.date, form:r.form, plantId:r.plantId,
-        excRef:r.excRef, ref:r.ref, submittedAt:r.submittedAt, by:r.by,
+      .map(r=>({ id:r.id, job:r.job, date:r.date, form:r.form, status:r.status,
+        plantId:r.plantId, excRef:r.excRef, ref:r.ref, submittedAt:r.submittedAt, by:r.by,
         data: strip({
           excavationsOpen: r.data.excavationsOpen,
           excavationList: (r.data.excavationList||[]).map(x=>({ ref:x.ref })),
@@ -10967,7 +11035,7 @@ async function pushBoard(quiet){
   }
 }
 
-/* after a form goes in, once the dust has settled */
+/* after something is filed, once the dust has settled */
 let boardTimer = null;
 function boardMaybePush(){
   const c = boardCfg();
@@ -10975,6 +11043,19 @@ function boardMaybePush(){
   clearTimeout(boardTimer);
   boardTimer = setTimeout(()=>pushBoard(true), 2500);
 }
+
+/* A backstop: if anything at all has changed and the board has not been sent
+   for a quarter of an hour, send it. Nothing on the wall goes stale because a
+   particular button was missed. */
+let boardDirty = false;
+function boardTouch(){ boardDirty = true; }
+setInterval(()=>{
+  const c = boardCfg();
+  if(!c.auto || !c.repo || !c.token || !boardDirty) return;
+  if(Date.now() - (c.lastPush||0) < 15*60*1000) return;
+  boardDirty = false;
+  pushBoard(true);
+}, 60*1000);
 
 async function publishBoard(){
   const snap = boardSnapshot();
