@@ -503,10 +503,6 @@ function draw(D){
     .sort(function(a,b){ return b.date.localeCompare(a.date); })[0];
   var labour = lastDiary ? (lastDiary.data.labourTable||[])
     .filter(function(x){ return x.onSite===true; }).length : 0;
-  var taken = (D.deliveries||[]).filter(function(x){ return x.job===D.job && !x.cancelled; })
-    .reduce(function(n,x){ return n + (x.received||[])
-      .filter(function(r){ return weekStart(r.date)===WS; })
-      .reduce(function(m,r){ return m+(Number(r.qty)||0); },0); },0);
   var stat=function(n,l,s){ return '<div class="stat"><div class="n">'+n+'</div>'
     + '<div class="l">'+l+'<br><span>'+s+'</span></div></div>'; };
   document.getElementById("week").innerHTML =
@@ -519,7 +515,7 @@ function draw(D){
     + stat(labour, "on site", "from the last diary")
     + stat(onSite.length, "machines on site",
         (D.tools||[]).filter(function(x){ return x.job===D.job; }).length+" items of equipment")
-    + stat(Math.round(taken*10)/10, "tonnes and loads in", "taken this week");
+;
 
   document.getElementById("job").textContent = D.job || "—";
   document.getElementById("state").style.display = "none";
