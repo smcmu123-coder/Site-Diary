@@ -944,7 +944,7 @@ body.isdemo .app{padding-top:76px}
 <nav class="navpill" id="navpill" aria-label="Sections">
   <span class="navslide" id="navslide"></span>
   <button data-nav="home" aria-label="Home"></button>
-  <button data-nav="plan" aria-label="Plan"></button>
+  <button data-nav="plan" aria-label="Calendar"></button>
   <button data-nav="project" aria-label="Project"><i class="navdot" id="navdot"></i></button>
   <button data-nav="profile" aria-label="Profile"></button>
 </nav>
@@ -4182,7 +4182,7 @@ const SECTION = {
 };
 
 const NAV_ORDER = ["home","plan","project","profile"];
-const NAV_LABEL = { home:"Today", plan:"Plan", project:"Project", profile:"Profile" };
+const NAV_LABEL = { home:"Today", plan:"Calendar", project:"Project", profile:"Profile" };
 
 /* Built once and left alone, so the indicator can slide rather than jump. */
 function initNav(){
@@ -5031,7 +5031,25 @@ function homeView(){
     </button>`;
 
   /* ---- what is on, from the planner ---- */
-  const onDay = planItems(sel);
+  /* what is on that day. A delivery that has fully landed moves out of the way
+     into its own group; a part load says how much is still to come. */
+  const onDayAll = planItems(sel).map(it=>{
+    if(it.kind !== "delivery" || !it.ref) return it;
+    const d = deliveries().find(x=>x.id===it.ref.id);
+    if(!d) return it;
+    const got = receivedTotal(d), want = Number(d.qty)||0;
+    const unit = d.unit || "";
+    return Object.assign({}, it, {
+      text: d.description || d.type,
+      sub: !want ? (d.supplier||"")
+        : got >= want ? got + " " + unit + " received"
+        : got ? got + " of " + want + " " + unit + " received"
+        : want + " " + unit + (d.supplier ? " · " + d.supplier : ""),
+      settled: !!(want && got >= want)
+    });
+  });
+  const onDay = onDayAll.filter(x=>!x.settled);
+  const landed = onDayAll.filter(x=>x.settled);
 
   /* ---- anything behind ---- */
   const missed = isToday ? missedDays() : [];
@@ -5102,6 +5120,14 @@ function homeView(){
            <div class="tasks">${done.map(row).join("")}</div>` : ""}
          ${!tasks.length ? `<div class="rest"><b>Nothing due</b>
            <span>No forms are expected for this day yet.</span></div>` : ""}`}
+
+    ${landed.length ? `<div class="sect">Received ${isToday?"today":"that day"}</div>
+      <div class="tasks">
+        ${landed.map(it=>`<button class="task done" data-homeitem="${esc(JSON.stringify(it.go))}">
+          <span class="tick">&#10003;</span>
+          <span class="txt"><b>${esc(it.text)}</b><span>${esc(it.sub)}</span></span>
+          <span class="go">&rsaquo;</span></button>`).join("")}
+      </div>` : ""}
 
     ${(defectCount || behindCount) ? `<div class="sect">Needs attention</div>
       <div class="tasks">
