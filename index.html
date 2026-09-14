@@ -18,6 +18,7 @@
   --ink:#121714; --ink-2:#59645C; --ink-3:#8A948C;
   --line:#DDE3DE; --line-2:#ECEFEB; --paper:#fff; --canvas:#F7F9F7;
   --ok:#2E7D46; --ok-bg:#E6F2EA; --warn:#A96A00; --warn-bg:#FAEFDC;
+  --warn-700:#7A4C00; --warn-on:#FFFFFF;
   --bad:#A72B22; --bad-bg:#F8E6E3; --info:#1E4E8C; --info-bg:#E7EEF7;
   --sh:0 1px 2px rgba(20,34,24,.05), 0 10px 24px -18px rgba(20,34,24,.35);
   --r:20px;
@@ -30,6 +31,7 @@ html[data-theme="dark"]{
   --ink:#E8EDE9; --ink-2:#A6B1A9; --ink-3:#7C877F;
   --line:#2C342E; --line-2:#232A25; --paper:#151A17; --canvas:#0E1210;
   --ok:#56A96F; --ok-bg:#1A2A1F; --warn:#D39A3C; --warn-bg:#2E2517;
+  --warn-700:#E0A94D; --warn-on:#1A1206;
   --bad:#D9705F; --bad-bg:#2E1C19; --info:#6C9BD2; --info-bg:#182231;
   --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 24px -18px rgba(0,0,0,.8);
   color-scheme:dark;
@@ -189,7 +191,7 @@ h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;
 .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;
   font-size:12px;font-weight:680;white-space:nowrap}
 .pill.ok{background:var(--ok-bg);color:var(--ok)}
-.pill.amber{background:var(--warn-bg);color:var(--warn)}
+.pill.amber{background:var(--warn-bg);color:var(--warn-700)}
 .pill.red{background:var(--bad-bg);color:var(--bad)}
 .pill.grey{background:var(--canvas);color:var(--ink-3)}
 .pill.info{background:var(--info-bg);color:var(--info)}
@@ -348,9 +350,9 @@ input[type=date].in,input[type=time].in,
 .tile .badge{position:absolute;top:14px;right:14px;min-width:24px;height:24px;padding:0 7px;
   border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:700}
 .tile.amber{background:var(--warn-bg);box-shadow:none}
-.tile.amber .ic{background:rgba(169,106,0,.13);color:var(--warn)}
-.tile.amber .tl,.tile.amber .tv{color:var(--warn)}
-.tile.amber .badge{background:var(--warn);color:#fff}
+.tile.amber .ic{background:rgba(122,85,18,.14);color:var(--warn-700)}
+.tile.amber .tl,.tile.amber .tv{color:var(--warn-700)}
+.tile.amber .badge{background:var(--warn-700);color:var(--warn-on)}
 .tile.red{background:var(--bad-bg);box-shadow:none}
 .tile.red .ic{background:rgba(167,43,34,.13);color:var(--bad)}
 .tile.red .tl,.tile.red .tv{color:var(--bad)}
@@ -379,11 +381,12 @@ body.isdemo .app{padding-top:76px}
 
 /* a tile for something left behind */
 .hero.warn{background:var(--warn-bg)}
-.hero.warn .lab{color:var(--warn)}
-.hero.warn .ttl{color:#7A5512}
-.hero.warn .begin{background:var(--warn);color:#fff}
-.ctab.warn{background:var(--warn-bg);color:var(--warn)}
-.ctab.warn.on{background:var(--warn);color:#fff}
+.hero.warn .lab{color:var(--warn-700);opacity:.9}
+.hero.warn .why,.hero.warn .count{color:#5C3A00}
+.hero.warn .ttl{color:var(--warn-700)}
+.hero.warn .begin{background:var(--warn-700);color:var(--warn-on)}
+.ctab.warn{background:var(--warn-bg);color:var(--warn-700)}
+.ctab.warn.on{background:var(--warn-700);color:var(--warn-on)}
 .ctab .late{width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block;
   margin-right:6px;vertical-align:middle}
 .ctab.warn.on .late{background:#fff}
@@ -495,7 +498,7 @@ body.isdemo .app{padding-top:76px}
 .tsday.none{background:transparent;box-shadow:inset 0 0 0 1px var(--line-2)}
 .tsday.none .dv{color:#C3CCC6}
 .tsday.norm .dv{color:var(--ink)}
-.tsday.extra{background:var(--warn-bg)} .tsday.extra .dv{color:var(--warn)}
+.tsday.extra{background:var(--warn-bg)} .tsday.extra .dv{color:var(--warn-700)}
 .tsday.hol{background:var(--info-bg)} .tsday.hol .dv{color:var(--info);font-size:11px}
 .tsday.we .dl{color:#C3CCC6}
 .tskey{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ink-3);
@@ -514,7 +517,7 @@ body.isdemo .app{padding-top:76px}
 .havsbox .hstat{margin-top:8px;padding-top:8px;border-top:1px solid rgba(0,0,0,.08);
   font-size:13px;font-weight:660}
 .havsbox.ok .hstat{color:var(--ok)}
-.havsbox.amber .hstat{color:var(--warn)}
+.havsbox.amber .hstat{color:var(--warn-700)}
 .havsbox.red .hstat{color:var(--bad)}
 .hbarwrap{position:relative;height:7px;border-radius:4px;background:var(--line-2);
   margin-top:10px;overflow:visible}
@@ -3196,7 +3199,7 @@ function examBlock(kind, it){
       st.key==="soon"?"background:var(--warn-bg);box-shadow:none":""}">
       <div class="spread">
         <div>
-          <h3 style="${st.key==="expired"?"color:var(--bad)":st.key==="soon"?"color:var(--warn)":""}">
+          <h3 style="${st.key==="expired"?"color:var(--bad)":st.key==="soon"?"color:var(--warn-700)":""}">
             ${esc(st.label)}</h3>
           <p class="sub">${(it.exams||[]).length
             ? (it.exams||[]).length+" examination"+((it.exams||[]).length===1?"":"s")+" recorded"
@@ -4552,6 +4555,9 @@ function homeView(){
   };
 
   const ahead = sel > t;
+  const restDay = !isWorking(sel);
+  const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][
+    parse(sel).getDay()];
 
   /* the order the day actually runs in */
   const dailyCards = [];
@@ -4568,6 +4574,27 @@ function homeView(){
           <button class="begin" data-startf="${f.key}" data-d="${sel}">${
             r ? "Carry on with it" : "Get it ready"}</button></div>` });
     });
+  } else if(restDay){
+    /* not a working day: nothing is expected, but anything filed is shown and
+       a form can still be added if somebody did turn out */
+    const filed = (DB.records||[]).filter(r=>r.job===DB.job && r.date===sel
+      && r.status==="submitted");
+    dailyCards.push({ label:dayName.slice(0,3), done:false, html:
+      `<div class="hero calm">
+        <div class="lab">${shortDate(sel)}</div>
+        <div class="ttl">${dayName}</div>
+        <div class="why">Not a working day, so nothing is expected. If anyone did turn out,
+          add whatever is needed.</div>
+        <button class="begin" data-addform="${sel}">Add a form</button></div>` });
+    filed.forEach(r=>{
+      const def = FORMS[r.form] || { name:"Record", short:"Record" };
+      dailyCards.push({ label:def.short, done:true, html:
+        `<div class="hero calm">
+          <div class="lab">${shortDate(sel)}</div>
+          <div class="ttl">${esc(sheetTitleFor(r))}</div>
+          <div class="count">Submitted ${timeOnly(r.submittedAt)} · ${esc(r.ref||"")}</div>
+          <button class="begin" data-open="${r.id}">View it</button></div>` });
+    });
   } else {
     /* excavations first, always — nothing starts until they are looked at */
     if(excDue.length) dailyCards.push({ label:"Excavations", done: excLeft===0, html: excHero });
@@ -4582,7 +4609,8 @@ function homeView(){
       behind.sort((a,b)=>(b.item.form==="excavation") - (a.item.form==="excavation"));
       behind = behind.slice(0, 3);
       behind.forEach(({day, item})=>{
-        const when = day === prevWorking(t) ? "yesterday" : shortDate(day);
+        /* "yesterday" only when it really was — on a Monday it says Friday */
+        const when = whenLeft(day, t).replace(/^on /, "");
         const open = item.form==="plantcheck" ? `data-pick="${day}"`
           : item.form==="excavation" ? `data-pickexc="${day}"`
           : `data-startf="${item.form}" data-d="${day}"`;
@@ -4595,7 +4623,7 @@ function homeView(){
             <div class="lab">From ${when}</div>
             <div class="ttl">${esc(item.name)}</div>
             <div class="why">Don&rsquo;t forget this one — it is still needed for
-              ${day===prevWorking(t) ? "yesterday" : shortDate(day)} and for the week&rsquo;s pack.</div>
+              ${when} and for the week&rsquo;s pack.</div>
             <button class="begin" ${open}>Fill it in</button></div>` });
       });
     }
@@ -4724,13 +4752,13 @@ function homeView(){
        </div>`;
      })()}
 
-     <div class="sect">${ahead ? "Getting ahead" : "Today&rsquo;s forms"}</div>
+     <div class="sect">${ahead ? "Getting ahead" : restDay ? esc(dayName) : "Today&rsquo;s forms"}</div>
      ${ahead ? `<div class="card" style="background:var(--green-50);box-shadow:none;margin-bottom:10px">
        <p style="margin:0">Anything written now is kept as a draft against ${shortDate(sel)}.
        It can only be signed and submitted on the day itself.</p></div>` : ""}
      ${carousel("daily", dailyCards)}
 
-     ${!ahead && weeklyCards.length ? `<div class="sect">This week</div>`
+     ${!ahead && !restDay && weeklyCards.length ? `<div class="sect">This week</div>`
        + carousel("weekly", weeklyCards) : ""}
 
      ${!ahead && faulty.length ? `<button class="card" style="width:100%;text-align:left;
@@ -4747,7 +4775,7 @@ function homeView(){
      ${!ahead && missed.length ? `<button class="card" style="width:100%;text-align:left;
        background:${missed.some(m=>m.level==="red")?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"
        data-day="${missed[0].date}">
-       <h3 style="color:${missed.some(m=>m.level==="red")?"var(--bad)":"var(--warn)"}">
+       <h3 style="color:${missed.some(m=>m.level==="red")?"var(--bad)":"var(--warn-700)"}">
          ${missed.reduce((n,m)=>n+m.owed.length,0)} outstanding on
          ${missed.length} day${missed.length>1?"s":""}</h3>
        ${missed.slice(0,3).map(m=>`<p style="color:var(--ink-2);margin-top:2px">
@@ -5044,7 +5072,7 @@ function fieldHtml(f, v, err, path){
         rows.map(r=>`<div class="trow">
           <div class="main">
             <span class="c1"><b>${esc(r.name)}</b><span>${r.tools} tool${r.tools===1?"":"s"} · ${esc(r.status.label)}</span></span>
-            <span class="c2" style="color:${r.status.cls==="red"?"var(--bad)":r.status.cls==="amber"?"var(--warn)":"var(--ok)"};font-weight:700">${r.points}</span>
+            <span class="c2" style="color:${r.status.cls==="red"?"var(--bad)":r.status.cls==="amber"?"var(--warn-700)":"var(--ok)"};font-weight:700">${r.points}</span>
             <span class="c3" style="text-align:center;font-weight:700">${r.a8}</span>
           </div>
           <div class="hbarwrap"><i style="width:${Math.min(100, r.points/4)}%;
@@ -5309,7 +5337,7 @@ function formView(){
     </div>` : ""}
     ${body}
     ${formState.date > todayISO() ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
-      <h3 style="color:var(--warn)">Ready for ${shortDate(formState.date)}</h3>
+      <h3 style="color:var(--warn-700)">Ready for ${shortDate(formState.date)}</h3>
       <p>Write it up now and it is kept as a draft. On the morning, add who attended, sign it,
       and it submits then.</p>
     </div>
@@ -5386,7 +5414,7 @@ function readRow(f, val){
     return `<div class="kv" style="display:block"><span class="k">${esc(f.label)}</span>
       <table class="tbl" style="margin-top:6px"><tr><th>Operative</th><th>Points</th><th>A(8)</th><th>Status</th></tr>`+
       rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.points}</td><td>${r.a8}</td>
-        <td style="color:${r.status.cls==="red"?"var(--bad)":r.status.cls==="amber"?"var(--warn)":"var(--ok)"}">
+        <td style="color:${r.status.cls==="red"?"var(--bad)":r.status.cls==="amber"?"var(--warn-700)":"var(--ok)"}">
         ${esc(r.status.label)}</td></tr>`).join("")+`</table></div>`;
   }
   if(f.type==="check"){
@@ -5681,7 +5709,7 @@ function defectView(){
             : "Reported to "+esc(to.name)+(to.ref?" — hire ref "+esc(to.ref):"")+"."}
         </p>
         ${to.email?`<p class="sub" style="font-size:12.5px;color:var(--ink-3)">${esc(to.email)}</p>`:
-          `<p class="sub" style="font-size:12.5px;color:var(--warn)">No email set — add one on the plant register.</p>`}
+          `<p class="sub" style="font-size:12.5px;color:var(--warn-700)">No email set — add one on the plant register.</p>`}
       </div>`;
     })()}
     <button class="btn ghost" data-defpdf="${d.plantId}">View report</button>
@@ -5861,7 +5889,7 @@ function exchangeBlock(kind, it){
     const due = it.exchangeDate <= todayISO();
     return `<div class="card" style="background:${due?"var(--warn-bg)":"var(--canvas)"};box-shadow:none">
       <div class="spread">
-        <div><h3 style="${due?"color:var(--warn)":""}">Exchange ${
+        <div><h3 style="${due?"color:var(--warn-700)":""}">Exchange ${
           due ? "due" : shortDate(it.exchangeDate)}</h3>
           <p class="sub">${esc(it.exchangeNote || "Details taken on the day.")}</p></div>
       </div>
@@ -6051,7 +6079,7 @@ function plantView(){
   const alertCard = alerts.length ? (function(){
     const bad = alerts.some(x=>x.st.key==="expired");
     return `<div class="card" style="background:${bad?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none">
-      <h3 style="color:${bad?"var(--bad)":"var(--warn)"}">
+      <h3 style="color:${bad?"var(--bad)":"var(--warn-700)"}">
         ${bad?"Thorough examination overdue":"Thorough examination due"}</h3>
       <p>${alerts.map(x=>esc((x.p.item||"Unnamed item")+" — "+x.st.label)).join("<br>")}</p></div>`;
   })() : "";
@@ -6829,7 +6857,7 @@ function scansView(){
 
     ${missing.length ? `<div class="card" style="background:${
       scansDue(ws)?"var(--warn-bg)":"var(--canvas)"};box-shadow:none">
-      <h3 style="color:${scansDue(ws)?"var(--warn)":"var(--ink)"}">${missing.length} ${
+      <h3 style="color:${scansDue(ws)?"var(--warn-700)":"var(--ink)"}">${missing.length} ${
         scansDue(ws) ? "still to scan" : "to scan at the end of the week"}</h3>
       ${missing.map(m=>`<p style="color:var(--ink-2);margin-top:2px">
         <b style="font-weight:640">${esc(m.item||"Machine")}</b>${
@@ -6921,7 +6949,7 @@ function packView(){
     </div>
 
     ${gaps.length ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
-      <h3 style="color:var(--warn)">${gaps.length} record${gaps.length===1?"":"s"} outstanding</h3>
+      <h3 style="color:var(--warn-700)">${gaps.length} record${gaps.length===1?"":"s"} outstanding</h3>
       <p style="margin-bottom:8px">The pack can still be published. Anything missing is listed
       on its own page rather than quietly left out.</p>
       ${gaps.slice(0,8).map(g=>`<div style="font-size:13.5px;color:var(--ink-2);padding:2px 0">
@@ -7202,7 +7230,7 @@ function liftingView(){
   const alertCard = alerts.length ? (function(){
     const bad = alerts.some(x=>x.st.key==="expired");
     return `<div class="card" style="background:${bad?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none">
-      <h3 style="color:${bad?"var(--bad)":"var(--warn)"}">
+      <h3 style="color:${bad?"var(--bad)":"var(--warn-700)"}">
         ${bad?"LOLER examination overdue":"LOLER examination due"}</h3>
       <p>${alerts.map(x=>esc((x.l.item||"Unnamed item")+" — "+x.st.label)).join("<br>")}</p></div>`;
   })() : "";
@@ -8002,7 +8030,7 @@ function settingsView(){
       </div>
       ${(c.sharepoint.site||"").indexOf("-my.sharepoint.com")>-1 ? `
       <div class="card" style="background:var(--warn-bg);box-shadow:none;margin-top:12px">
-        <p style="color:var(--warn)"><b>This is a personal OneDrive.</b> Diaries are contractual
+        <p style="color:var(--warn-700)"><b>This is a personal OneDrive.</b> Diaries are contractual
         records — if they sit in one person\u2019s OneDrive they go with that person when they leave,
         and the company cannot control access. Move the destination to a SharePoint team site
         library before going live.</p>
