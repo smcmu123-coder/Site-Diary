@@ -82,6 +82,9 @@ body{background:var(--canvas);color:var(--ink);font-family:"Helvetica Neue",Helv
 .tag.vis{background:#EFEAF7;color:#5B3E8C}
 .tag.rep{background:var(--orange-bg);color:var(--orange)}
 .tag.hol{background:var(--amber-bg);color:var(--amber)}
+.tag.in{background:#E7F0E9;color:#1F5A2D}
+.tag.part{background:var(--amber-bg);color:var(--amber)}
+.item.done b{color:#1F5A2D}
 .stat{padding:11px 14px;border-radius:13px;background:rgba(255,255,255,.08);margin-bottom:8px;
   overflow:hidden}
 .stat .n{float:left;font-size:30px;font-weight:800;letter-spacing:-.02em;color:#fff;
@@ -123,7 +126,7 @@ body{background:var(--canvas);color:var(--ink);font-family:"Helvetica Neue",Helv
   <div class="rings" id="rings"></div>
   <div class="cols">
     <div class="panel"><h2>Today on site</h2><div class="list" id="overview"></div></div>
-    <div class="panel"><h2>Needs attention</h2><div class="list" id="attention"></div></div>
+    <div class="panel"><h2>Received today</h2><div class="list" id="received"></div></div>
     <div class="panel dark"><h2>This week</h2><div id="week"></div></div>
   </div>
   <div class="foot">
@@ -210,9 +213,11 @@ function draw(D){
   (D.deliveries||[]).forEach(function(x){
     if(x.job!==D.job || x.dueDate!==T || x.cancelled) return;
     var got=(x.received||[]).reduce(function(n,r){ return n+(Number(r.qty)||0); },0);
+    var want=Number(x.qty)||0;
+    if(want && got>=want) return;          /* it has landed — it shows on the other side */
     ov.push({k:"del",label:"Delivery",b:x.description||x.type,
-      s:(x.supplier||"")+" · "+x.qty+" "+(x.unit||""),
-      when:got>=(Number(x.qty)||0)&&x.qty ? "all in" : got ? got+" in" : "due"});
+      s:(x.supplier||"")+" · "+(want?want+" "+(x.unit||""):""),
+      when: got ? got+" of "+want+" in" : "due"});
   });
   [].concat(D.plant||[], D.lifting||[], D.tools||[]).forEach(function(x){
     if(x.job!==D.job) return;
@@ -278,7 +283,37 @@ function draw(D){
   if(excOpen-excDone>0) missing.push((excOpen-excDone)+" excavation inspections");
   if(missing.length) att.push({cls:"warnbg",b:"Still to do today",
     s:missing.join(", ").replace(/,([^,]*)$/," and$1"),when:""});
-  var attList = document.getElementById("attention");
+  /* ---------- what has come in ---------- */
+  var inToday=[];
+  (D.deliveries||[]).forEach(function(x){
+    if(x.job!==D.job || x.cancelled) return;
+    var todayDrops=(x.received||[]).filter(function(r){ return r.date===T; });
+    if(!todayDrops.length) return;
+    var gotToday=todayDrops.reduce(function(n,r){ return n+(Number(r.qty)||0); },0);
+    var got=(x.received||[]).reduce(function(n,r){ return n+(Number(r.qty)||0); },0);
+    var want=Number(x.qty)||0;
+    var tickets=todayDrops.map(function(r){ return r.ticket; }).filter(Boolean);
+    inToday.push({ full: want && got>=want, qty:gotToday,
+      b:x.description||x.type,
+      s:(x.supplier||"") + (tickets.length ? " · ticket "+tickets.join(", ") : ""),
+      when: gotToday + " " + (x.unit||""),
+      note: want ? (got>=want ? "complete" : got+" of "+want+" so far") : "" });
+  });
+  var recList = document.getElementById("received");
+  recList.className = "list" + (inToday.length>8 ? " two compact"
+    : inToday.length>5 ? " compact" : "");
+  recList.innerHTML = inToday.length
+    ? inToday.map(function(x){
+        return '<div class="item'+(x.full?" done":"")+'">'
+          + '<i style="background:'+(x.full?"var(--green)":"var(--amber)")+'"></i>'
+          + '<div class="txt"><span class="tag '+(x.full?"in":"part")+'">'
+          + (x.full?"Complete":"Part load")+'</span><b>'+esc(x.b)+'</b>'
+          + '<span>'+esc(x.s)+(x.note?(x.s?" · ":"")+x.note:"")+'</span></div>'
+          + '<div class="when">'+esc(x.when)+'</div></div>';
+      }).join("")
+    : '<div class="empty">Nothing taken in yet today.</div>';
+
+  var attList = { className:"", innerHTML:"" };
   attList.className = "list" + (att.length>8 ? " two compact" : att.length>4 ? " compact" : "");
   attList.innerHTML = att.length
     ? att.slice(0, att.length>14 ? 14 : att.length).map(function(x){
