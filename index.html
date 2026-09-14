@@ -766,6 +766,7 @@ const CONFIG = {
   refPrefix: "DD",
   hours: { start:"07:30", finish:"17:00", breakMins:30 },
   plantChecks: "app",          /* or "paper" while the lads are still on the sheets */
+  toolboxDay: 0,               /* Monday — the day the talk is given */
 
   /* TESTING ONLY. Set to false before this goes out to site teams — a submitted
      diary is a contractual record and should never be deletable by a normal
@@ -1099,9 +1100,15 @@ function weeklyRecordFor(formKey, date){
 }
 function isDone(rec){ return !!rec && rec.status==="submitted"; }
 
+/* The day the toolbox talk is meant to be given, and whether it is due yet. */
+function toolboxDay(){ const n = Number(cfg().toolboxDay); return Number.isFinite(n) ? n : 0; }
+function toolboxDate(ws){ return addDays(ws, toolboxDay()); }
+function toolboxDue(date){ return date >= toolboxDate(weekStart(date)); }
+
 /* What the week still owes: the weekly forms that have not been done. */
 function weeklyOutstanding(date){
   return Object.values(FORMS).filter(f=>f.weekly)
+    .filter(f=>f.key!=="toolboxtalk" || toolboxDue(date))
     .filter(f=>!isDone(weeklyRecordFor(f.key, date)));
 }
 
@@ -1128,6 +1135,29 @@ const BRIEFING_CHECKS = [
   "Stop the job triggers agreed",
   "Emergency procedures understood"
 ];
+
+function toolboxSections(){
+  return [
+    { title:"The talk", fields:[
+      { id:"subject", type:"text", label:"What the talk was about", required:true,
+        hint:"e.g. Buried services, manual handling, working near plant" },
+      { id:"deliveredBy", type:"text", label:"Delivered by", required:true },
+      { id:"position", type:"text", label:"Position" },
+      { id:"sheet", type:"photos", label:"Photograph of the talk", required:true, max:6,
+        hint:"The sheet or the board, so what was covered is on the record." },
+      { id:"points", type:"textarea", label:"Anything raised",
+        hint:"Questions asked, or anything that needs following up." }
+    ]},
+    { title:"Who sat in", fields:[
+      { id:"attendees", type:"attendsign", label:"Who attended the talk", required:true,
+        hint:"Tick who was there, then each signs for it." }
+    ]},
+    { title:"Sign off", fields:[
+      { id:"signature", type:"signature", label:"Signature of the person delivering it",
+        required:true }
+    ]}
+  ];
+}
 
 function briefingSections(){
   return [
@@ -1341,7 +1371,11 @@ const FORMS = {
     blurb:"Tools and small plant, once a week." },
   loler: { key:"loler", name:"LOLER Weekly Inspections", short:"LOLER", prefix:"LO",
     sections:lolerSections, weekly:true, inPack:true,
-    blurb:"Lifting equipment, once a week." }
+    blurb:"Lifting equipment, once a week." },
+
+  toolboxtalk: { key:"toolboxtalk", name:"Toolbox Talk", short:"Toolbox", prefix:"TT",
+    sections:toolboxSections, weekly:true, inPack:true,
+    blurb:"The week's talk, and who sat in on it." }
 };
 const formDef = k => FORMS[k] || FORMS.diary;
 const sectionsFor = k => formDef(k).sections();
@@ -2541,6 +2575,30 @@ function openPackSheet(ws, draft){
             ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
         return;
       }
+      if(sec.key === "toolboxtalk"){
+        const att = (d.attendees || []).map(a => typeof a === "string" ? { name:a } : a);
+        html += page(
+          head("Toolbox Talk", rec.ref||"", metaFor(rec, [
+            ["Subject", d.subject||"", "Delivered by", d.deliveredBy||rec.by||""]])) +
+          `<div class="pk-h">The talk</div>` +
+          tbl(["Subject","Delivered by","Position"],
+            [[d.subject||"—", d.deliveredBy||rec.by||"—", d.position||"—"]]) +
+          (d.points ? `<div class="pk-h">Raised on the day</div>
+            <p style="font-size:10.5px;margin:0 0 8px">${esc(d.points)}</p>` : "") +
+          ((d.sheet||[]).length
+            ? `<div class="pk-h">The talk as given</div><div class="imgs">`
+              + d.sheet.map(p2=>`<img src="${p2.src}" alt="Toolbox talk">`).join("") + `</div>`
+            : "") +
+          `<div class="pk-h">Attendees</div>` +
+          tbl(["","Name","Signature"],
+            att.length ? att.map((a,i)=>[(i+1)+".", a.name||"",
+              a.sig && a.sig.src ? `<img src="${a.sig.src}" style="height:30px;display:block">` : "&mdash;"])
+              : [["","None recorded",""]],
+            { raw:[2], widths:[0.07,0.45,0.48] }) +
+          declaration([["Delivered by", d.deliveredBy||rec.by||""],
+            ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
+        return;
+      }
       if(sec.key === "havs"){
         const tot = havsTotals(d.entries);
         html += page(
@@ -2779,6 +2837,30 @@ async function buildPackPdf(ws, draft){
         return;
       }
 
+      if(sec.key === "toolboxtalk"){
+        const att = (d.attendees || []).map(a => typeof a === "string" ? { name:a } : a);
+        html += page(
+          head("Toolbox Talk", rec.ref||"", metaFor(rec, [
+            ["Subject", d.subject||"", "Delivered by", d.deliveredBy||rec.by||""]])) +
+          `<div class="pk-h">The talk</div>` +
+          tbl(["Subject","Delivered by","Position"],
+            [[d.subject||"—", d.deliveredBy||rec.by||"—", d.position||"—"]]) +
+          (d.points ? `<div class="pk-h">Raised on the day</div>
+            <p style="font-size:10.5px;margin:0 0 8px">${esc(d.points)}</p>` : "") +
+          ((d.sheet||[]).length
+            ? `<div class="pk-h">The talk as given</div><div class="imgs">`
+              + d.sheet.map(p2=>`<img src="${p2.src}" alt="Toolbox talk">`).join("") + `</div>`
+            : "") +
+          `<div class="pk-h">Attendees</div>` +
+          tbl(["","Name","Signature"],
+            att.length ? att.map((a,i)=>[(i+1)+".", a.name||"",
+              a.sig && a.sig.src ? `<img src="${a.sig.src}" style="height:30px;display:block">` : "&mdash;"])
+              : [["","None recorded",""]],
+            { raw:[2], widths:[0.07,0.45,0.48] }) +
+          declaration([["Delivered by", d.deliveredBy||rec.by||""],
+            ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
+        return;
+      }
       if(sec.key === "havs"){
         doc.sheetHead(logo, "Hand Arm Vibration (HAVs) Record Sheet", "CGCivils-006", meta(rec));
         doc.text("HAVs record keeping log", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
@@ -3410,8 +3492,14 @@ function planItems(date){
         go:{ name:"item", kind:"lifting", id:l.id },
         ref:{ type:"open", name:"item", kind:"lifting", id:l.id } });
   });
+  /* the toolbox talk lands on whichever day it is set for */
+  if(date === toolboxDate(weekStart(date)) && !isDone(weeklyRecordFor("toolboxtalk", date)))
+    out.push({ kind:"inspection", time:"", sort:0, text:"Toolbox talk due",
+      sub:"weekly", go:{ name:"home", date },
+      ref:{ type:"open", name:"home", date } });
+
   if(parse(date).getDay() === 5){           /* Friday */
-    Object.values(FORMS).filter(f=>f.weekly).forEach(f=>{
+    Object.values(FORMS).filter(f=>f.weekly && f.key!=="toolboxtalk").forEach(f=>{
       if(!isDone(weeklyRecordFor(f.key, date)))
         out.push({ kind:"inspection", time:"", sort:4, text:f.short + " register due",
           sub:"weekly", go:{ name:"home", date },
@@ -4672,6 +4760,17 @@ function homeView(){
   const weeklyCards = Object.values(FORMS).filter(f=>f.weekly).map(f=>{
     const wr = weeklyRecordFor(f.key, sel);
     const done = isDone(wr);
+    const tbDay = WEEKDAYS[toolboxDay()];
+    const notYet = f.key==="toolboxtalk" && !toolboxDue(sel);
+    if(f.key==="toolboxtalk" && !done) return { label:f.short, done:false, html:
+      `<div class="hero${notYet?" calm":""}">
+        <div class="lab">${notYet ? "Later this week" : "This week"}</div>
+        <div class="ttl">${esc(f.name)}</div>
+        <div class="why">${notYet
+          ? "Given on a " + tbDay + ". Get it ready whenever you like."
+          : "Due on a " + tbDay + ". Photograph the sheet and have the lads sign for it."}</div>
+        <button class="begin" data-startf="${f.key}" data-d="${sel}">${
+          notYet ? "Get it ready" : "Begin"}</button></div>` };
     return { label:f.short, done,
       html: done
         ? `<div class="hero calm">
@@ -4802,6 +4901,27 @@ function startForm(date, formKey, plantId, excRef){
     : dailyRecordFor(formKey, date);
   if(rec && rec.status==="submitted"){ go("record",{id:rec.id}); return; }
   const values = rec ? JSON.parse(JSON.stringify(rec.data)) : prefill(date, formKey, excRef);
+
+  /* Attendees used to be kept as plain names. Anything saved that way is turned
+     into a proper entry so it shows as attended and can be signed. */
+  sectionsFor(formKey).forEach(sec=>sec.fields.forEach(f=>{
+    if(f.type !== "attendsign") return;
+    const arr = values[f.id];
+    if(!Array.isArray(arr)) return;
+    const fixed = arr.map(x=>{
+      if(x && typeof x === "object") return x;
+      const name = String(x||"");
+      const person = (DB.labour||[]).find(p=>p.job===DB.job && p.name===name);
+      return { id: person ? person.id : "name:"+slug(name), name, sig:null };
+    });
+    /* one entry per person, keeping whichever one has been signed */
+    const byId = {};
+    fixed.forEach(x=>{
+      const key = x.id || ("name:" + slug(x.name||""));
+      if(!byId[key] || (!byId[key].sig && x.sig)) byId[key] = Object.assign({}, x, { id:key });
+    });
+    values[f.id] = Object.values(byId);
+  }));
   if(rec){
     ["personnel","plant","activities","progress","deliveries","dwLabour_old"].forEach(k=>{ delete values[k]; });
     values.tasks = values.tasks || [];
@@ -5104,7 +5224,7 @@ function fieldHtml(f, v, err, path){
           return `<div class="trow"${off?' style="background:var(--info-bg)"':""}>
             <div class="main">
               <span class="c1"><b>${esc(pn.name)}</b><span>${esc(pn.trade||"")}</span></span>
-              ${off
+              ${off && !there
                 ? `<span class="pill info" style="flex:none">${esc(off.type)}</span>`
                 : `<span class="yn" style="width:104px">
                     <button type="button" class="${there?"y":""}"
@@ -5129,6 +5249,32 @@ function fieldHtml(f, v, err, path){
             </div>` : ""}
           </div>`;
         }).join("") +
+        (function(){
+          /* somebody who has since come off the register, or was added by hand:
+             they still need to be reachable, or the form can never be submitted */
+          const known = people.map(p2=>p2.id);
+          return arr.filter(x=>x && !known.includes(x.id)).map(x=>{
+            const signed = x.sig && x.sig.src;
+            return `<div class="trow" style="background:var(--canvas)">
+              <div class="main">
+                <span class="c1"><b>${esc(x.name||"Someone")}</b>
+                  <span>No longer on the labour register</span></span>
+                <button type="button" data-attrm="${id}:${esc(x.id)}"
+                  style="color:var(--bad);font-weight:650;font-size:13px">Remove</button>
+              </div>
+              <div class="more">
+                ${signed
+                  ? `<div style="display:flex;align-items:center;gap:12px">
+                      <img src="${x.sig.src}" alt="Signature" style="height:44px;background:#fff;
+                        border-radius:8px;padding:3px 8px;border:1px solid var(--line-2)">
+                      <span style="font-size:12.5px;color:var(--ok);font-weight:650">Signed</span>
+                    </div>`
+                  : `<button type="button" class="btn line sm" style="margin:0"
+                      data-attsig="${id}:${esc(x.id)}">Sign for ${esc((x.name||"them").split(" ")[0])}</button>`}
+              </div>
+            </div>`;
+          }).join("");
+        })() +
         `<div class="tfoot"><span>${arr.length} attended · ${signedCount} signed</span></div>
       </div>`;
       break;
@@ -7119,6 +7265,17 @@ function jobView(){
         <input class="in" type="date" data-jobf="startDate" value="${esc(DB.startDate||todayISO())}"></div>
     </div>
 
+    <div class="sect">Toolbox talk</div>
+    <div class="card">
+      <p style="margin-bottom:12px">The day the talk is given. From that day the week is not
+      complete without it, and it appears on the planner.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${WEEKDAYS.map((d,i)=>`<button class="pill ${toolboxDay()===i?"ok":"grey"}"
+          style="padding:9px 14px;font-size:13.5px" data-tbday="${i}">${d.slice(0,3)}</button>`).join("")}
+      </div>
+      <p class="sub" style="margin-top:10px">Currently ${esc(WEEKDAYS[toolboxDay()])}.</p>
+    </div>
+
     <div class="sect">Working hours</div>
     <div class="card" style="background:var(--green-50);box-shadow:none">
       <p>Set each day separately — a short Friday, a different break, or a Saturday worked.
@@ -7938,6 +8095,17 @@ function settingsView(){
         <input class="in" type="date" data-start="1" value="${esc(DB.startDate||todayISO())}"></div>
     </div>
 
+    <div class="sect">Toolbox talk</div>
+    <div class="card">
+      <p style="margin-bottom:12px">The day the talk is given. From that day the week is not
+      complete without it, and it appears on the planner.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${WEEKDAYS.map((d,i)=>`<button class="pill ${toolboxDay()===i?"ok":"grey"}"
+          style="padding:9px 14px;font-size:13.5px" data-tbday="${i}">${d.slice(0,3)}</button>`).join("")}
+      </div>
+      <p class="sub" style="margin-top:10px">Currently ${esc(WEEKDAYS[toolboxDay()])}.</p>
+    </div>
+
     <div class="sect">Working hours</div>
     <button class="card" style="width:100%;text-align:left" data-go="job">
       <div class="kv"><span class="k">Usual day</span>
@@ -8549,8 +8717,17 @@ function bind(){
     setVal(path, list);
     after();
   });
+  app.querySelectorAll("[data-attrm]").forEach(el=>el.onclick=()=>{
+    const raw = el.getAttribute("data-attrm");
+    const split = raw.indexOf(":");
+    const path = raw.slice(0, split), personId = raw.slice(split+1);
+    setVal(path, (getVal(path) || []).filter(x=>x && x.id !== personId));
+    after();
+  });
   app.querySelectorAll("[data-attsig]").forEach(el=>el.onclick=()=>{
-    const [path, personId] = el.dataset.attsig.split(":");
+    const raw = el.getAttribute("data-attsig");
+    const split = raw.indexOf(":");
+    const path = raw.slice(0, split), personId = raw.slice(split+1);
     const list = (getVal(path) || []).slice();
     const at = list.findIndex(x=>x && x.id===personId);
     if(at < 0) return;
@@ -9665,6 +9842,11 @@ function bind(){
     const [recId, idx, on] = el.getAttribute("data-dcount").split(":");
     setDelayCounted(recId, Number(idx), on==="1");
     render();
+  });
+  app.querySelectorAll("[data-tbday]").forEach(el=>el.onclick=()=>{
+    DB.config.toolboxDay = Number(el.getAttribute("data-tbday"));
+    save(); render();
+    toast("Toolbox talk on a " + WEEKDAYS[toolboxDay()]);
   });
   app.querySelectorAll("[data-pcmode]").forEach(el=>el.onclick=()=>{
     DB.config.plantChecks = el.getAttribute("data-pcmode");
