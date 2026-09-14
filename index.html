@@ -8802,9 +8802,47 @@ function settingsView(){
       <button class="btn add" data-demo="1">Make a demo link</button>
 
       <div class="sect" style="margin:18px 0 8px">The office board</div>
-      <p style="margin-bottom:12px">Sends the figures the wall board needs — no photographs, so
-      it is a small file. Upload it next to the board and the screen refreshes itself.</p>
-      <button class="btn add" data-board="1" style="margin:0">Update the office board</button>
+      ${(function(){
+        const b = boardCfg();
+        const set = b.repo && b.token;
+        return `
+        <p style="margin-bottom:12px">The board on the office wall reads a small file of figures
+        — no photographs. Either send it across yourself, or let the app put it up each time a
+        form goes in.</p>
+
+        <div class="card" style="background:${set?"var(--green-50)":"var(--canvas)"};
+          box-shadow:none">
+          <div class="f"><label>Repository</label>
+            <div class="hint">Where the board lives, as owner/name.</div>
+            <input class="in" data-bcfg="repo" value="${esc(b.repo||"")}"
+              placeholder="smcmu123-coder/Site-Diary"></div>
+          <div class="g2">
+            <div class="f"><label>Branch</label>
+              <input class="in" data-bcfg="branch" value="${esc(b.branch||"main")}"></div>
+            <div class="f"><label>Access token</label>
+              <div class="hint">Kept on this device.</div>
+              <input class="in" type="password" data-bcfg="token"
+                value="${b.token ? "••••••••••••" : ""}" placeholder="github_pat_…"></div>
+          </div>
+          <div class="spread" style="margin-top:6px">
+            <span><b style="font-weight:650">Update it automatically</b>
+              <span style="display:block;font-size:12.5px;color:var(--ink-2)">
+                Every time a form is submitted</span></span>
+            <span class="yn" style="width:118px;flex:none">
+              <button type="button" class="${b.auto?"y":""}" data-bauto="1">On</button>
+              <button type="button" class="${b.auto?"":"n"}" data-bauto="0">Off</button>
+            </span>
+          </div>
+          ${b.lastPush ? `<p class="sub" style="margin-top:10px;color:var(--ok)">
+            Last sent ${shortDate(iso(new Date(b.lastPush)))} at ${timeOnly(b.lastPush)}.</p>` : ""}
+          ${b.lastError ? `<p class="sub" style="margin-top:6px;color:var(--bad)">
+            Last try failed — ${esc(b.lastError)}.</p>` : ""}
+          <button class="btn line sm" style="margin:12px 0 0" data-btest="1">Send it now</button>
+        </div>
+
+        <button class="btn add" data-board="1" style="margin-top:10px">
+          Save the file and send it myself</button>`;
+      })()}
       ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
         Last copy sent ${stamp(DB.lastShared)}</p>`:""}
     </div>`;
@@ -10435,6 +10473,24 @@ function bind(){
   const im = app.querySelector("[data-import]"); if(im) im.onclick = importBackup;
   const dm = app.querySelector("[data-demo]"); if(dm) dm.onclick = shareDemo;
   const bd = app.querySelector("[data-board]"); if(bd) bd.onclick = publishBoard;
+  app.querySelectorAll("[data-bcfg]").forEach(el=>{
+    el.oninput = () => {
+      const k = el.dataset.bcfg;
+      const v = el.value;
+      if(k === "token" && /^•+$/.test(v)) return;       /* left as it was */
+      boardCfg()[k] = v.trim();
+      DB.board.lastError = "";
+      save();
+    };
+    el.onchange = el.oninput;
+  });
+  app.querySelectorAll("[data-bauto]").forEach(el=>el.onclick=()=>{
+    boardCfg().auto = el.getAttribute("data-bauto") === "1";
+    save(); render();
+    toast(DB.board.auto ? "The board will follow each form" : "The board is yours to send");
+  });
+  const bt = app.querySelector("[data-btest]");
+  if(bt) bt.onclick = async ()=>{ toast("Sending…"); await pushBoard(false); render(); };
 }
 function after(){ if(formState.touched) formState.errors = validate(); render(); }
 
@@ -10483,6 +10539,7 @@ function submitForm(){
   syncVo(rec);
   raiseDefects(rec);
   save();
+  boardMaybePush();          /* the office screen follows along on its own */
   const raised = (DB.vos||[]).filter(v=>v.recordId===rec.id);
   const what = formDef(rec.form).name;
   toast(raised.length
@@ -10723,7 +10780,10 @@ function printVo(id){
 /* ----------------------------------------------------------------- backup -- */
 function backupFile(){
   const name = "site-diary-"+DB.job.replace(/[^a-z0-9]+/gi,"-").toLowerCase()+"-"+todayISO()+".json";
-  return new File([JSON.stringify(DB,null,2)], name, { type:"application/json" });
+  /* the GitHub token stays on this device, so it is taken out of the backup */
+  const copy = JSON.parse(JSON.stringify(DB));
+  if(copy.board) delete copy.board.token;
+  return new File([JSON.stringify(copy,null,2)], name, { type:"application/json" });
 }
 function exportBackup(){
   const f = backupFile();
@@ -10751,6 +10811,7 @@ async function buildDemo(){
   const snapshot = JSON.parse(JSON.stringify(DB));
   delete snapshot.__movedFromLocalStorage;
   delete snapshot.__fromSnapshot;
+  if(snapshot.board) delete snapshot.board.token;   /* never leaves this device */
 
   const head = TAG
     + "window.__DEMO__ = true;window.__DEMO_AT__ = " + Date.now() + ";"
@@ -10843,6 +10904,76 @@ function boardSnapshot(){
       id:d.id, job:d.job, plantId:d.plantId, item:d.item, description:d.description,
       status:d.status, reportedAt:d.reportedAt, repair:d.repair }))
   };
+}
+
+
+/* ------------------------------------------------- the board, by itself --
+   With a GitHub token the app can put the board file up on its own, so the
+   office screen follows the site without anybody uploading anything.
+   The token is kept on this device only: it is never written into a backup,
+   a demo copy or the board file itself.
+   -------------------------------------------------------------------------*/
+function boardCfg(){
+  DB.board = DB.board || { repo:"", branch:"main", token:"", auto:false,
+    lastPush:0, lastError:"" };
+  return DB.board;
+}
+
+function b64(str){
+  /* base64 that survives accents and symbols */
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  bytes.forEach(b=>{ bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+
+async function pushBoard(quiet){
+  const c = boardCfg();
+  if(!c.repo || !c.token){
+    if(!quiet) toast("Add the repository and token first.");
+    return false;
+  }
+  const url = "https://api.github.com/repos/" + c.repo.trim() + "/contents/board-data.json";
+  const head = { "Authorization":"Bearer " + c.token.trim(),
+    "Accept":"application/vnd.github+json" };
+  try{
+    /* the file has to be replaced by its current version, so read it first */
+    let sha = null;
+    const got = await fetch(url + "?ref=" + (c.branch||"main"), { headers:head, cache:"no-store" });
+    if(got.status === 200){ sha = (await got.json()).sha; }
+    else if(got.status !== 404){ throw new Error("GitHub said " + got.status); }
+
+    const body = { message:"Site board — " + new Date().toLocaleString("en-GB"),
+      content: b64(JSON.stringify(boardSnapshot())), branch: c.branch || "main" };
+    if(sha) body.sha = sha;
+
+    const put = await fetch(url, { method:"PUT", headers:head, body:JSON.stringify(body) });
+    if(!put.ok){
+      const msg = put.status === 401 ? "the token was refused"
+        : put.status === 404 ? "that repository could not be found"
+        : put.status === 403 ? "the token is not allowed to write there"
+        : "GitHub said " + put.status;
+      throw new Error(msg);
+    }
+    c.lastPush = Date.now(); c.lastError = "";
+    save();
+    if(!quiet) toast("The office board is up to date");
+    return true;
+  }catch(e){
+    c.lastError = (e && e.message) || "it did not go through";
+    save();
+    if(!quiet) toast("Board not updated — " + c.lastError);
+    return false;
+  }
+}
+
+/* after a form goes in, once the dust has settled */
+let boardTimer = null;
+function boardMaybePush(){
+  const c = boardCfg();
+  if(!c.auto || !c.repo || !c.token) return;
+  clearTimeout(boardTimer);
+  boardTimer = setTimeout(()=>pushBoard(true), 2500);
 }
 
 async function publishBoard(){
