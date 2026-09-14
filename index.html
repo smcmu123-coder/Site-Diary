@@ -521,6 +521,37 @@ body.isdemo .app{padding-top:76px}
     transform:none;stroke-dashoffset:0}
 }
 
+/* which job everything is going against */
+.hm .jobtag{display:inline-flex;align-items:center;gap:8px;margin-top:8px;
+  background:var(--green-50);color:var(--green-700);border-radius:var(--r-pill);
+  padding:6px 13px 6px 11px;font-size:var(--t-sub);font-weight:var(--w-med);
+  max-width:100%;box-shadow:inset 0 0 0 1px var(--green-100)}
+.hm .jobtag span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hm .jobtag i{width:7px;height:7px;border-radius:var(--r-pill);background:var(--green);
+  flex:none;display:block}
+
+/* the job, as a pill that drops open */
+.jobpick{position:relative;padding:0 20px;margin:10px 0 4px}
+.jobpill{display:inline-flex;align-items:center;gap:10px;background:var(--green-50);
+  color:var(--green-700);border-radius:999px;padding:10px 16px 10px 18px;
+  font-size:15px;font-weight:660;letter-spacing:-.01em;max-width:100%;
+  box-shadow:inset 0 0 0 1px var(--green-100);transition:background .18s ease}
+.jobpill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jobpill i{font-style:normal;font-size:12px;opacity:.7;transition:transform .22s ease}
+.jobpick.open .jobpill{background:var(--green);color:#fff;box-shadow:none}
+.jobpick.open .jobpill i{transform:rotate(180deg);opacity:.9}
+.jobmenu{position:absolute;left:20px;right:20px;top:calc(100% + 6px);z-index:30;
+  background:var(--paper);border-radius:16px;box-shadow:0 2px 6px rgba(15,21,18,.06),
+  0 24px 48px -24px rgba(15,21,18,.45);overflow:hidden}
+.jobopt{display:block;width:100%;text-align:left;padding:13px 16px;
+  border-bottom:1px solid var(--line-2)}
+.jobopt:last-child{border-bottom:0}
+.jobopt:active{background:var(--canvas)}
+.jobopt .n b{display:block;font-size:15px;font-weight:600;color:var(--ink)}
+.jobopt .n span{display:block;font-size:12.5px;color:var(--ink-3);margin-top:1px}
+.jobopt.addjob{background:var(--green-50)}
+.jobopt.addjob .n b{color:var(--green-700)}
+
 /* ---------------------------------------------------------- home screen -- */
 .hm .hd{padding:calc(10px + env(safe-area-inset-top)) 0 var(--s5)}
 .hm .hd-top{display:flex;align-items:flex-end;gap:var(--s2);padding:0 var(--s5) var(--s5)}
@@ -2466,7 +2497,7 @@ function packGaps(ws){
 function packFor(ws){ return (DB.packs||[]).find(p=>p.job===DB.job && p.weekCommencing===ws) || null; }
 function nextPackRef(ws){
   const yr = parse(ws).getFullYear();
-  const n = (DB.packs||[]).filter(p=>parse(p.weekCommencing).getFullYear()===yr).length + 1;
+  const n = jobPacks().filter(p=>parse(p.weekCommencing).getFullYear()===yr).length + 1;
   return "CGC-HSP-" + yr + "-" + String(n).padStart(3,"0");
 }
 
@@ -3779,7 +3810,7 @@ function planItems(date){
       ref:{ type:"event", id:e.id } });
   });
 
-  (DB.leave||[]).filter(l=>l.from<=date && l.to>=date).forEach(l=>{
+  jobLeave().filter(l=>l.from<=date && l.to>=date).forEach(l=>{
     const who = ((DB.labour||[]).find(x=>x.id===l.personId)||{}).name || "Someone";
     out.push({ kind: l.type==="HOL" ? "holiday" : "absence", time:"", sort:2,
       text: who + " — " + LEAVE_LABEL[l.type] || who,
@@ -3815,7 +3846,7 @@ function planItems(date){
   });
 
   /* repairs booked against an open defect */
-  (DB.defects||[]).filter(x=>x.status==="open" && x.repair && x.repair.date===date)
+  jobDefects().filter(x=>x.status==="open" && x.repair && x.repair.date===date)
     .forEach(x=>{
       const m = (DB.plant||[]).find(p=>p.id===x.plantId) || {};
       out.push({ kind:"repair", time:"", sort:1,
@@ -3872,6 +3903,25 @@ const DELIVERY_COLOURS = { Stone:"#6B5B3E", Sand:"#A9761B", Concrete:"#4A5568",
   Materials:"#1B4F7A", Tools:"#5B3E8C", Plant:"#1F5A2D", Misc:"#6B6B6B" };
 
 function deliveries(){ return (DB.deliveries||[]).filter(d=>d.job===DB.job); }
+
+/* Everything below belongs to a job. Older entries were saved without one, so
+   they are matched through the person or machine they belong to. */
+function jobLeave(){
+  return (DB.leave||[]).filter(l=>{
+    if(l.job) return l.job === DB.job;
+    const p = (DB.labour||[]).find(x=>x.id===l.personId);
+    return p ? p.job === DB.job : false;
+  });
+}
+function jobDefects(){
+  return (DB.defects||[]).filter(d=>{
+    if(d.job) return d.job === DB.job;
+    const m = (DB.plant||[]).find(x=>x.id===d.plantId);
+    return m ? m.job === DB.job : false;
+  });
+}
+function jobVos(){ return (DB.vos||[]).filter(v=>!v.job || v.job === DB.job); }
+function jobPacks(){ return (DB.packs||[]).filter(p=>!p.job || p.job === DB.job); }
 function receivedTotal(d){ return (d.received||[]).reduce((n,r)=>n + (Number(r.qty)||0), 0); }
 function outstandingQty(d){ return Math.max(0, (Number(d.qty)||0) - receivedTotal(d)); }
 
@@ -3987,7 +4037,7 @@ function smallPlantText(v){
    again. Rename one to VO7 and the next is VO8. */
 function highestVoNumber(){
   let max = 0;
-  (DB.vos||[]).forEach(v=>{
+  jobVos().forEach(v=>{
     const m = String(v.ref||"").match(/(\d+)\s*$/);
     if(!m) return;
     const n = parseInt(m[1],10);
@@ -4052,15 +4102,15 @@ const LEAVE_TYPES = [
 const leaveLabel = k => (LEAVE_TYPES.find(t=>t.key===k)||{}).label || k;
 
 function leaveOn(personId, date){
-  return (DB.leave||[]).find(l => l.personId===personId && l.from<=date && l.to>=date) || null;
+  return jobLeave().find(l => l.personId===personId && l.from<=date && l.to>=date) || null;
 }
 function leaveToday(date){
   const d = date || todayISO();
-  return (DB.leave||[]).filter(l => l.from<=d && l.to>=d);
+  return jobLeave().filter(l => l.from<=d && l.to>=d);
 }
 function leaveThisWeek(){
   const days = weekDays(weekStart(todayISO()));
-  return (DB.leave||[]).filter(l => days.some(d => l.from<=d && l.to>=d));
+  return jobLeave().filter(l => days.some(d => l.from<=d && l.to>=d));
 }
 
 /* Durations are entered as hours and minutes, kept as {h,m}. */
@@ -4153,7 +4203,7 @@ function projectAlerts(){
     defects,
     plantExams: lolerAlerts().length,
     liftExams: liftingAlerts().length,
-    unsignedVos: (DB.vos||[]).filter(v=>v.status!=="signed").length,
+    unsignedVos: jobVos().filter(v=>v.status!=="signed").length,
     get total(){ return this.defects + this.plantExams + this.liftExams + this.unsignedVos; }
   };
 }
@@ -4194,6 +4244,7 @@ function go(name, opts){
   if(name!=="plan"){ eventDraft = null; hireDraft = null; planPick = null; exchPick = false; }
   if(name!=="scans"){ scanDraft = null; }
   if(name!=="newjob"){ newJob = null; }
+  if(name!=="project"){ jobMenuOpen = false; }
   if(name!=="plant" && name!=="lifting" && name!=="item"){ examDraft = null; }
   if(name!=="item"){ itemEditing = false; }
 
@@ -4996,6 +5047,9 @@ function homeView(){
         <div>
           <div class="over">Week commencing ${shortDate(ws)}</div>
           <h1>${greet}${firstName?", "+esc(firstName):""}</h1>
+          <button class="jobtag" data-go="project">
+            <i></i><span>${esc(DB.job)}</span>
+          </button>
         </div>
         <button class="wnav" data-week="-1" aria-label="Previous week">&lsaquo;</button>
         <button class="wnav" data-week="1" ${weekStart(sel) <= weekStart(t) ? "" : "disabled"}
@@ -7269,6 +7323,8 @@ const TILE_ICONS = {
     <path d="M13.3 14 8.2 8.8"/>
     <path d="M8.2 8.8 5.3 13.9"/>
     <path d="M5.6 13.2 3.1 15.4l1.5 1.7L7 15z" fill="currentColor" stroke-width="1.2"/></svg>`,
+  totals: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.8" stroke-linecap="round"><path d="M4 19V9M10 19V5M16 19v-6M20.5 19h-17"/></svg>`,
   delay: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12.5" r="8"/>
     <path d="M12 8v5l3 2M9 2.5h6"/></svg>`,
@@ -7566,7 +7622,7 @@ function delaysView(){
       Taking one out leaves it on the diary — it just stops counting towards the total.</p>` : ""}`;
 }
 
-let newJob = null;
+let newJob = null, jobMenuOpen = false;
 
 function allJobs(){
   const list = (DB.config.jobs || []).slice();
@@ -7737,7 +7793,7 @@ function projectView(){
   const plantAl = lolerAlerts(), liftAl = liftingAlerts();
   const faulty = currentPlant().map(m=>({ m, df: defectsFor(m.id) })).filter(x=>x.df);
   const defectCount = faulty.reduce((n,x)=>n+x.df.items.length,0);
-  const unsignedVos = (DB.vos||[]).filter(v=>v.status!=="signed").length;
+  const unsignedVos = jobVos().filter(v=>v.status!=="signed").length;
   const offToday = leaveToday().length;
   const week = timesheetWeek(weekStart(t));
   const weekHours = Math.round(week.people.reduce((n,p)=>n+p.total,0)*100)/100;
@@ -7756,8 +7812,29 @@ function projectView(){
     : plantAl.length ? "amber" : "";
   const liftLevel = liftAl.some(x=>x.st.key==="expired") ? "red" : liftAl.length ? "amber" : "";
 
-  return `<h1 class="greet" style="font-size:26px;margin-top:18px">Project</h1>
-    <p class="sub">${esc(DB.job)}</p>
+  return `
+    <h1 class="greet" style="font-size:26px;margin-top:18px">Project</h1>
+
+    <div class="jobpick ${jobMenuOpen?"open":""}">
+      <button class="jobpill" data-jobmenu="1">
+        <span>${esc(DB.job)}</span>
+        <i>&#9662;</i>
+      </button>
+      ${jobMenuOpen ? `<div class="jobmenu">
+        ${allJobs().filter(n=>n!==DB.job).map(n=>{
+          const c = jobCounts(n);
+          return `<button class="jobopt" data-pickjob="${esc(n)}">
+            <span class="n"><b>${esc(n)}</b>
+              <span>${c.recs} record${c.recs===1?"":"s"} · ${c.plant} machine${
+                c.plant===1?"":"s"} on site</span></span>
+          </button>`;
+        }).join("")}
+        <button class="jobopt addjob" data-newjob="1">
+          <span class="n"><b>+ Set up a new job</b>
+            <span>Name, hours, references and the rest</span></span>
+        </button>
+      </div>` : ""}
+    </div>
 
     <div class="sect">On site</div>
     <div class="tiles">
@@ -7769,6 +7846,15 @@ function projectView(){
       ${tile("lifting", TILE_ICONS.lifting, "Lifting gear",
         liftAl.length ? liftAl.length+" LOLER due" : currentLifting().length+" on site",
         liftLevel, liftAl.length || "")}
+      ${(function(){
+        const tot = deliveryTotals();
+        const got = tot.reduce((n,x)=>n+x.received,0);
+        const want = tot.reduce((n,x)=>n+x.ordered,0);
+        return tile("deltotals", TILE_ICONS.totals, "Running totals",
+          tot.length ? tot.length + " material" + (tot.length===1?"":"s")
+            + " · " + (Math.round(got*10)/10) + " of " + (Math.round(want*10)/10) + " in"
+            : "Nothing booked in yet", "", "");
+      })()}
       ${(function(){
         const mins = allDelays().filter(x=>x.counted).reduce((n,x)=>n+x.mins,0);
         return tile("delays", TILE_ICONS.delay, "Delays",
@@ -7795,7 +7881,7 @@ function projectView(){
     <div class="tiles">
       ${tile("vos", TILE_ICONS.vos, "Dayworks",
         unsignedVos ? unsignedVos+" to be signed"
-          : (DB.vos||[]).length ? (DB.vos||[]).length+" all signed" : "None raised yet",
+          : jobVos().length ? jobVos().length+" all signed" : "None raised yet",
         unsignedVos ? "amber" : "", unsignedVos || "")}
       ${(function(){
         const ws = weekStart(t);
@@ -7812,17 +7898,6 @@ function projectView(){
     </div>
 
     <div class="sect">The job</div>
-    ${(function(){
-      const jobs = allJobs();
-      return `<div class="card" style="padding:14px">
-        <button class="row" style="width:100%;border:0;padding:0" data-jobswitch="1">
-          <span class="n"><b style="font-size:17px">${esc(DB.job)}</b>
-            <span>${jobs.length>1 ? jobs.length + " jobs on this device · tap to switch"
-              : "Tap to add another job"}</span></span>
-          <span style="color:var(--ink-3);font-size:20px">&#8964;</span>
-        </button>
-      </div>`;
-    })()}
     <button class="card" style="width:100%;text-align:left" data-go="job">
       <div class="kv"><span class="k">Job</span><span class="v">${esc(DB.job)}</span></div>
       <div class="kv"><span class="k">Working hours</span>
@@ -8040,7 +8115,7 @@ function monthCells(mStart){
 function leaveView(){
   const nameOf = id => ((DB.labour||[]).find(x=>x.id===id)||{}).name || "Unknown";
   const people = (DB.labour||[]).filter(l=>l.job===DB.job);
-  const all = (DB.leave||[]).slice().sort((a,b)=>a.from.localeCompare(b.from));
+  const all = jobLeave().slice().sort((a,b)=>a.from.localeCompare(b.from));
   const t = todayISO();
   const upcoming = all.filter(l=>l.to>=t);
   const past = all.filter(l=>l.to<t).reverse();
@@ -8093,7 +8168,7 @@ function leaveView(){
   const cells = monthCells(mStart);
   const thisMonth = parse(mStart).getMonth();
 
-  const offOn = d => (DB.leave||[]).filter(l => l.from<=d && l.to>=d);
+  const offOn = d => jobLeave().filter(l => l.from<=d && l.to>=d);
 
   const grid = cells.map(d=>{
     const dt = parse(d);
@@ -8108,7 +8183,7 @@ function leaveView(){
     </button>`;
   }).join("");
 
-  const monthPeople = [...new Set((DB.leave||[])
+  const monthPeople = [...new Set(jobLeave()
     .filter(l => cells.some(d => parse(d).getMonth()===thisMonth && l.from<=d && l.to>=d))
     .map(l=>l.personId))];
 
@@ -8151,7 +8226,7 @@ function leaveView(){
 }
 
 function voListView(){
-  const vos = (DB.vos||[]).slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const vos = jobVos().slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   const unsigned = vos.filter(v=>v.status!=="signed").length;
   return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button>
       ${unsigned?`<span class="pill amber">${unsigned} unsigned</span>`:""}</div>
@@ -9858,47 +9933,23 @@ function bind(){
     totalsType = el.getAttribute("data-totals"); render();
   });
 
-  const jsw = app.querySelector("[data-jobswitch]");
-  if(jsw) jsw.onclick = ()=>{
-    const wrap = document.createElement("div");
-    wrap.className = "scrim";
-    const rows = allJobs().map(n=>{
-      const c = jobCounts(n);
-      const on = n === DB.job;
-      return `<button class="row" style="width:100%;border:0;text-align:left"
-        data-pickjob="${esc(n)}">
-        <span class="n"><b>${esc(n)}</b>
-          <span>${c.recs} record${c.recs===1?"":"s"} · ${c.plant} machine${
-            c.plant===1?"":"s"} on site</span></span>
-        ${on ? `<span class="pill ok">On this</span>`
-             : `<span style="color:var(--ink-3);font-size:20px">&rsaquo;</span>`}
-      </button>`;
-    }).join("");
-    wrap.innerHTML = `<div class="dlg" style="text-align:left">
-        <h3>Jobs</h3>
-        <p>Records, plant and labour stay with the job they belong to.</p>
-        <div class="card" style="padding:2px 14px;box-shadow:none;background:var(--canvas);
-          margin-top:12px">${rows}</div>
-        <button class="btn" style="margin:14px 0 8px" data-newjob>+ Set up a new job</button>
-        <button class="btn ghost" style="margin:0" data-x>Close</button>
-      </div>`;
-    document.body.appendChild(wrap);
-    const close = () => wrap.remove();
-    wrap.querySelector("[data-x]").onclick = close;
-    wrap.onclick = e => { if(e.target===wrap) close(); };
-    wrap.querySelector("[data-newjob]").onclick = ()=>{ close(); newJob = blankJob(); go("newjob"); };
-    wrap.querySelectorAll("[data-pickjob]").forEach(b=>b.onclick=()=>{
-      const name = b.getAttribute("data-pickjob");
-      close();
-      if(name !== DB.job){
-        DB.jobStart = DB.jobStart || {};
-        DB.jobStart[DB.job] = DB.startDate;
-        switchJob(name);
-        DB.startDate = (DB.jobStart||{})[name] || DB.startDate;
-        save(); render();
-      }
-    });
-  };
+  const jmenu = app.querySelector("[data-jobmenu]");
+  if(jmenu) jmenu.onclick = ()=>{ jobMenuOpen = !jobMenuOpen; render(); };
+  app.querySelectorAll("[data-pickjob]").forEach(el=>el.onclick=()=>{
+    const name = el.getAttribute("data-pickjob");
+    jobMenuOpen = false;
+    if(name !== DB.job){
+      DB.jobStart = DB.jobStart || {};
+      DB.jobStart[DB.job] = DB.startDate;
+      DB.job = name;
+      DB.startDate = (DB.jobStart||{})[name] || DB.startDate;
+      DB.config.jobs = allJobs();
+      save(); render();
+      toast("Now on " + name);
+    } else render();
+  });
+  const njb = app.querySelector("[data-newjob]");
+  if(njb) njb.onclick = ()=>{ jobMenuOpen = false; newJob = blankJob(); go("newjob"); };
 
   /* setting a new job up */
   app.querySelectorAll("[data-nj]").forEach(el=>{
@@ -10328,7 +10379,7 @@ function bind(){
     if(!leaveDraft.personId){ toast("Choose who is off."); return; }
     if(leaveDraft.to < leaveDraft.from){ toast("The end date is before the start date."); return; }
     DB.leave = DB.leave || [];
-    DB.leave.push(Object.assign({ id:"lv_"+Date.now() }, leaveDraft));
+    DB.leave.push(Object.assign({ id:"lv_"+Date.now(), job:DB.job }, leaveDraft));
     leaveDraft = null; save(); render(); toast("Booked");
   };
   app.querySelectorAll("[data-lvrm]").forEach(el=>el.onclick=()=>{
