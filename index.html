@@ -1812,6 +1812,18 @@ const cfg = () => DB.config || CONFIG;
 const WEEKDAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const dayIndex = d => (parse(d).getDay() + 6) % 7;
 
+/* Every job keeps its own principal contractor, address and references.
+   Anything saved before jobs were separate is carried into the job it was
+   entered against, so nothing is lost. */
+function jobInfo(job){
+  const j = job || DB.job;
+  DB.jobInfo = DB.jobInfo || {};
+  const cur = DB.jobInfo[j];
+  if(cur && typeof cur === "object") return cur;
+  DB.jobInfo[j] = { pc:"", address:"", ref:"", theirRef:"" };
+  return DB.jobInfo[j];
+}
+
 function jobWeek(job){
   const j = job || DB.job;
   DB.jobWeek = DB.jobWeek || {};
@@ -7722,7 +7734,10 @@ function blankJob(){
    copied — each record already carries the job it belongs to. */
 function switchJob(name){
   if(!name || name === DB.job) return;
+  DB.jobStart = DB.jobStart || {};
+  DB.jobStart[DB.job] = DB.startDate;        /* leave the old one as it was */
   DB.job = name;
+  DB.startDate = DB.jobStart[name] || DB.startDate;
   DB.config.jobs = allJobs();
   save();
   go("project");
@@ -7842,14 +7857,14 @@ function jobView(){
         <div class="hint">It appears on every record and every sheet.</div>
         <input class="in" data-jobf="name" value="${esc(DB.job)}"></div>
       <div class="f"><label>Principal contractor</label>
-        <input class="in" data-jobf="pc" value="${esc((DB.jobInfo&&DB.jobInfo.pc)||"")}"></div>
+        <input class="in" data-jobf="pc" value="${esc(jobInfo().pc||"")}"></div>
       <div class="f"><label>Site address</label>
-        <input class="in" data-jobf="address" value="${esc((DB.jobInfo&&DB.jobInfo.address)||"")}"></div>
+        <input class="in" data-jobf="address" value="${esc(jobInfo().address||"")}"></div>
       <div class="g2">
         <div class="f"><label>Our contract reference</label>
-          <input class="in" data-jobf="ref" value="${esc((DB.jobInfo&&DB.jobInfo.ref)||"")}"></div>
+          <input class="in" data-jobf="ref" value="${esc(jobInfo().ref||"")}"></div>
         <div class="f"><label>Their order reference</label>
-          <input class="in" data-jobf="theirRef" value="${esc((DB.jobInfo&&DB.jobInfo.theirRef)||"")}"></div>
+          <input class="in" data-jobf="theirRef" value="${esc(jobInfo().theirRef||"")}"></div>
       </div>
       <div class="f" style="margin:0"><label>Chasing diaries from</label>
         <div class="hint">Anything before this date is left alone.</div>
@@ -10636,9 +10651,12 @@ function bind(){
         if(!to.trim()) return;
         DB.job = to;
         /* carry the job's own settings and records across with it */
-        if(DB.jobWeek && DB.jobWeek[from]){ DB.jobWeek[to] = DB.jobWeek[from]; }
+        if(DB.jobWeek && DB.jobWeek[from]){ DB.jobWeek[to] = DB.jobWeek[from]; delete DB.jobWeek[from]; }
+        if(DB.jobInfo && DB.jobInfo[from]){ DB.jobInfo[to] = DB.jobInfo[from]; delete DB.jobInfo[from]; }
+        if(DB.jobStart && DB.jobStart[from]){ DB.jobStart[to] = DB.jobStart[from]; delete DB.jobStart[from]; }
         if(DB.jobHours && DB.jobHours[from]){ DB.jobHours[to] = DB.jobHours[from]; }
         ["records","plant","labour","lifting","tools","deliveries","events","vos","packs"]
+          .concat(["leave","defects","scans"])
           .forEach(list=>(DB[list]||[]).forEach(x=>{ if(x.job===from) x.job = to; }));
         if(!(DB.config.jobs||[]).includes(to)){
           DB.config.jobs = (DB.config.jobs||[]).map(j=>j===from?to:j);
@@ -10646,9 +10664,14 @@ function bind(){
         save();
         return;
       }
-      if(k === "startDate"){ DB.startDate = el.value; save(); return; }
-      DB.jobInfo = DB.jobInfo || {};
-      DB.jobInfo[k] = el.value;
+      if(k === "startDate"){
+        DB.startDate = el.value;
+        DB.jobStart = DB.jobStart || {};
+        DB.jobStart[DB.job] = el.value;      /* each job chases from its own date */
+        save();
+        return;
+      }
+      jobInfo()[k] = el.value;               /* against this job, not all of them */
       save();
     };
     el.onchange = el.oninput;
@@ -11552,6 +11575,16 @@ if(!DB.events) DB.events = [];
   }
   if(DB.config) delete DB.config.hours;
   if(DB.config.allowDelete === undefined) DB.config.allowDelete = CONFIG.allowDelete;
+
+  /* Job details used to sit loose, shared by every job. They belong to the job
+     that was open when they were typed, so that is where they go. */
+  if(DB.jobInfo && ["pc","address","ref","theirRef"].some(k=>typeof DB.jobInfo[k] === "string")){
+    const held = { pc:DB.jobInfo.pc||"", address:DB.jobInfo.address||"",
+      ref:DB.jobInfo.ref||"", theirRef:DB.jobInfo.theirRef||"" };
+    ["pc","address","ref","theirRef"].forEach(k=>delete DB.jobInfo[k]);
+    const mine = DB.jobInfo[DB.job];
+    DB.jobInfo[DB.job] = Object.assign(held, (mine && typeof mine === "object") ? mine : {});
+  }
 
   /* Weather used to have its own stoppage question. Anything recorded that way
      becomes an ordinary delay so the time is not lost. */
