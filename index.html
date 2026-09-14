@@ -4837,8 +4837,9 @@ function homeView(){
     }
     dailyCards.push({ label:"Briefing", done: isDone(dailyRecordFor("briefing", sel)),
       html: dailyCard("briefing") });
-    if(checksOnPaper()){
-      /* still on the home screen, but as a reminder about the paper sheets */
+    if(checksOnPaper() && sel >= lastWorkingDay(weekStart(sel))){
+      /* the sheets are wanted at the end of the week, so the card only turns up
+         then — there is nothing to do with them on a Tuesday */
       const pws = weekStart(sel);
       const sc = scansFor(pws, "plantcheck");
       const pages = sc.reduce((n,x)=>n+x.pages.length, 0);
@@ -4868,7 +4869,7 @@ function homeView(){
               : "On paper — scan them in on " + dayName}</div>
             <button class="begin" data-scansgo="${pws}">${
               sc.length ? "Check them" : "Paper sheets"}</button></div>` });
-    } else {
+    } else if(!checksOnPaper()){
       dailyCards.push({ label:"Plant", done: allChecked, html: plantHero });
     }
     dailyCards.push({ label:"Diary",    done: diaryDone,               html: hero });
