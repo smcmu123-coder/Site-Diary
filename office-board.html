@@ -100,9 +100,9 @@ body{background:var(--canvas);color:var(--ink);font-family:"Helvetica Neue",Helv
 .cols{font-size:0;height:560px;height:calc(100vh - 528px);clear:both}
 .cols > .panel{display:inline-block;vertical-align:top;font-size:16px;height:100%;
   margin-right:1.3%}
-.cols > .panel:nth-child(1){width:39.5%}
-.cols > .panel:nth-child(2){width:32%}
-.cols > .panel:nth-child(3){width:25.9%;margin-right:0}
+.cols > .panel:nth-child(1){width:35.4%}
+.cols > .panel:nth-child(2){width:35.4%}
+.cols > .panel:nth-child(3){width:25.2%;margin-right:0}
 .panel{background:var(--paper);border-radius:var(--r-lg);padding:16px 18px;
   box-shadow:var(--sh);overflow:hidden}
 .panel h2{font-size:var(--t-over);letter-spacing:.12em;text-transform:uppercase;color:#fff;
@@ -137,8 +137,9 @@ body{background:var(--canvas);color:var(--ink);font-family:"Helvetica Neue",Helv
 /* the busiest days: the detail line goes, the name and time stay */
 .list.two.packed .item{padding:4px 8px 4px 16px;margin-bottom:3px}
 .list.two.packed .item span{display:none}
-.list.two.packed .item b{font-size:12.5px}
-.list.two.packed .item .when{font-size:11px}
+.list.two.packed .item b{font-size:12.5px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:70%}
+.list.two.packed .item .when{font-size:11px;margin-top:-16px}
 .item{padding:10px 12px;border-radius:var(--r-sm);background:var(--canvas);margin-bottom:8px;
   overflow:hidden;position:relative;padding-left:26px}
 .item i{position:absolute;left:12px;top:10px;bottom:10px;width:5px;border-radius:3px;
@@ -299,10 +300,35 @@ function draw(D){
     return recs.some(function(r){ return r.form===k && r.status==="submitted"
       && weekStart(r.date)===WS; }); }).length;
 
-  document.getElementById("rings").innerHTML =
-    ring("Plant Inspections", checksToday, onSite.length,
+  /* Plant checks are either done in the app each morning, or kept on paper and
+     scanned in at the end of the week. The ring says which. */
+  var chk = D.checks || { how:"app" };
+  var plantRing;
+  if(chk.how === "paper"){
+    var scans = (D.scans||[]).filter(function(x){
+      return x.job===D.job && x.kind==="plantcheck" && x.week===(chk.week||WS); });
+    var scanned = onSite.filter(function(m){
+      return scans.some(function(x){ return x.plantId===m.id; }); }).length;
+    var dayName = chk.scanDay || "Friday";
+    var dueYet = !chk.scanDate || T >= chk.scanDate;
+    if(!onSite.length){
+      plantRing = ring("Plant Inspections", 0, 0, "No plant on site");
+    } else if(!dueYet){
+      plantRing = ring("Plant Inspections", 0, 0,
+        "On paper \u2014 to be scanned in on " + dayName);
+    } else {
+      plantRing = ring("Plant Inspections", scanned, onSite.length,
+        scanned >= onSite.length ? "All sheets scanned in"
+          : (onSite.length - scanned) + " still to scan");
+    }
+  } else {
+    plantRing = ring("Plant Inspections", checksToday, onSite.length,
       onSite.length ? (onSite.length-checksToday ? (onSite.length-checksToday)+" still to check"
-        : "All machines checked") : "No plant on site")
+        : "All machines checked") : "No plant on site");
+  }
+
+  document.getElementById("rings").innerHTML =
+    plantRing
   + ring("Excavation Inspections", excDone, excOpen,
       excOpen ? (excOpen-excDone ? (excOpen-excDone)+" before work starts" : "All signed off")
         : "None left open")
@@ -355,13 +381,13 @@ function draw(D){
   /* the more there is on, the tighter it packs — nothing gets cut off */
   ovList.className = "list two" + (ov.length>20 ? " tight packed"
     : ov.length>12 ? " tight" : ov.length>8 ? " compact" : "");
-  var ovShow = ov.length > 24 ? ov.slice(0,24) : ov;
+  var ovShow = ov.length > 40 ? ov.slice(0,40) : ov;
   ovList.innerHTML = ov.length
     ? ovShow.map(function(x){
         return '<div class="item"><i style="background:'+COL[x.k]+'"></i><div class="txt">'
           + '<span class="tag '+x.k+'">'+x.label+'</span><b>'+esc(x.b)+'</b>'
           + '<span>'+esc(x.s)+'</span></div><div class="when">'+esc(x.when)+'</div></div>';
-      }).join("") + (ov.length>24 ? '<div class="empty">and '+(ov.length-24)+' more</div>' : "")
+      }).join("") + (ov.length>40 ? '<div class="empty">and '+(ov.length-40)+' more</div>' : "")
     : '<div class="empty">Nothing booked in for today.</div>';
 
   /* needs attention */
@@ -446,10 +472,11 @@ function draw(D){
         : w.progress + " so far" });
   });
   var recList = document.getElementById("received");
-  recList.className = "list" + (inToday.length>8 ? " two compact"
-    : inToday.length>5 ? " compact" : "");
+  /* same steps as the other side, so both panels hold what they are given */
+  recList.className = "list two" + (inToday.length>20 ? " tight packed"
+    : inToday.length>12 ? " tight" : inToday.length>8 ? " compact" : "");
   recList.innerHTML = inToday.length
-    ? inToday.map(function(x){
+    ? inToday.slice(0, inToday.length>40 ? 40 : inToday.length).map(function(x){
         return '<div class="item'+(x.full?" done":"")+'">'
           + '<i style="background:'+(x.full?"var(--green)":"var(--amber)")+'"></i>'
           + '<div class="txt"><span class="tag '+(x.full?"in":"part")+'">'
@@ -457,6 +484,7 @@ function draw(D){
           + '<span>'+esc(x.s)+(x.note?(x.s?" · ":"")+x.note:"")+'</span></div>'
           + '<div class="when">'+esc(x.when)+'</div></div>';
       }).join("")
+      + (inToday.length>40 ? '<div class="empty">and '+(inToday.length-40)+' more</div>' : "")
     : '<div class="empty">Nothing taken in yet today.</div>';
 
   var attList = { className:"", innerHTML:"" };
@@ -483,7 +511,11 @@ function draw(D){
     + '<div class="l">'+l+'<br><span>'+s+'</span></div></div>'; };
   document.getElementById("week").innerHTML =
       stat(wkRecs.length, "records in the pack", "week commencing "+shortDate(WS))
-    + stat(checksWeek, "plant checks done", "this week")
+    + (chk.how==="paper"
+        ? stat((D.scans||[]).filter(function(x){ return x.job===D.job
+            && x.kind==="plantcheck" && x.week===WS; }).length,
+            "sheets scanned in", "this week")
+        : stat(checksWeek, "plant checks done", "this week"))
     + stat(labour, "on site", "from the last diary")
     + stat(onSite.length, "machines on site",
         (D.tools||[]).filter(function(x){ return x.job===D.job; }).length+" items of equipment")
