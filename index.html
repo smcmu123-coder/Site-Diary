@@ -8799,7 +8799,12 @@ function settingsView(){
       <p style="margin-bottom:12px">Makes a copy of the app with everything currently in it, to
       put online as its own link. Anyone can open it and tap through the job as it stands.
       It keeps its own records, so nothing they do touches yours.</p>
-      <button class="btn add" data-demo="1" style="margin:0">Make a demo link</button>
+      <button class="btn add" data-demo="1">Make a demo link</button>
+
+      <div class="sect" style="margin:18px 0 8px">The office board</div>
+      <p style="margin-bottom:12px">Sends the figures the wall board needs — no photographs, so
+      it is a small file. Upload it next to the board and the screen refreshes itself.</p>
+      <button class="btn add" data-board="1" style="margin:0">Update the office board</button>
       ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
         Last copy sent ${stamp(DB.lastShared)}</p>`:""}
     </div>`;
@@ -10429,6 +10434,7 @@ function bind(){
   const ex = app.querySelector("[data-export]"); if(ex) ex.onclick = exportBackup;
   const im = app.querySelector("[data-import]"); if(im) im.onclick = importBackup;
   const dm = app.querySelector("[data-demo]"); if(dm) dm.onclick = shareDemo;
+  const bd = app.querySelector("[data-board]"); if(bd) bd.onclick = publishBoard;
 }
 function after(){ if(formState.touched) formState.errors = validate(); render(); }
 
@@ -10799,6 +10805,83 @@ async function shareDemo(){
     try{ await navigator.clipboard.writeText(link); toast("Link copied"); }
     catch(e){ toast("Copy it from the box above."); }
   };
+}
+
+/* The office board reads a small snapshot from the same folder it sits in.
+   Photographs and signatures are stripped out: the board only needs the
+   figures, and the file has to stay small enough to upload in seconds. */
+function boardSnapshot(){
+  const strip = v => {
+    if(!v || typeof v !== "object") return v;
+    if(Array.isArray(v)) return v.map(strip);
+    const out = {};
+    Object.keys(v).forEach(k=>{
+      const val = v[k];
+      if(typeof val === "string" && val.startsWith("data:image")) return;   /* drop pictures */
+      out[k] = strip(val);
+    });
+    return out;
+  };
+  return {
+    publishedAt: Date.now(),
+    publishedBy: cfg().user.name || "",
+    job: DB.job,
+    config: { jobs: DB.config.jobs || [DB.job] },
+    records: (DB.records||[]).filter(r=>r.status==="submitted")
+      .map(r=>({ id:r.id, job:r.job, date:r.date, form:r.form, plantId:r.plantId,
+        excRef:r.excRef, ref:r.ref, submittedAt:r.submittedAt, by:r.by,
+        data: strip({
+          excavationsOpen: r.data.excavationsOpen,
+          excavationList: (r.data.excavationList||[]).map(x=>({ ref:x.ref })),
+          labourTable: (r.data.labourTable||[]).map(x=>({ onSite:x.onSite })),
+          delayList: r.data.delayList || []
+        }) })),
+    plant: strip(DB.plant||[]), lifting: strip(DB.lifting||[]), tools: strip(DB.tools||[]),
+    labour: strip(DB.labour||[]), leave: strip(DB.leave||[]),
+    deliveries: strip(DB.deliveries||[]), events: strip(DB.events||[]),
+    defects: (DB.defects||[]).filter(d=>d.status==="open").map(d=>({
+      id:d.id, job:d.job, plantId:d.plantId, item:d.item, description:d.description,
+      status:d.status, reportedAt:d.reportedAt, repair:d.repair }))
+  };
+}
+
+async function publishBoard(){
+  const snap = boardSnapshot();
+  const text = JSON.stringify(snap);
+  const blob = new Blob([text], { type:"application/json" });
+  const file = new File([blob], "board-data.json", { type:"application/json" });
+
+  let saved = false;
+  if(navigator.canShare && navigator.canShare({ files:[file] })){
+    try{ await navigator.share({ files:[file], title:"Site board data" }); saved = true; }
+    catch(e){ return; }
+  }
+  if(!saved){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "board-data.json"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }
+
+  const base = location.href.replace(/[^/]*$/, "");
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg" style="text-align:left">
+      <h3>Put it on the board</h3>
+      <p>${Math.round(text.length/1024)} KB saved. Upload it next to the board and the screen
+      picks it up on its own within two minutes.</p>
+      <ol style="margin:12px 0 14px;padding-left:18px;color:var(--ink-2);font-size:14px">
+        <li style="margin-bottom:6px">Open your repository on GitHub</li>
+        <li style="margin-bottom:6px">Add file → Upload files → drop <b>board-data.json</b> in</li>
+        <li>Commit changes</li>
+      </ol>
+      <div class="card" style="background:var(--canvas);box-shadow:none;word-break:break-all;
+        font-size:13px;padding:12px">${esc(base + "office-board.html")}</div>
+      <button class="btn ghost" style="margin:12px 0 0" data-x>Done</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.querySelector("[data-x]").onclick = () => wrap.remove();
+  wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
 }
 
 async function shareBackup(){
