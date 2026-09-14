@@ -1152,7 +1152,10 @@ function briefingSections(){
           required:true, showIf:{field:"b_conflicting",equals:true} }
       ]) },
     { title:"Attendees", fields:[
-      { id:"attendees", type:"attendlist", label:"Who attended the briefing", required:true },
+      { id:"attendees", type:"attendsign", label:"Who attended the briefing", required:true,
+        hint:"Tick who was there, then each signs for it." },
+      { id:"boardPhoto", type:"photos", label:"Photograph of the briefing board", max:4,
+        hint:"The board as it was written up, so the words on it are on the record." },
       { id:"otherAttendees", type:"textarea", label:"Anyone not on the labour register" },
       { id:"signature", type:"signature", label:"Signature of whoever delivered it", required:true }
     ]}
@@ -2370,12 +2373,15 @@ function openPackSheet(ws, draft){
   const cell = (t, cls) => `<td class="${cls||""}">${esc(t==null?"":String(t))}</td>`;
   const tbl = (head, rows, opts) => {
     opts = opts || {};
-    const cols = opts.cols
-      ? `<colgroup>${opts.cols.map(w=>`<col style="width:${w}">`).join("")}</colgroup>` : "";
-    return `<table class="pk${opts.cols?" fixed":""}">${cols}${
+    const widths = opts.cols || (opts.widths ? opts.widths.map(x=>(x*100)+"%") : null);
+    const cols = widths
+      ? `<colgroup>${widths.map(w=>`<col style="width:${w}">`).join("")}</colgroup>` : "";
+    return `<table class="pk${widths?" fixed":""}">${cols}${
       head?`<tr>${head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`:""}
       ${rows.map(r=>`<tr>${r.map((v,i)=>{
         const centre = (opts.centre||[]).includes(i);
+        if((opts.raw||[]).includes(i))
+          return `<td class="${centre?"c":""}">${v==null?"":String(v)}</td>`;
         const bad = (v==="X" || v==="No" || v==="NO" || v==="Quarantined");
         return cell(v, (centre?"c ":"") + (bad?"bad":""));
       }).join("")}</tr>`).join("")}</table>`;
@@ -2490,10 +2496,15 @@ function openPackSheet(ws, draft){
     sec.items.forEach(rec=>{
       const d = rec.data || {};
       if(sec.key === "briefing"){
-        const att = d.attendees || [];
-        const pairs = [];
-        for(let i=0;i<Math.max(att.length,2);i+=2)
-          pairs.push([(i+1)+".  "+(att[i]||""), (i+2)+".  "+(att[i+1]||"")]);
+        /* attendees now sign for themselves; older records hold plain names */
+        const att = (d.attendees || []).map(a => typeof a === "string" ? { name:a } : a);
+        const signRows = att.map((a,i)=>[
+          (i+1)+".",
+          a.name || "",
+          a.sig && a.sig.src
+            ? `<img src="${a.sig.src}" style="height:30px;display:block">`
+            : "&mdash;"
+        ]);
         html += page(
           head("Daily Activities Briefing", rec.ref||"", metaFor(rec, [
             ["Delivered by", d.deliveredBy||rec.by||"", "Position", d.position||""]])) +
@@ -2515,7 +2526,13 @@ function openPackSheet(ws, draft){
             }).concat([["Any conflicting operations?", yn(d.b_conflicting)]]), { centre:[1] }) +
           (d.conflictingDetail?`<p style="font-size:10.5px">${esc(d.conflictingDetail)}</p>`:"") +
           `<div class="pk-h">Attendees of the daily activity briefing</div>` +
-          tbl(null, pairs) +
+          tbl(["","Name","Signature"], signRows.length ? signRows : [["","None recorded",""]],
+            { raw:[2], widths:[0.07,0.45,0.48] }) +
+          ((d.boardPhoto||[]).length
+            ? `<div class="pk-h">Briefing board</div>
+               <div class="imgs">` + d.boardPhoto.map(p2=>
+                 `<img src="${p2.src}" alt="Briefing board">`).join("") + `</div>`
+            : "") +
           (d.otherAttendees?`<p style="font-size:10.5px">Also present: ${esc(d.otherAttendees)}</p>`:"") +
           declaration([["Delivered by", d.deliveredBy||rec.by||""],
             ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
@@ -4856,6 +4873,17 @@ function validate(){
       if(val.v===false && !(val.defect||"").trim()){ e[f.id]="Describe the defect"; return; }
       return;
     }
+    if(f.type==="attendsign"){
+      const arr = Array.isArray(val) ? val : [];
+      if(f.required && !arr.length){ e[f.id] = "Say who attended"; return; }
+      if(arr.some(x=>!x || !x.sig || !x.sig.src)){
+        const who = arr.filter(x=>!x || !x.sig || !x.sig.src).map(x=>(x&&x.name)||"someone");
+        e[f.id] = who.length===1 ? who[0] + " has not signed yet"
+          : who.length + " have not signed yet";
+        return;
+      }
+      return;
+    }
     const empty = f.type==="duration" ? durEmpty(val)
       : (val===undefined||val===null||val===""||(Array.isArray(val)&&val.length===0));
     if(empty){ e[f.id]="Required"; return; }
@@ -5028,6 +5056,56 @@ function fieldHtml(f, v, err, path){
         400 is the limit value. The marks on each bar show both.</div>`;
       break;
     }
+    case "attendsign":{
+      const arr = Array.isArray(val) ? val : [];
+      const date = formState ? formState.date : todayISO();
+      const people = onSiteLabour(date);
+      if(!people.length){
+        c = `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
+          Nobody on the labour register yet. Add the gang under Project, Labour.</div>`;
+        break;
+      }
+      const signedCount = arr.filter(x=>x && x.sig && x.sig.src).length;
+      c = `<div class="ttable">
+        <div class="thead"><span class="c1">Name</span><span class="c3">Attended</span></div>`+
+        people.map(pn=>{
+          const off = leaveOn(pn.id, date);
+          const row = arr.find(x=>x && x.id===pn.id);
+          const there = !!row;
+          const signed = row && row.sig && row.sig.src;
+          return `<div class="trow"${off?' style="background:var(--info-bg)"':""}>
+            <div class="main">
+              <span class="c1"><b>${esc(pn.name)}</b><span>${esc(pn.trade||"")}</span></span>
+              ${off
+                ? `<span class="pill info" style="flex:none">${esc(off.type)}</span>`
+                : `<span class="yn" style="width:104px">
+                    <button type="button" class="${there?"y":""}"
+                      data-att="${id}:${pn.id}:1">Yes</button>
+                    <button type="button" class="${there?"":"n"}"
+                      data-att="${id}:${pn.id}:0">No</button>
+                  </span>`}
+            </div>
+            ${there ? `<div class="more">
+              ${signed
+                ? `<div style="display:flex;align-items:center;gap:12px">
+                    <img src="${row.sig.src}" alt="Signature"
+                      style="height:44px;background:#fff;border-radius:8px;padding:3px 8px;
+                      border:1px solid var(--line-2)">
+                    <span style="font-size:12.5px;color:var(--ok);font-weight:650">Signed</span>
+                    <button type="button" data-attsig="${id}:${pn.id}"
+                      style="margin-left:auto;font-size:13px;font-weight:650;color:var(--green-700)">
+                      Sign again</button>
+                  </div>`
+                : `<button type="button" class="btn line sm" style="margin:0"
+                    data-attsig="${id}:${pn.id}">Sign for ${esc(pn.name.split(" ")[0])}</button>`}
+            </div>` : ""}
+          </div>`;
+        }).join("") +
+        `<div class="tfoot"><span>${arr.length} attended · ${signedCount} signed</span></div>
+      </div>`;
+      break;
+    }
+
     case "attendlist":{
       const arr = val||[];
       const date = formState ? formState.date : todayISO();
@@ -5317,6 +5395,22 @@ function readRow(f, val){
     return `<div class="kv"><span class="k">${esc(f.label)}</span>
       <span class="v" style="color:${v.v===false?"var(--bad)":"inherit"}">${txt}${
         v.v===false&&v.defect?" — "+esc(v.defect):""}</span></div>`;
+  }
+  if(f.type==="attendsign"){
+    /* older briefings hold plain names */
+    const arr = (Array.isArray(val) ? val : []).map(x => typeof x === "string" ? { name:x } : x);
+    if(!arr.length) return `<div class="kv"><span class="k">${esc(f.label)}</span>
+      <span class="v">—</span></div>`;
+    return `<div class="kv" style="display:block"><span class="k">${esc(f.label)}</span>
+      <div style="margin-top:8px;display:grid;gap:8px">
+        ${arr.map(x=>`<div style="display:flex;align-items:center;gap:12px;
+          border-bottom:1px solid var(--line-2);padding-bottom:6px">
+          <b style="font-weight:640;min-width:38%">${esc(x.name||"")}</b>
+          ${x.sig && x.sig.src
+            ? `<img src="${x.sig.src}" alt="Signature" style="height:40px">`
+            : `<span style="color:var(--bad);font-size:13px">not signed</span>`}
+        </div>`).join("")}
+      </div></div>`;
   }
   if(f.type==="peoplepick"||f.type==="plantpick"||f.type==="attendlist"){
     return `<div class="kv"><span class="k">${esc(f.label)}</span>
@@ -8413,6 +8507,32 @@ function bind(){
     formState.values[id]=formState.values[id].filter((_,ix)=>ix!==i); after(); });
   app.querySelectorAll("[data-sigclear]").forEach(el=>el.onclick=()=>{
     formState.values[el.dataset.sigclear]=null; after(); });
+  /* who attended, and each signing for themselves */
+  app.querySelectorAll("[data-att]").forEach(el=>el.onclick=()=>{
+    const [path, personId, on] = el.dataset.att.split(":");
+    const list = (getVal(path) || []).slice();
+    const person = (DB.labour||[]).find(x=>x.id===personId) || {};
+    const at = list.findIndex(x=>x && x.id===personId);
+    if(on === "1"){
+      if(at < 0) list.push({ id:personId, name:person.name || "", sig:null });
+    } else if(at >= 0){
+      list.splice(at, 1);
+    }
+    setVal(path, list);
+    after();
+  });
+  app.querySelectorAll("[data-attsig]").forEach(el=>el.onclick=()=>{
+    const [path, personId] = el.dataset.attsig.split(":");
+    const list = (getVal(path) || []).slice();
+    const at = list.findIndex(x=>x && x.id===personId);
+    if(at < 0) return;
+    openSignaturePad(list[at].sig && list[at].sig.src, src => {
+      list[at] = Object.assign({}, list[at], { sig:{ src, signedAt: Date.now() } });
+      setVal(path, list);
+      after();
+    });
+  });
+
   app.querySelectorAll("[data-sigopen]").forEach(el=>el.onclick=()=>{
     const path = el.dataset.sigopen;
     const cur = getVal(path);
