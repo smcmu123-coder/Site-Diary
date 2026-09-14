@@ -47,6 +47,21 @@ body{background:var(--canvas);color:var(--ink);font-family:"Helvetica Neue",Helv
 .panel.dark{background:var(--dark)}
 .panel.dark h2{background:var(--lime);color:var(--dark)}
 .list{overflow:hidden}
+/* six or more and the rows tighten; a dozen and they go two abreast */
+.list.compact .item{padding:8px 11px;margin-bottom:6px;padding-left:24px}
+.list.compact .item b{font-size:15.5px;margin-top:2px}
+.list.compact .item span{font-size:12.5px}
+.list.compact .item .when{font-size:13px}
+.list.compact .tag{font-size:10px;padding:1px 7px}
+.list.two{font-size:0}
+.list.two .item{display:inline-block;width:48.6%;margin-right:2.6%;vertical-align:top;
+  font-size:16px;padding:7px 10px 7px 22px;margin-bottom:6px}
+.list.two .item:nth-child(2n){margin-right:0}
+.list.two .item b{font-size:14.5px;margin-top:2px}
+.list.two .item span{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list.two .item .when{font-size:12.5px}
+.list.two .item i{top:8px;bottom:8px;left:10px;width:4px}
+.list.two .tag{font-size:9.5px;padding:1px 6px;letter-spacing:.04em}
 .item{padding:10px 12px;border-radius:13px;background:var(--canvas);margin-bottom:8px;
   overflow:hidden;position:relative;padding-left:26px}
 .item i{position:absolute;left:12px;top:10px;bottom:10px;width:5px;border-radius:3px;
@@ -153,7 +168,9 @@ function ring(title, done, total, note){
 
 function draw(D){
   var T = iso(new Date()), WS = weekStart(T);
-  var recs = (D.records||[]).filter(function(r){ return r.job===D.job; });
+  /* only submitted records are published, so a missing status means submitted */
+  var recs = (D.records||[]).filter(function(r){ return r.job===D.job; })
+    .map(function(r){ if(!r.status) r.status = "submitted"; return r; });
   var onSite = (D.plant||[]).filter(function(p){
     return p.job===D.job && (!p.onDate||p.onDate<=T) && (!p.offDate||p.offDate>T); });
   var done = function(form,date){ return recs.some(function(r){
@@ -223,12 +240,17 @@ function draw(D){
     ov.push({k:"hol",label:"Off",b:p.name,s:l.type==="HOL"?"Holiday":l.type,
       when:"back "+shortDate(addDays(l.to,1))});
   });
-  document.getElementById("overview").innerHTML = ov.length
-    ? ov.slice(0,5).map(function(x){
+  var ovList = document.getElementById("overview");
+  /* the more there is on, the tighter it packs — nothing gets cut off */
+  ovList.className = "list" + (ov.length>12 ? " two compact"
+    : ov.length>8 ? " two" : ov.length>5 ? " compact" : "");
+  var ovShow = ov.length > 18 ? ov.slice(0,18) : ov;
+  ovList.innerHTML = ov.length
+    ? ovShow.map(function(x){
         return '<div class="item"><i style="background:'+COL[x.k]+'"></i><div class="txt">'
           + '<span class="tag '+x.k+'">'+x.label+'</span><b>'+esc(x.b)+'</b>'
           + '<span>'+esc(x.s)+'</span></div><div class="when">'+esc(x.when)+'</div></div>';
-      }).join("") + (ov.length>5 ? '<div class="empty">and '+(ov.length-5)+' more</div>' : "")
+      }).join("") + (ov.length>18 ? '<div class="empty">and '+(ov.length-18)+' more</div>' : "")
     : '<div class="empty">Nothing booked in for today.</div>';
 
   /* needs attention */
@@ -256,10 +278,13 @@ function draw(D){
   if(excOpen-excDone>0) missing.push((excOpen-excDone)+" excavation inspections");
   if(missing.length) att.push({cls:"warnbg",b:"Still to do today",
     s:missing.join(", ").replace(/,([^,]*)$/," and$1"),when:""});
-  document.getElementById("attention").innerHTML = att.length
-    ? att.slice(0,4).map(function(x){
+  var attList = document.getElementById("attention");
+  attList.className = "list" + (att.length>8 ? " two compact" : att.length>4 ? " compact" : "");
+  attList.innerHTML = att.length
+    ? att.slice(0, att.length>14 ? 14 : att.length).map(function(x){
         return '<div class="item '+x.cls+'"><i></i><div class="txt"><b>'+esc(x.b)+'</b>'
           + '<span>'+esc(x.s)+'</span></div><div class="when">'+esc(x.when)+'</div></div>'; }).join("")
+      + (att.length>14 ? '<div class="empty">and '+(att.length-14)+' more</div>' : "")
     : '<div class="empty">Nothing outstanding — everything is in.</div>';
 
   /* this week */
