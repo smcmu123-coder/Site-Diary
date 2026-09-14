@@ -315,7 +315,7 @@ function draw(D){
       plantRing = ring("Plant Inspections", 0, 0, "No plant on site");
     } else if(!dueYet){
       plantRing = ring("Plant Inspections", 0, 0,
-        "On paper \u2014 to be scanned in on " + dayName);
+        "On paper \u2014 not due until " + dayName);
     } else {
       plantRing = ring("Plant Inspections", scanned, onSite.length,
         scanned >= onSite.length ? "All sheets scanned in"
@@ -335,8 +335,25 @@ function draw(D){
   + ring("Today&rsquo;s Paperwork", formsDone, 2,
       formsDone===2 ? "Briefing and diary in"
         : (done("briefing",T) ? "Diary still to come" : "Briefing still to come"))
-  + ring("Weekly Registers", weeklyDone, 2,
-      weeklyDone===2 ? "PUWER and LOLER in" : "Due by "+shortDate(addDays(WS,4)));
+  + (function(){
+      /* the registers are not chased until the day they fall due */
+      var wk = (D.weekly||[]).filter(function(x){ return x.key!=="toolboxtalk"; });
+      if(!wk.length)
+        return ring("Weekly Registers", weeklyDone, 2,
+          weeklyDone===2 ? "PUWER and LOLER in" : "Due by "+shortDate(addDays(WS,4)));
+      var dueNow = wk.filter(function(x){ return !x.due || T >= x.due; });
+      var done = wk.filter(function(x){ return x.done; }).length;
+      if(!dueNow.length){
+        var soonest = wk.slice().sort(function(a,b){
+          return String(a.due).localeCompare(String(b.due)); })[0];
+        return ring("Weekly Registers", 0, 0,
+          "Not due until " + (soonest.dueDay || "Friday"));
+      }
+      return ring("Weekly Registers", done, wk.length,
+        done >= wk.length ? "All in"
+          : wk.filter(function(x){ return !x.done; }).map(function(x){ return x.short; })
+              .join(" and ") + " still to do");
+    })();
 
   /* today on site */
   var COL={del:"var(--blue)",exc:"var(--plum)",off:"var(--teal)",on:"var(--teal)",

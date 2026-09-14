@@ -8467,6 +8467,240 @@ function voView(){
 
 /* ------------------------------------------------------------- timesheet -- */
 /* Built entirely from the diaries. Nothing is typed twice. */
+
+function crcTable(){
+  if(crcTable._t) return crcTable._t;
+  const t = new Uint32Array(256);
+  for(let n=0;n<256;n++){
+    let c = n;
+    for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return (crcTable._t = t);
+}
+function crc32(bytes){
+  const t = crcTable();
+  let c = 0xFFFFFFFF;
+  for(let i=0;i<bytes.length;i++) c = t[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function zipStore(files){
+  /* files: [{name, text}] */
+  const enc = new TextEncoder();
+  const parts = [], dir = [];
+  let offset = 0;
+  const num = (n, len) => {
+    const a = new Uint8Array(len);
+    for(let i=0;i<len;i++) a[i] = (n >>> (i*8)) & 0xFF;
+    return a;
+  };
+  files.forEach(f=>{
+    const name = enc.encode(f.name), data = enc.encode(f.text);
+    const sum = crc32(data);
+    const local = [
+      num(0x04034b50,4), num(20,2), num(0,2), num(0,2), num(0,2), num(0,2),
+      num(sum,4), num(data.length,4), num(data.length,4),
+      num(name.length,2), num(0,2), name, data
+    ];
+    local.forEach(p=>parts.push(p));
+    const size = local.reduce((n,p)=>n+p.length,0);
+    dir.push([
+      num(0x02014b50,4), num(20,2), num(20,2), num(0,2), num(0,2), num(0,2), num(0,2),
+      num(sum,4), num(data.length,4), num(data.length,4),
+      num(name.length,2), num(0,2), num(0,2), num(0,2), num(0,2), num(0,4),
+      num(offset,4), name
+    ]);
+    offset += size;
+  });
+  const dirParts = [];
+  dir.forEach(d=>d.forEach(p=>dirParts.push(p)));
+  const dirSize = dirParts.reduce((n,p)=>n+p.length,0);
+  const end = [ num(0x06054b50,4), num(0,2), num(0,2), num(files.length,2),
+    num(files.length,2), num(dirSize,4), num(offset,4), num(0,2) ];
+  const all = parts.concat(dirParts, end);
+  const total = all.reduce((n,p)=>n+p.length,0);
+  const out = new Uint8Array(total);
+  let at = 0;
+  all.forEach(p=>{ out.set(p, at); at += p.length; });
+  return out;
+}
+
+const xesc = s => String(s==null?"":s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+  .replace(/"/g,"&quot;").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,"");
+
+function colName(i){
+  let s = "";
+  i++;
+  while(i > 0){ const m = (i-1) % 26; s = String.fromCharCode(65+m) + s; i = ((i-m)/26)|0; }
+  return s;
+}
+
+/* rows: array of arrays. A cell is a string, a number, or {v, style, bold} */
+function sheetXml(rows, widths){
+  const cells = rows.map((row, r)=>{
+    const cs = row.map((cell, c)=>{
+      const ref = colName(c) + (r+1);
+      const obj = (cell && typeof cell === "object" && !Array.isArray(cell)) ? cell : { v:cell };
+      const st = obj.style ? ' s="' + obj.style + '"' : "";
+      if(obj.v === "" || obj.v == null) return '<c r="' + ref + '"' + st + '/>';
+      if(typeof obj.v === "number")
+        return '<c r="' + ref + '"' + st + '><v>' + obj.v + '</v></c>';
+      return '<c r="' + ref + '" t="inlineStr"' + st + '><is><t xml:space="preserve">'
+        + xesc(obj.v) + '</t></is></c>';
+    }).join("");
+    return '<row r="' + (r+1) + '">' + cs + '</row>';
+  }).join("");
+  const cols = (widths||[]).map((w,i)=>
+    '<col min="' + (i+1) + '" max="' + (i+1) + '" width="' + w + '" customWidth="1"/>').join("");
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + (cols ? '<cols>' + cols + '</cols>' : "")
+    + '<sheetData>' + cells + '</sheetData></worksheet>';
+}
+
+/* 0 plain · 1 bold · 2 title · 3 heading on green · 4 hours (2dp) · 5 bold hours · 6 muted */
+const XL_STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+ + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+ + '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>'
+ + '<fonts count="5">'
+ + '<font><sz val="11"/><name val="Calibri"/></font>'
+ + '<font><b/><sz val="11"/><name val="Calibri"/></font>'
+ + '<font><b/><sz val="16"/><color rgb="FF1F5A2D"/><name val="Calibri"/></font>'
+ + '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+ + '<font><sz val="10"/><color rgb="FF5A6660"/><name val="Calibri"/></font>'
+ + '</fonts>'
+ + '<fills count="3"><fill><patternFill patternType="none"/></fill>'
+ + '<fill><patternFill patternType="gray125"/></fill>'
+ + '<fill><patternFill patternType="solid"><fgColor rgb="FF1F5A2D"/>'
+ + '<bgColor indexed="64"/></patternFill></fill></fills>'
+ + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'
+ + '<border><left/><right/><top/><bottom style="thin">'
+ + '<color rgb="FFD7DEDA"/></bottom><diagonal/></border></borders>'
+ + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+ + '<cellXfs count="7">'
+ + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+ + '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0"/>'
+ + '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0"/>'
+ + '<xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFill="1"/>'
+ + '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1"/>'
+ + '<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+ + '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0"/>'
+ + '</cellXfs><cellStyles count="1">'
+ + '<cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+function xlsxBlob(name, rows, widths){
+  const files = [
+    { name:"[Content_Types].xml", text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+      + '<Default Extension="xml" ContentType="application/xml"/>'
+      + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+      + '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+      + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+      + '</Types>' },
+    { name:"_rels/.rels", text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+      + '</Relationships>' },
+    { name:"xl/workbook.xml", text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+      + 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+      + '<sheets><sheet name="' + xesc(name).slice(0,31) + '" sheetId="1" r:id="rId1"/></sheets>'
+      + '</workbook>' },
+    { name:"xl/_rels/workbook.xml.rels", text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+      + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+      + '</Relationships>' },
+    { name:"xl/styles.xml", text: XL_STYLES },
+    { name:"xl/worksheets/sheet1.xml", text: sheetXml(rows, widths) }
+  ];
+  return new Blob([zipStore(files)],
+    { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+/* ------------------------------------------------------------ timesheet --
+   The week as a spreadsheet: a row per person, hours against each day, the
+   reason wherever the hours were not the normal ones, and the week's total.
+   -------------------------------------------------------------------------*/
+function timesheetRows(ws){
+  const week = timesheetWeek(ws);
+  const days = week.days;
+  const dayName = d => ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][parse(d).getDay()];
+
+  const rows = [];
+  rows.push([{ v:"Weekly timesheet", style:2 }]);
+  rows.push([{ v:DB.job, style:1 }]);
+  rows.push(["Week commencing", shortDate(ws), "", "Printed", shortDate(todayISO())]);
+  rows.push([]);
+
+  const head = ["Name", "Trade"]
+    .concat(days.map(d=>dayName(d) + " " + shortDate(d)))
+    .concat(["Total hours"]);
+  rows.push(head.map(h=>({ v:h, style:3 })));
+
+  const notes = [];
+  week.people.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).forEach(p=>{
+    const row = [p.name || "", p.trade || ""];
+    days.forEach(d=>{
+      const e = p.days[d];
+      if(!e){ row.push({ v:"", style:4 }); return; }
+      if(e.leave){ row.push({ v:e.leave, style:4 }); return; }
+      row.push({ v: Math.round(e.hours*100)/100, style:4 });
+      if(e.normal === false){
+        notes.push([p.name || "", dayName(d) + " " + shortDate(d),
+          (e.start||"") + " – " + (e.finish||""),
+          Math.round(e.hours*100)/100,
+          e.reason || "No reason given"]);
+      }
+    });
+    row.push({ v: Math.round(p.total*100)/100, style:5 });
+    rows.push(row);
+  });
+
+  if(!week.people.length) rows.push([{ v:"Nobody on site this week", style:6 }]);
+
+  /* the week's total */
+  rows.push([]);
+  const grand = week.people.reduce((n,p)=>n+p.total, 0);
+  rows.push(["", { v:"Week total", style:1 }]
+    .concat(days.map(()=>""))
+    .concat([{ v: Math.round(grand*100)/100, style:5 }]));
+
+  /* anything outside the normal hours, explained */
+  rows.push([]);
+  rows.push([{ v:"Hours outside the normal working day", style:1 }]);
+  if(notes.length){
+    rows.push(["Name","Day","Worked","Hours","Reason"].map(h=>({ v:h, style:3 })));
+    notes.forEach(n=>rows.push([n[0], n[1], n[2], { v:n[3], style:4 }, n[4]]));
+  } else {
+    rows.push([{ v:"None — everybody worked the normal hours.", style:6 }]);
+  }
+
+  const widths = [22, 18].concat(days.map(()=>12)).concat([13]);
+  return { rows, widths, count: week.people.length };
+}
+
+async function exportTimesheet(ws){
+  const built = timesheetRows(ws);
+  const blob = xlsxBlob("Timesheet " + shortDate(ws).replace(/\//g,"-"),
+    built.rows, built.widths);
+  const name = "Timesheet - " + DB.job.replace(/[^\w\- ]+/g,"") + " - wc " + ws + ".xlsx";
+  const file = new File([blob], name,
+    { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+
+  if(navigator.canShare && navigator.canShare({ files:[file] })){
+    try{ await navigator.share({ files:[file], title:"Timesheet" }); return; }
+    catch(e){ return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  toast("Saved as " + name);
+}
+
 function timesheetWeek(ws){
   const days = weekDays(ws);
   const people = {};
@@ -8668,7 +8902,8 @@ function timesheetView(){
         Hours are finish minus start, less that day&rsquo;s break.
         Tap any day to correct it — the change goes back into that day&rsquo;s diary.</p>
 
-      <button class="btn" style="margin-top:16px" data-tsprint="${ws}">Open timesheet PDF</button>`
+      <button class="btn" style="margin-top:16px" data-tsprint="${ws}">Open timesheet PDF</button>
+      <button class="btn line" style="margin:0" data-tsxl="${ws}">Export to Excel</button>`
     : `<div class="card"><h3>No hours this week</h3>
         <p>${esc(why || "Submit a diary with labour on it and the timesheet appears here.")}</p>
         <button class="btn line sm" style="margin:14px 0 0" data-go="list">Look at the records</button>
@@ -10529,6 +10764,8 @@ function bind(){
     const ws = view.week || weekStart(todayISO());
     go("timesheet", { week: addDays(ws, 7*Number(el.dataset.ts)) });
   });
+  const tsx = app.querySelector("[data-tsxl]");
+  if(tsx) tsx.onclick = () => exportTimesheet(tsx.getAttribute("data-tsxl"));
   const tsp = app.querySelector("[data-tsprint]");
   if(tsp) tsp.onclick = ()=>printTimesheet(tsp.dataset.tsprint);
 
@@ -10959,6 +11196,13 @@ function boardSnapshot(){
       scanDay: WEEKDAYS[(parse(lastWorkingDay(weekStart(todayISO()))).getDay()+6)%7],
       week: weekStart(todayISO())
     },
+    /* when each weekly job falls due this week */
+    weekly: Object.values(FORMS).filter(f2=>f2.weekly).map(f2=>({
+      key:f2.key, name:f2.name, short:f2.short,
+      due: weeklyDateFor(f2.key, weekStart(todayISO())),
+      dueDay: WEEKDAYS[weeklyDayFor(f2.key)],
+      done: isDone(weeklyRecordFor(f2.key, todayISO()))
+    })),
     /* the sheets themselves stay on the device; the board only needs the count */
     scans: (DB.scans||[]).filter(x=>x.job===DB.job).map(x=>({
       id:x.id, job:x.job, week:x.week, kind:x.kind, plantId:x.plantId,
