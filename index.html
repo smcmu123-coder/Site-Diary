@@ -440,13 +440,10 @@ body.isdemo .app{padding-top:76px}
 .splash{position:fixed;inset:0;z-index:120;background:#fff;overflow:hidden;
   transition:opacity .45s var(--ease)}
 .splash.gone{opacity:0;pointer-events:none}
+.splash{transition:opacity .5s var(--ease)}
 /* the green rises from the foot of the screen as it loads */
 .sp-fill{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--green);
   transition:height .55s var(--ease)}
-.sp-bar{position:absolute;left:24px;right:24px;top:calc(18px + env(safe-area-inset-top));
-  height:4px;border-radius:999px;background:rgba(15,21,18,.10);overflow:hidden}
-.sp-bar i{display:block;height:100%;width:0;background:var(--ink);border-radius:999px;
-  transition:width .55s var(--ease)}
 .sp-num{position:absolute;left:22px;right:22px;top:34%;font-size:23vw;line-height:.92;
   font-weight:var(--w-bold);letter-spacing:-.045em;color:var(--ink);
   transition:color .45s var(--ease);font-variant-numeric:tabular-nums}
@@ -464,7 +461,7 @@ body.isdemo .app{padding-top:76px}
 .sp-done .nm{font-size:var(--t-title);font-weight:var(--w-bold);letter-spacing:-.03em;color:#fff}
 .sp-done .nm em{font-style:normal;color:#A6D9B4}
 @media (prefers-reduced-motion:reduce){
-  .splash,.sp-fill,.sp-bar i,.sp-num,.sp-cap,.sp-done{transition:none}
+  .splash,.sp-fill,.sp-num,.sp-cap,.sp-done{transition:none}
 }
 
 /* storage warning */
@@ -925,7 +922,6 @@ body.isdemo .app{padding-top:76px}
 <body>
 <div class="splash" id="splash" aria-hidden="true">
   <div class="sp-fill" id="spFill"></div>
-  <div class="sp-bar"><i id="spBar"></i></div>
   <div class="sp-num" id="spNum">0%</div>
   <div class="sp-cap" id="spCap">Starting up</div>
   <div class="sp-done" id="spDone">
@@ -10956,6 +10952,17 @@ function boardSnapshot(){
     publishedBy: cfg().user.name || "",
     job: DB.job,
     config: { jobs: DB.config.jobs || [DB.job] },
+    /* how the checks are being done this week, and when the sheets are wanted */
+    checks: {
+      how: checksOnPaper() ? "paper" : "app",
+      scanDate: lastWorkingDay(weekStart(todayISO())),
+      scanDay: WEEKDAYS[(parse(lastWorkingDay(weekStart(todayISO()))).getDay()+6)%7],
+      week: weekStart(todayISO())
+    },
+    /* the sheets themselves stay on the device; the board only needs the count */
+    scans: (DB.scans||[]).filter(x=>x.job===DB.job).map(x=>({
+      id:x.id, job:x.job, week:x.week, kind:x.kind, plantId:x.plantId,
+      pages:(x.pages||[]).length, addedAt:x.addedAt })),
     records: (DB.records||[]).filter(r=>r.status==="submitted")
       .map(r=>({ id:r.id, job:r.job, date:r.date, form:r.form, status:r.status,
         plantId:r.plantId, excRef:r.excRef, ref:r.ref, submittedAt:r.submittedAt, by:r.by,
@@ -11192,14 +11199,19 @@ function launchShow(pct, caption){
   launchAt = pct;
   if(L.num){ L.num.textContent = pct + "%"; L.num.classList.toggle("on", pct >= 55); }
   if(L.cap){ L.cap.textContent = caption || ""; L.cap.classList.toggle("on", pct >= 28); }
-  if(L.bar)  L.bar.style.width  = pct + "%";
   if(L.fill) L.fill.style.height = pct + "%";
 }
 
 function startLaunch(){
   L.wrap = document.getElementById("splash");
+  /* a tap gets you straight in, for anyone who has seen it enough times */
+  if(L.wrap) L.wrap.onclick = () => {
+    if(launchAt < 100) return;          /* not until it is actually ready */
+    launchDone = true;
+    L.wrap.classList.add("gone");
+    setTimeout(()=>{ L.wrap.style.display = "none"; }, 420);
+  };
   L.fill = document.getElementById("spFill");
-  L.bar  = document.getElementById("spBar");
   L.num  = document.getElementById("spNum");
   L.cap  = document.getElementById("spCap");
   L.done = document.getElementById("spDone");
@@ -11224,15 +11236,16 @@ async function finishLaunch(){
       if(L.num) L.num.style.opacity = "0";
       if(L.cap) L.cap.style.opacity = "0";
       L.done.classList.add("on");
-    }, 200);
+    }, 220);
   }
+  /* the name holds for a couple of seconds before it lifts away */
   setTimeout(()=>{
     launchDone = true;
     if(L.wrap){
       L.wrap.classList.add("gone");
-      setTimeout(()=>{ L.wrap.style.display = "none"; }, 480);
+      setTimeout(()=>{ L.wrap.style.display = "none"; }, 520);
     }
-  }, 1100);
+  }, 2400);
 }
 
 /* ------------------------------------------------------------------- boot -- */
