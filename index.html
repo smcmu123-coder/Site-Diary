@@ -780,6 +780,7 @@ const CONFIG = {
   hours: { start:"07:30", finish:"17:00", breakMins:30 },
   plantChecks: "app",          /* or "paper" while the lads are still on the sheets */
   toolboxDay: 0,               /* Monday — the day the talk is given */
+  weeklyDays: { puwer:4, loler:4, plantWeekly:0 },
 
   /* TESTING ONLY. Set to false before this goes out to site teams — a submitted
      diary is a contractual record and should never be deletable by a normal
@@ -1031,7 +1032,8 @@ function plantCheckSections(){
   const date = formState ? formState.date : todayISO();
   const pid = formState ? formState.plantId : null;
   const sheet = sheetFor(machineType(pid)) || CHECKSHEETS.Excavator;
-  const showWeekly = !weeklyDone(date, pid) || (formState && formState.values.__weekly===true);
+  const showWeekly = (formState && formState.values.__weekly===true)
+    || (!weeklyDone(date, pid) && weeklyDue("plantWeekly", date));
 
   const secs = [
     { title:"Daily pre-use checks",
@@ -1113,15 +1115,45 @@ function weeklyRecordFor(formKey, date){
 }
 function isDone(rec){ return !!rec && rec.status==="submitted"; }
 
-/* The day the toolbox talk is meant to be given, and whether it is due yet. */
-function toolboxDay(){ const n = Number(cfg().toolboxDay); return Number.isFinite(n) ? n : 0; }
-function toolboxDate(ws){ return addDays(ws, toolboxDay()); }
-function toolboxDue(date){ return date >= toolboxDate(weekStart(date)); }
+/* Each weekly job has a day of the week it is meant to be done on. Monday is 0. */
+const WEEKLY_JOBS = [
+  { key:"toolboxtalk", label:"Toolbox talk",    def:0 },
+  { key:"puwer",       label:"PUWER register",  def:4 },
+  { key:"loler",       label:"LOLER register",  def:4 },
+  { key:"plantWeekly", label:"Plant weekly checks", def:0 }
+];
+function weeklyDayFor(key){
+  const c = cfg();
+  if(key === "toolboxtalk"){
+    const n = Number(c.toolboxDay);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const n = Number((c.weeklyDays||{})[key]);
+  if(Number.isFinite(n)) return n;
+  const j = WEEKLY_JOBS.find(x=>x.key===key);
+  return j ? j.def : 0;
+}
+function setWeeklyDay(key, day){
+  if(key === "toolboxtalk"){ DB.config.toolboxDay = day; }
+  else {
+    DB.config.weeklyDays = Object.assign({}, DB.config.weeklyDays || {});
+    DB.config.weeklyDays[key] = day;
+  }
+  save();
+}
+/* the date it falls on in a given week, and whether that day has come round */
+function weeklyDateFor(key, ws){ return addDays(ws, weeklyDayFor(key)); }
+function weeklyDue(key, date){ return date >= weeklyDateFor(key, weekStart(date)); }
+
+/* kept for the toolbox talk, which is referred to by name in a few places */
+function toolboxDay(){ return weeklyDayFor("toolboxtalk"); }
+function toolboxDate(ws){ return weeklyDateFor("toolboxtalk", ws); }
+function toolboxDue(date){ return weeklyDue("toolboxtalk", date); }
 
 /* What the week still owes: the weekly forms that have not been done. */
 function weeklyOutstanding(date){
   return Object.values(FORMS).filter(f=>f.weekly)
-    .filter(f=>f.key!=="toolboxtalk" || toolboxDue(date))
+    .filter(f=>weeklyDue(f.key, date))
     .filter(f=>!isDone(weeklyRecordFor(f.key, date)));
 }
 
@@ -3582,14 +3614,18 @@ function planItems(date){
       sub:"weekly", go:{ name:"home", date },
       ref:{ type:"open", name:"home", date } });
 
-  if(parse(date).getDay() === 5){           /* Friday */
-    Object.values(FORMS).filter(f=>f.weekly && f.key!=="toolboxtalk").forEach(f=>{
-      if(!isDone(weeklyRecordFor(f.key, date)))
-        out.push({ kind:"inspection", time:"", sort:4, text:f.short + " register due",
-          sub:"weekly", go:{ name:"home", date },
-          ref:{ type:"open", name:"home", date } });
-    });
-  }
+  Object.values(FORMS).filter(f=>f.weekly && f.key!=="toolboxtalk").forEach(f=>{
+    if(date === weeklyDateFor(f.key, weekStart(date))
+      && !isDone(weeklyRecordFor(f.key, date)))
+      out.push({ kind:"inspection", time:"", sort:4, text:f.short + " due",
+        sub:"weekly", go:{ name:"home", date },
+        ref:{ type:"open", name:"home", date } });
+  });
+
+  if(date === weeklyDateFor("plantWeekly", weekStart(date)) && plantNeedingCheck(date).length)
+    out.push({ kind:"inspection", time:"", sort:4, text:"Plant weekly checks due",
+      sub:"with the daily checks", go:{ name:"pickplant", date },
+      ref:{ type:"open", name:"pickplant", date } });
 
   return out.sort((a,b)=> a.sort - b.sort || (a.time||"").localeCompare(b.time||""));
 }
@@ -4838,38 +4874,27 @@ function homeView(){
     dailyCards.push({ label:"Diary",    done: diaryDone,               html: hero });
     dailyCards.push({ label:"HAVs",     done: isDone(dailyRecordFor("havs", sel)),
       html: dailyCard("havs", true) });
-  }
 
-  /* ---- the week's forms ---- */
-  const weeklyCards = Object.values(FORMS).filter(f=>f.weekly).map(f=>{
-    const wr = weeklyRecordFor(f.key, sel);
-    const done = isDone(wr);
-    const tbDay = WEEKDAYS[toolboxDay()];
-    const notYet = f.key==="toolboxtalk" && !toolboxDue(sel);
-    if(f.key==="toolboxtalk" && !done) return { label:f.short, done:false, html:
-      `<div class="hero${notYet?" calm":""}">
-        <div class="lab">${notYet ? "Later this week" : "This week"}</div>
-        <div class="ttl">${esc(f.name)}</div>
-        <div class="why">${notYet
-          ? "Given on a " + tbDay + ". Get it ready whenever you like."
-          : "Due on a " + tbDay + ". Photograph the sheet and have the lads sign for it."}</div>
-        <button class="begin" data-startf="${f.key}" data-d="${sel}">${
-          notYet ? "Get it ready" : "Begin"}</button></div>` };
-    return { label:f.short, done,
-      html: done
+    /* the weekly ones join the list on the day they are due */
+    Object.values(FORMS).filter(f=>f.weekly).forEach(f=>{
+      if(!weeklyDue(f.key, sel)) return;
+      const wr = weeklyRecordFor(f.key, sel);
+      const done = isDone(wr);
+      dailyCards.push({ label:f.short, done, html: done
         ? `<div class="hero calm">
             <div class="lab">This week</div>
-            <div class="ttl">${esc(f.short)} done</div>
+            <div class="ttl">${esc(f.name)}</div>
             <div class="count">${shortDate(wr.date)} · ${esc(wr.ref||"")}</div>
             <button class="begin" data-open="${wr.id}">View it</button></div>`
         : `<div class="hero">
-            <div class="lab">This week</div>
+            <div class="lab">${WEEKDAYS[weeklyDayFor(f.key)]}s</div>
             <div class="ttl">${esc(f.name)}</div>
             <div class="why">${esc(f.blurb)}</div>
-            <button class="begin" data-startf="${f.key}" data-d="${sel}">Begin</button></div>`
-    };
-  });
+            <button class="begin" data-startf="${f.key}" data-d="${sel}">Begin</button></div>` });
+    });
+  }
 
+  /* ---- the week's forms ---- */
   const carousel = (id, cards) => `
     <div class="ctabs" data-car="${id}">${cards.map((c,i)=>`
       <button class="ctab ${i?"":"on"} ${c.warn?"warn":""}" data-cgo="${i}">
@@ -4941,8 +4966,7 @@ function homeView(){
        It can only be signed and submitted on the day itself.</p></div>` : ""}
      ${carousel("daily", dailyCards)}
 
-     ${!ahead && !restDay && weeklyCards.length ? `<div class="sect">This week</div>`
-       + carousel("weekly", weeklyCards) : ""}
+
 
      ${!ahead && faulty.length ? `<button class="card" style="width:100%;text-align:left;
        background:var(--bad-bg);box-shadow:none" data-go="plant">
@@ -7521,17 +7545,6 @@ function jobView(){
         <input class="in" type="date" data-jobf="startDate" value="${esc(DB.startDate||todayISO())}"></div>
     </div>
 
-    <div class="sect">Toolbox talk</div>
-    <div class="card">
-      <p style="margin-bottom:12px">The day the talk is given. From that day the week is not
-      complete without it, and it appears on the planner.</p>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        ${WEEKDAYS.map((d,i)=>`<button class="pill ${toolboxDay()===i?"ok":"grey"}"
-          style="padding:9px 14px;font-size:13.5px" data-tbday="${i}">${d.slice(0,3)}</button>`).join("")}
-      </div>
-      <p class="sub" style="margin-top:10px">Currently ${esc(WEEKDAYS[toolboxDay()])}.</p>
-    </div>
-
     <div class="sect">Working hours</div>
     <div class="card" style="background:var(--green-50);box-shadow:none">
       <p>Set each day separately — a short Friday, a different break, or a Saturday worked.
@@ -8330,6 +8343,21 @@ function settingsView(){
     <div class="card">
       <div class="f"><label>Name</label><input class="in" data-cfg="user.name" value="${esc(c.user.name)}"></div>
       <div class="f" style="margin:0"><label>Email</label><input class="in" data-cfg="user.email" value="${esc(c.user.email)}"></div>
+    </div>
+
+    <div class="sect">Weekly jobs</div>
+    <div class="card">
+      <p style="margin-bottom:12px">The day each one is done. Until that day comes round they
+      stay off the home screen, and from that day the week is not complete without them.</p>
+      ${WEEKLY_JOBS.map(j=>`
+        <div style="padding:10px 0;border-top:1px solid var(--line-2)">
+          <b style="font-weight:650;display:block;margin-bottom:8px">${esc(j.label)}</b>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${WEEKDAYS.map((d,i)=>`<button class="pill ${weeklyDayFor(j.key)===i?"ok":"grey"}"
+              style="padding:8px 12px;font-size:13px" data-wday="${j.key}:${i}">${
+              d.slice(0,3)}</button>`).join("")}
+          </div>
+        </div>`).join("")}
     </div>
 
     <div class="sect">Plant checks</div>
@@ -9913,10 +9941,12 @@ function bind(){
     setDelayCounted(recId, Number(idx), on==="1");
     render();
   });
-  app.querySelectorAll("[data-tbday]").forEach(el=>el.onclick=()=>{
-    DB.config.toolboxDay = Number(el.getAttribute("data-tbday"));
-    save(); render();
-    toast("Toolbox talk on a " + WEEKDAYS[toolboxDay()]);
+  app.querySelectorAll("[data-wday]").forEach(el=>el.onclick=()=>{
+    const [key, day] = el.getAttribute("data-wday").split(":");
+    setWeeklyDay(key, Number(day));
+    render();
+    const j = WEEKLY_JOBS.find(x=>x.key===key) || { label:"It" };
+    toast(j.label + " on a " + WEEKDAYS[Number(day)]);
   });
   app.querySelectorAll("[data-pcmode]").forEach(el=>el.onclick=()=>{
     DB.config.plantChecks = el.getAttribute("data-pcmode");
