@@ -338,6 +338,16 @@ input[type=date].in,input[type=time].in,
   color:var(--ink-2);background:var(--canvas);border-radius:999px;padding:5px 10px 5px 7px}
 .plkey i{width:9px;height:9px;border-radius:3px;display:block}
 .pldow{display:none}
+.planseg{display:flex;gap:4px;margin-top:8px;background:var(--canvas);border-radius:11px;padding:3px}
+.planseg button{flex:1;min-height:38px;border-radius:9px;border:0;background:transparent;
+  font-size:13.5px;font-weight:640;color:var(--ink-2);padding:0 6px}
+.planseg button.on{background:var(--paper);color:var(--green);
+  box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.plsplit{display:flex;align-items:center;gap:10px;margin:22px 0 8px}
+.plsplit:first-of-type{margin-top:0}
+.plsplit span{font-size:12px;font-weight:700;color:var(--ink-3);text-transform:uppercase;
+  letter-spacing:.09em;flex:none}
+.plsplit::after{content:"";flex:1;height:1px;background:var(--line-2)}
 
 /* phone: an agenda, the date held to the left */
 .plgrid{display:grid;grid-template-columns:1fr;gap:6px}
@@ -350,6 +360,7 @@ input[type=date].in,input[type=time].in,
 .plday.we{background:var(--canvas);box-shadow:none}
 .plday.we.empty{background:transparent}
 .plday.today{box-shadow:inset 0 0 0 1.5px var(--green)}
+.plday.past{opacity:.48}
 .plday .ph{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1}
 .plday .ph .dw{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink-3)}
@@ -4149,6 +4160,51 @@ function regFoot(extra){
   const c = cfg();
   return `<div class="foot"><span>${esc(c.company)} · ${esc(DB.job)}${extra?" · "+esc(extra):""}</span>
     <span>Produced by ${esc(c.user.name)} on ${stamp(Date.now())}</span></div>`;
+}
+
+/* ------------------------------------ the look ahead, on paper ---------- */
+function printLookahead(from, span){
+  const c = cfg();
+  const n = span === 7 ? 7 : 14;
+  const start = weekStart(from || todayISO());
+  const days = [];
+  for(let i=0;i<n;i++) days.push(addDays(start, i));
+  const title = n === 7 ? "Week Look Ahead" : "Two Week Look Ahead";
+
+  const rows = [];
+  days.forEach(d=>{
+    const items = planItems(d);
+    if(!items.length) return;
+    items.forEach((it,i)=>{
+      rows.push([
+        i===0 ? longDate(d) : "",
+        PLAN_KINDS[it.kind].label,
+        (it.time ? it.time + " " : "") + it.text,
+        it.sub || ""
+      ]);
+    });
+  });
+
+  const tally = planTally(days);
+
+  let html = regPage(
+    regHead(title, "CGCivils-021", [
+      ["Site / depot", DB.job, "Produced", longDate(todayISO())],
+      ["Produced by", c.user.name, "Period", shortDate(days[0]) + " to " + shortDate(days[n-1])]
+    ]) +
+    `<div class="pk-h">What is booked in</div>` +
+    `<p style="font-size:10.5px;color:#555;margin:0 0 10px">${
+      tally.length ? esc(tally.join(" · ")) : n===7 ? "Nothing booked in." : "Nothing booked in over the fortnight."}</p>` +
+    (rows.length
+      ? regTbl(["Date","Type","What","Detail"], rows,
+          { widths:[.22,.15,.33,.30] })
+      : `<p style="font-size:10.5px;color:#555">Nothing booked in.</p>`) +
+    regFoot(n===7 ? "week look ahead" : "two week look ahead"));
+
+  document.getElementById("sheet").innerHTML = html;
+  document.getElementById("sheetTitle").textContent = title + " — " + shortDate(days[0]);
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
 }
 
 /* ---------------------------------------------- the whole register ---- */
@@ -8157,41 +8213,78 @@ function openPlanItem(pick){
   });
 }
 
+/* One day in the plan, drawn the same way wherever it appears — the week ahead
+   and the two week look ahead are the same cell, only the range differs. */
+function planDayCell(d, opts){
+  opts = opts || {};
+  const t = todayISO();
+  const items = planItems(d);
+  const dt = parse(d);
+  const weekend = !isWorking(d);
+  const past = d < t;
+  return `<div class="plday ${d===t?"today":""} ${weekend?"we":""} ${past?"past":""} ${
+      items.length?"":"empty"}"${opts.tappable?` data-planday="${d}"`:""}>
+    <div class="ph">
+      <span class="dw">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][(dt.getDay()+6)%7]}</span>
+      <span class="dn">${dt.getDate()}${dt.getDate()===1||opts.showMonth
+        ? " " + MON[dt.getMonth()].slice(0,3) : ""}</span>
+      ${items.length?`<span class="ct">${items.length}</span>`:""}
+    </div>
+    <div class="pl">
+      ${items.map(it=>{
+        const k = PLAN_KINDS[it.kind];
+        return `<button class="pi" style="background:${k.bg}"
+          data-planpick="${esc(JSON.stringify({ ref:it.ref, text:it.text, kind:it.kind, date:d }))}">
+          <span class="pt" style="background:${k.colour}"></span>
+          <span class="px">
+            <b>${it.time?esc(it.time)+" ":""}${esc(it.text)}</b>
+            ${it.sub?`<span class="ps">${esc(it.sub)}</span>`:""}
+          </span>
+        </button>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+/* What is booked in across a run of days, said in one line. */
+function planTally(days){
+  const counts = {};
+  days.forEach(d=>planItems(d).forEach(it=>{ counts[it.kind] = (counts[it.kind]||0)+1; }));
+  return Object.keys(counts).map(k=>
+    counts[k] + " " + (counts[k]===1 ? PLAN_KINDS[k].one : PLAN_KINDS[k].many));
+}
+
+/* One screen, two ranges. A week is the working view; a fortnight is the same
+   view with next week underneath it, which is all a look ahead ever was. */
+function planSpan(){ return view.span === 14 ? 14 : 7; }
+
 function planView(){
   const t = todayISO();
+  const span = planSpan();
   const start = weekStart(view.from || t);
   const days = [];
-  for(let i=0;i<7;i++) days.push(addDays(start, i));
+  for(let i=0;i<span;i++) days.push(addDays(start, i));
 
-  const cell = d => {
-    const items = planItems(d);
-    const dt = parse(d);
-    const weekend = !isWorking(d);
-    return `<div class="plday ${d===t?"today":""} ${weekend?"we":""} ${items.length?"":"empty"}"
-      data-planday="${d}">
-      <div class="ph">
-        <span class="dw">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][(dt.getDay()+6)%7]}</span>
-        <span class="dn">${dt.getDate()}${dt.getDate()===1||d===days[0]
-          ? " " + MON[dt.getMonth()].slice(0,3) : ""}</span>
-        ${items.length?`<span class="ct">${items.length}</span>`:""}
-      </div>
-      <div class="pl">
-        ${items.map(it=>{
-          const k = PLAN_KINDS[it.kind];
-          return `<button class="pi" style="background:${k.bg}"
-            data-planpick="${esc(JSON.stringify({ ref:it.ref, text:it.text, kind:it.kind, date:d }))}">
-            <span class="pt" style="background:${k.colour}"></span>
-            <span class="px">
-              <b>${it.time?esc(it.time)+" ":""}${esc(it.text)}</b>
-              ${it.sub?`<span class="ps">${esc(it.sub)}</span>`:""}
-            </span>
-          </button>`;
-        }).join("")}
-      </div>
-    </div>`;
-  };
+  const dow = `<div class="pldow">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+    .map(x=>`<span>${x}</span>`).join("")}</div>`;
 
-  const week = (from,to) => `<div class="plgrid">${days.slice(from,to).map(cell).join("")}</div>`;
+  const week = (from,to) => `<div class="plgrid">${days.slice(from,to)
+    .map((d,i)=>planDayCell(d, { showMonth: i===0, tappable:true })).join("")}</div>`;
+
+  const wkLabel = (from) =>
+    from===weekStart(t) ? "This week" :
+    from===addDays(weekStart(t),7) ? "Next week" :
+    "Week commencing " + shortDate(from);
+
+  /* the second week, only when it is asked for */
+  const weekTwo = span === 7 ? "" : `
+    <div class="plsplit"><span>${esc(wkLabel(days[7]))}</span></div>
+    <p class="sub" style="margin:0 0 10px">${(function(){
+      const bits = planTally(days.slice(7,14));
+      return bits.length ? esc(bits.join(" · ")) : "Nothing booked in.";
+    })()}</p>
+    ${dow}
+    ${week(7,14)}`;
 
   /* picking something to book in for exchange */
   const exchange = !(exchPick || exchDraft) ? "" : (function(){
@@ -8311,18 +8404,26 @@ function planView(){
       <button class="btn ghost" style="margin:0" data-evcancel="1">Cancel</button>
     </div>` : "";
 
-  return `<h1 class="greet" style="font-size:26px;margin-top:18px">The week ahead</h1>
+  return `<h1 class="greet" style="font-size:26px;margin-top:18px">${
+      span===7 ? "The week ahead" : "The fortnight ahead"}</h1>
     <p class="sub">${esc(DB.job)}</p>
 
-    <div class="card" style="display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:12px">
-      <button class="btn line sm" style="margin:0" data-planmv="-7" aria-label="Back a week">&lsaquo;</button>
-      <span style="flex:1;text-align:center">
-        <b style="display:block;font-weight:650">${shortDate(days[0])} – ${shortDate(days[6])}</b>
-        <span style="font-size:12.5px;color:var(--ink-3)">${
-          start===weekStart(t) ? "This week" : start===addDays(weekStart(t),7) ? "Next week"
-            : "Week commencing "+shortDate(start)}</span>
-      </span>
-      <button class="btn line sm" style="margin:0" data-planmv="7" aria-label="On a week">&rsaquo;</button>
+    <div class="card" style="padding:8px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn line sm" style="margin:0" data-planmv="-7" aria-label="Back a week">&lsaquo;</button>
+        <span style="flex:1;text-align:center">
+          <b style="display:block;font-weight:650">${shortDate(days[0])} &ndash; ${
+            shortDate(days[span-1])}</b>
+          <span style="font-size:12.5px;color:var(--ink-3)">${
+            span===7 ? wkLabel(start)
+              : start===weekStart(t) ? "This week and next" : "From "+shortDate(start)}</span>
+        </span>
+        <button class="btn line sm" style="margin:0" data-planmv="7" aria-label="On a week">&rsaquo;</button>
+      </div>
+      <div class="planseg">
+        <button class="${span===7?"on":""}" data-planspan="7">1 week</button>
+        <button class="${span===14?"on":""}" data-planspan="14">2 week look ahead</button>
+      </div>
     </div>
 
     <div class="plkey">
@@ -8330,24 +8431,24 @@ function planView(){
         esc(PLAN_KINDS[k].label)}</span>`).join("")}
     </div>
 
+    ${span===14 ? `<div class="plsplit"><span>${esc(wkLabel(days[0]))}</span></div>` : ""}
     ${(function(){
-      const counts = {};
-      days.forEach(d=>planItems(d).forEach(it=>{ counts[it.kind] = (counts[it.kind]||0)+1; }));
-      const bits = Object.keys(counts).map(k=>
-        counts[k] + " " + (counts[k]===1 ? PLAN_KINDS[k].one : PLAN_KINDS[k].many));
-      return bits.length
-        ? `<p class="sub" style="margin:-4px 0 12px">${esc(bits.join(" · "))}</p>`
-        : `<p class="sub" style="margin:-4px 0 12px">Nothing booked in this week yet.</p>`;
+      const bits = planTally(days.slice(0,7));
+      return `<p class="sub" style="margin:${span===14?"0":"-4px"} 0 10px">${
+        bits.length ? esc(bits.join(" · ")) : "Nothing booked in this week yet."}</p>`;
     })()}
 
-    <div class="pldow">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(x=>`<span>${x}</span>`).join("")}</div>
+    ${dow}
     ${week(0,7)}
+    ${weekTwo}
 
     ${draft || hire || exchange || `
       <button class="btn add" style="margin-top:16px" data-adddel="${t}">+ Add a delivery</button>
       <button class="btn add" data-evadd="${t}">+ Add a reminder</button>
       <button class="btn add" data-hire="1">+ Plant or tools on or off hire</button>
-      <button class="btn add" data-exchopen="1">+ Book an item for exchange</button>`}`;
+      <button class="btn add" data-exchopen="1">+ Book an item for exchange</button>
+      ${span===14 ? `<button class="btn line" style="margin-top:8px" data-laview="1">
+        Preview the look ahead sheet</button>` : ""}`}`;
 }
 
 function deliveriesView(){
@@ -11399,8 +11500,14 @@ function bind(){
   /* the plan */
   app.querySelectorAll("[data-planmv]").forEach(el=>el.onclick=()=>{
     const from = view.from || todayISO();
-    go("plan", { from: addDays(weekStart(from), Number(el.dataset.planmv)) });
+    go("plan", { from: addDays(weekStart(from), Number(el.dataset.planmv)),
+                 span: planSpan() });
   });
+  app.querySelectorAll("[data-planspan]").forEach(el=>el.onclick=()=>{
+    go("plan", { from: view.from || todayISO(), span: Number(el.dataset.planspan) });
+  });
+  const lav = app.querySelector("[data-laview]");
+  if(lav) lav.onclick = ()=> printLookahead(view.from || todayISO(), planSpan());
   app.querySelectorAll("[data-planday]").forEach(el=>el.onclick=()=>{
     planPick = null;
     eventDraft = { date: el.dataset.planday, title:"", kind:"Appointment", time:"", notes:"" };
@@ -12588,10 +12695,22 @@ function boardSnapshot(){
     });
     return out;
   };
+  /* the fortnight, worked out here so the wall board has no logic of its own */
+  const laStart = weekStart(todayISO());
+  const lookahead = [];
+  for(let i=0;i<14;i++){
+    const d = addDays(laStart, i);
+    lookahead.push({ date:d, working:isWorking(d),
+      items: planItems(d).map(it=>({ kind:it.kind, time:it.time||"",
+        text:it.text||"", sub:it.sub||"" })) });
+  }
+
   return {
     publishedAt: Date.now(),
     publishedBy: cfg().user.name || "",
     job: DB.job,
+    lookahead,
+    planKinds: PLAN_KINDS,
     config: { jobs: DB.config.jobs || [DB.job] },
     /* how the checks are being done this week, and when the sheets are wanted */
     checks: {
