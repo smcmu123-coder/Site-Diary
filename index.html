@@ -1056,6 +1056,142 @@ html[data-theme="dark"] .navpill{background:var(--paper);border-color:var(--line
   .hm .quickbar .qa{min-height:60px;font-size:17px}
   .hm .wday{min-height:88px}
 }
+
+/* ==========================================================================
+   Motion layer
+   Rules this follows, in order:
+     1. Motion explains a change. If removing it loses no information and no
+        sense of continuity, it does not go in.
+     2. Exits are faster than entrances, always.
+     3. Only transform and opacity are animated. Anything that moves layout
+        (left, width, height, top) drops frames on a five-year-old Android.
+     4. Nothing bounces on a safety form.
+     5. All of it is off when the phone asks for reduced motion.
+   ========================================================================== */
+:root{
+  --e-out:cubic-bezier(.32,.72,0,1);      /* decelerate — things arriving */
+  --e-in:cubic-bezier(.4,0,1,1);          /* accelerate — things leaving */
+  --e-soft:cubic-bezier(.4,0,.2,1);
+  --d-1:.14s;   /* press, hover */
+  --d-2:.22s;   /* small state change */
+  --d-3:.30s;   /* entrances */
+  --d-4:.42s;   /* the screen itself */
+}
+
+/* --- the screen ---------------------------------------------------------- */
+/* A view arrives with a short rise and fade. 14px, not 40 — enough to read as
+   movement, not so much that it reads as a slide show. */
+@keyframes viewIn{
+  from{ opacity:0; transform:translate3d(14px,6px,0) }
+  to  { opacity:1; transform:none }
+}
+@keyframes viewInBack{
+  from{ opacity:0; transform:translate3d(-14px,6px,0) }
+  to  { opacity:1; transform:none }
+}
+.app.vin{ animation:viewIn var(--d-4) var(--e-out) both }
+.app.vin.vback{ animation-name:viewInBack }
+
+/* --- lists arrive in order ----------------------------------------------- */
+/* A stagger says "these are separate things" without a word of copy. Capped at
+   eight so a long list never leaves the reader waiting on the tail. */
+@keyframes rowIn{
+  from{ opacity:0; transform:translate3d(0,10px,0) }
+  to  { opacity:1; transform:none }
+}
+.hm .task, .hm .chipitem, .hm .quickbar .qa, .card, .hm .rest{
+  animation:rowIn var(--d-3) var(--e-out) both }
+.hm .task:nth-child(1),.card:nth-child(1){ animation-delay:.02s }
+.hm .task:nth-child(2),.card:nth-child(2){ animation-delay:.05s }
+.hm .task:nth-child(3),.card:nth-child(3){ animation-delay:.08s }
+.hm .task:nth-child(4),.card:nth-child(4){ animation-delay:.11s }
+.hm .task:nth-child(5),.card:nth-child(5){ animation-delay:.14s }
+.hm .task:nth-child(6),.card:nth-child(6){ animation-delay:.16s }
+.hm .task:nth-child(7),.card:nth-child(7){ animation-delay:.18s }
+.hm .task:nth-child(n+8),.card:nth-child(n+8){ animation-delay:.20s }
+
+/* --- the week rings draw themselves -------------------------------------- */
+/* The arc was already given a transition, but innerHTML replaces the circle
+   every render so there was never a previous value to move from. An animation
+   works where a transition cannot. r=18, so the circumference is 113.1. */
+@keyframes ringDraw{ from{ stroke-dashoffset:113.1 } to{ stroke-dashoffset:0 } }
+.hm .wday .run{ animation:ringDraw .72s var(--e-out) both }
+.hm .wday:nth-child(2) .run{ animation-delay:.04s }
+.hm .wday:nth-child(3) .run{ animation-delay:.08s }
+.hm .wday:nth-child(4) .run{ animation-delay:.12s }
+.hm .wday:nth-child(5) .run{ animation-delay:.16s }
+.hm .wday:nth-child(6) .run{ animation-delay:.20s }
+.hm .wday:nth-child(7) .run{ animation-delay:.24s }
+.hm .wmark{ animation:rowIn .34s var(--e-out) both; animation-delay:.42s }
+
+/* --- press ---------------------------------------------------------------- */
+/* Gloved hands get no tactile edge from glass, so the screen has to answer.
+   A press is 1.5% of scale and a shade of background: felt, not watched.
+   Scale never changes the hit area, so a 56dp target stays a 56dp target. */
+button,.task,.row,.ctab,.chipitem,.qa{
+  transition:transform var(--d-1) var(--e-soft),
+             background-color var(--d-2) var(--e-soft),
+             box-shadow var(--d-2) var(--e-soft) }
+.btn:active,.hm .quickbar .qa:active,.ctab:active{ transform:scale(.985) }
+.hm .task:active,.row:active{ transform:scale(.995) }
+.hm .chipitem:active{ transform:scale(.97) }
+/* the tick is the one place a little life is earned */
+.hm .task .tick{ transition:transform var(--d-2) cubic-bezier(.34,1.4,.5,1),
+  background-color var(--d-2) var(--e-soft), border-color var(--d-2) var(--e-soft) }
+@keyframes tickIn{ from{ transform:scale(.4); opacity:0 } to{ transform:none; opacity:1 } }
+.hm .task.done .tick{ animation:tickIn .34s cubic-bezier(.34,1.4,.5,1) both;
+  animation-delay:.10s }
+
+/* --- dialogs and sheets --------------------------------------------------- */
+/* A bottom sheet that appears rather than rises reads as a bug. */
+@keyframes scrimIn{ from{ opacity:0 } to{ opacity:1 } }
+@keyframes sheetUp{
+  from{ opacity:0; transform:translate3d(0,26px,0) }
+  to  { opacity:1; transform:none }
+}
+.scrim{ animation:scrimIn var(--d-2) var(--e-soft) both }
+.dlg{ animation:sheetUp var(--d-3) var(--e-out) both }
+@media(min-width:700px){
+  @keyframes sheetUp{
+    from{ opacity:0; transform:translate3d(0,12px,0) scale(.98) }
+    to  { opacity:1; transform:none }
+  }
+}
+.sheetwrap.open{ animation:viewIn var(--d-3) var(--e-out) both }
+.lightbox{ animation:scrimIn var(--d-2) var(--e-soft) both }
+.lightbox .lbimg img{ animation:sheetUp var(--d-3) var(--e-out) both }
+
+/* --- toast ---------------------------------------------------------------- */
+@keyframes toastIn{
+  from{ opacity:0; transform:translate(-50%, 18px) }
+  to  { opacity:1; transform:translate(-50%, 0) }
+}
+.toast{ animation:toastIn var(--d-3) var(--e-out) both;
+  transition:opacity var(--d-2) var(--e-in), transform var(--d-2) var(--e-in) }
+.toast.out{ opacity:0; transform:translate(-50%, 10px) }
+
+/* --- the in-progress mark breathes, once a minute ------------------------- */
+/* Slow enough to be a heartbeat rather than a blink. It marks the one thing on
+   the screen that is waiting on a person. */
+/* It rides on the tick, not the row — the row already has its entrance, and
+   two animations on one element means one delay for both. */
+@keyframes wipPulse{
+  0%,88%,100%{ box-shadow:0 0 0 0 rgba(107,62,0,0) }
+  94%{ box-shadow:0 0 0 5px rgba(107,62,0,.16) }
+}
+.hm .task.started .tick{ animation:wipPulse 6s var(--e-soft) 1.6s infinite }
+
+/* --- scrolling ------------------------------------------------------------ */
+/* Stop a pull past the top of a form dragging the whole page with it. */
+html,body{ overscroll-behavior-y:none }
+.app{ scroll-behavior:smooth }
+
+/* --- the promise at the top of this block --------------------------------- */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important; animation-iteration-count:1!important;
+    transition-duration:.01ms!important; scroll-behavior:auto!important }
+}
 </style>
 </head>
 <body>
@@ -5056,14 +5192,25 @@ function toast(msg){
   const old = document.querySelector(".toast"); if(old) old.remove();
   const el = document.createElement("div"); el.className="toast"; el.textContent=msg;
   document.body.appendChild(el);
-  setTimeout(()=>el.remove(), 2800);
+  /* out faster than in — a message that lingers on the way out feels slow */
+  setTimeout(()=>{ el.classList.add("out"); setTimeout(()=>el.remove(), 220); }, 2600);
 }
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 /* ------------------------------------------------------------------ views -- */
+/* Which way the screen is travelling, so a view pushes in from the right and
+   a back step slides in from the left. Depth is what makes an app feel placed
+   rather than redrawn. */
+let navDepth = 0;
+const VIEW_DEPTH = { home:0, plan:0, project:0, settings:0 };
+function depthOf(name){ return VIEW_DEPTH[name] === undefined ? 1 : 0; }
+
 function render(){
   const app = document.getElementById("app");
+  const d = depthOf(view.name);
+  const back = d < navDepth;
+  navDepth = d;
   if(view.name==="home") app.innerHTML = homeView();
   else if(view.name==="form") app.innerHTML = formView();
   else if(view.name==="record") app.innerHTML = recordView();
@@ -5100,7 +5247,37 @@ function render(){
   }
   bind();
   updateNav();
+
+  /* Restart the entrance every time. innerHTML replaces the nodes, so a CSS
+     transition has no previous state to move from — an animation does. */
+  if(!REDUCED.matches){
+    app.classList.remove("vin","vback");
+    void app.offsetWidth;                       /* forces the restart */
+    app.classList.add("vin");
+    if(back) app.classList.add("vback");
+  }
+  countUp();
 }
+
+/* The day's percentage is the one number anyone looks at. Let it arrive. */
+function countUp(){
+  const el = document.querySelector(".hm .daylead .big");
+  if(!el || REDUCED.matches) return;
+  const m = /^(\d+)%$/.exec(el.textContent.trim());
+  if(!m) return;
+  const target = +m[1];
+  if(target === 0){ return; }
+  const t0 = performance.now(), ms = 620;
+  el.style.fontVariantNumeric = "tabular-nums";
+  (function step(now){
+    const p = Math.min(1, (now - t0) / ms);
+    const eased = 1 - Math.pow(1 - p, 3);       /* fast out, settles gently */
+    el.textContent = Math.round(target * eased) + "%";
+    if(p < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+
+const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function header(right){
   return `<div class="top"><span class="chip">${esc(right)}</span></div>`;
@@ -9259,8 +9436,10 @@ function settingsView(){
         </span>
         <button data-toggle-del="1" style="width:52px;height:31px;border-radius:999px;flex:none;
           position:relative;background:${c.allowDelete?"var(--ok)":"var(--line)"}">
-          <i style="position:absolute;top:3px;left:${c.allowDelete?"24px":"3px"};width:25px;height:25px;
-            border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s"></i>
+          <i style="position:absolute;top:3px;left:3px;width:25px;height:25px;
+            border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);
+            transform:translateX(${c.allowDelete?"21px":"0"});
+            transition:transform .26s cubic-bezier(.32,.72,0,1)"></i>
         </button>
       </div>
     </div>
