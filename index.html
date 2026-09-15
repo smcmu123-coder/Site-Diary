@@ -3785,7 +3785,7 @@ async function defectReportPdf(plantId){
   doc.text("Signed", { bold:true, size:10 });
   doc.y -= 22; doc.rule();
 
-  doc.text((draft ? "Draft produced by " : "Produced by ") + c.company + " on " + stamp(Date.now()),
+  doc.text("Produced by " + c.company + " on " + stamp(Date.now()),
     { size:8.5, colour:[.5,.54,.51] });
 
   return { blob: doc.blob(),
@@ -3833,6 +3833,339 @@ async function reportDefect(plantId){
     + "&body=" + encodeURIComponent(body);
   a.target = "_blank"; a.rel = "noopener";
   document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ------------------------------------------------- register as a PDF --
+   The plant register and the lifting register, published as a single sheet
+   each: everything on site, everything off site, and the examination dates
+   that go with them. */
+function pdfFit(txt, w, size){
+  let t = String(txt==null ? "" : txt);
+  if(pdfWidth(t, size) <= w - 4) return t;
+  while(t.length > 2 && pdfWidth(t + "...", size) > w - 4) t = t.slice(0, -1);
+  return t + "...";
+}
+
+async function registerPdf(kind){
+  const lifting = kind === "lifting";
+  const c = cfg();
+  const all = (lifting ? (DB.lifting||[]) : (DB.plant||[])).filter(x=>x.job===DB.job);
+  const liveIds = (lifting ? currentLifting() : currentPlant()).map(x=>x.id);
+  const onSite = all.filter(x=>liveIds.includes(x.id));
+  const offSite = all.filter(x=>!liveIds.includes(x.id))
+    .sort((a,b)=>(b.offDate||"").localeCompare(a.offDate||""));
+
+  const doc = new PdfDoc();
+  const wide = PdfDoc.W - PdfDoc.M*2;
+  const red = [.65,.17,.13], amber = [.66,.42,0], grey = [.42,.46,.43];
+
+  let logo = null;
+  try{ logo = await jpegFromDataUrl(LOGO, 420); }catch(e){}
+
+  const title = lifting ? "Register of Lifting Equipment" : "Plant Register";
+  const code  = lifting ? "CGCivils-007" : "CGCivils-013";
+  const due   = lifting ? "LOLER expiry" : "Exam due";
+
+  doc.sheetHead(logo, title, code, [
+    ["Site / depot", DB.job, "Produced", shortDate(todayISO())],
+    ["Produced by", c.user.name, "Items on site", String(onSite.length)]
+  ]);
+
+  const cols = lifting
+    ? [115, 78, 60, 45, 75, 47, 47, 44]
+    : [110, 62, 55, 55, 78, 47, 50, 54];
+  const head = lifting
+    ? ["Description","Type","ID / serial","SWL","Owner / supplier","On site",due,"Status"]
+    : ["Plant item","Type","Fleet no.","Model","Owner / supplier","On site",due,"Status"];
+  const align = ["left","left","left","left","left","left","left","left"];
+
+  const ownerOf = x => (x.owner||"Hired") === "Owned"
+    ? "Owned" : (x.hireCompany || x.owner || "Hired");
+
+  const rowFor = x => {
+    const ls = lolerState(x);
+    return lifting
+      ? [x.item||"Unnamed item", x.type||"", x.idNo||"—", x.swl||"—", ownerOf(x),
+         x.onDate?shortDate(x.onDate):"—", examDateOf(x)?shortDate(examDateOf(x)):"—", ls.label]
+      : [x.item||"Unnamed item", x.type||"Excavator", x.fleetNo||"—", x.model||"—", ownerOf(x),
+         x.onDate?shortDate(x.onDate):"—", examDateOf(x)?shortDate(examDateOf(x)):"—", ls.label];
+  };
+
+  const draw = (list, opts) => {
+    const states = list.map(x=>lolerState(x).key);
+    const body = list.map(x=>rowFor(x).map((cell,i)=>pdfFit(cell, cols[i], 7.5)));
+    doc.table(cols, [head].concat(body), { header:true, align, size:7.5, pad:2.4,
+      colour:(r,ci)=>{
+        if(r===0) return [0,0,0];
+        if(opts && opts.muted) return grey;
+        const st = states[r-1];
+        if(ci===7 || ci===6) return st==="expired" ? red : st==="soon" ? amber : [0,0,0];
+        return [0,0,0];
+      } });
+  };
+
+  doc.heading("On site (" + onSite.length + ")");
+  if(onSite.length) draw(onSite);
+  else doc.text("Nothing on site.", { size:9, colour:grey, after:6 });
+
+  /* anything overdue or coming up, called out on its own */
+  const flagged = onSite.map(x=>({ x, st:lolerState(x) }))
+    .filter(o=>o.st.key==="expired" || o.st.key==="soon");
+  if(flagged.length){
+    doc.heading("Examinations due or overdue");
+    doc.table([wide*0.40, wide*0.24, wide*0.18, wide*0.18],
+      [["Item", lifting?"ID / serial":"Fleet no.", due, "Status"]].concat(
+        flagged.map(o=>[
+          pdfFit(o.x.item||"Unnamed item", wide*0.40, 8),
+          o.x.idNo || o.x.fleetNo || "—",
+          examDateOf(o.x) ? shortDate(examDateOf(o.x)) : "—",
+          o.st.label])),
+      { header:true, size:8, pad:2.6,
+        colour:(r)=> r===0 ? [0,0,0] : (flagged[r-1].st.key==="expired" ? red : amber) });
+  }
+
+  /* open defects belong on the plant register only */
+  if(!lifting){
+    const withDefects = onSite.map(p=>({ p, df:defectsFor(p.id) })).filter(o=>o.df);
+    if(withDefects.length){
+      doc.heading("Open defects");
+      doc.table([wide*0.34, wide*0.18, wide*0.16, wide*0.32],
+        [["Machine","Fleet no.","Defects","Reported to"]].concat(
+          withDefects.map(o=>{
+            const to = recipientFor(o.p);
+            return [pdfFit(o.p.item||"Unnamed item", wide*0.34, 8), o.p.fleetNo||"—",
+              o.df.items.length + (o.df.unsafe ? " · not fit for use" : ""),
+              pdfFit(to.name || "Our fitter", wide*0.32, 8)];
+          })),
+        { header:true, size:8, pad:2.6, colour:(r)=> r===0 ? [0,0,0] : red });
+    }
+  }
+
+  if(offSite.length){
+    doc.heading("Off site (" + offSite.length + ")");
+    doc.table([wide*0.42, wide*0.22, wide*0.18, wide*0.18],
+      [["Item", lifting?"Type":"Fleet no.", "On site", "Off site"]].concat(
+        offSite.map(x=>[
+          pdfFit(x.item||"Unnamed item", wide*0.42, 8),
+          lifting ? (x.type||"—") : (x.fleetNo||"—"),
+          x.onDate?shortDate(x.onDate):"—",
+          x.offDate?shortDate(x.offDate):"—"])),
+      { header:true, size:8, pad:2.6, colour:()=>grey });
+  }
+
+  doc.y -= 4;
+  doc.rule();
+  doc.text(lifting
+    ? "Lifting accessories require a thorough examination every six months, lifting "
+      + "equipment every twelve, or in line with a written scheme of examination."
+    : "Thorough examination under LOLER for lifting equipment, PUWER inspection for "
+      + "everything else. Items with no date do not require either.",
+    { size:8, colour:grey, after:4 });
+  doc.text(c.company + " · " + DB.job + " · produced by " + c.user.name
+    + " on " + stamp(Date.now()), { size:8, colour:[.5,.54,.51] });
+
+  const clean = s => String(s||"").replace(/[^\w\- ]+/g,"").trim();
+  return { blob: doc.blob(),
+    name: (lifting ? "Lifting register - " : "Plant register - ")
+      + clean(DB.job) + " - " + todayISO() + ".pdf",
+    count: onSite.length };
+}
+
+/* Build it, then hand it to the share sheet or save it. */
+async function publishRegister(kind){
+  toast("Building the register…");
+  let out = null;
+  try{ out = await registerPdf(kind); }
+  catch(e){ toast("Could not build the register."); return; }
+  if(!out) return;
+
+  const file = new File([out.blob], out.name, { type:"application/pdf" });
+  const title = kind==="lifting" ? "Register of Lifting Equipment" : "Plant Register";
+  if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+    try{ await navigator.share({ files:[file], title }); return; }
+    catch(e){ return; }   /* cancelled */
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("Saved — " + out.count + " item" + (out.count===1?"":"s") + " on site");
+}
+
+/* ------------------------------------------- one item, with its paperwork --
+   The record for a single machine or item of lifting gear: everything held
+   against it, then a page per scanned certificate. */
+async function itemPdf(kind, id){
+  const it = findItem(kind, id);
+  if(!it) return null;
+  const c = cfg();
+  const isPlant = kind === "plant";
+  const isTool  = kind === "tools";
+  const st = lolerState(it);
+  const onSite = (isPlant ? currentPlant() : isTool ? currentTools() : currentLifting())
+    .some(x=>x.id===it.id);
+
+  const doc = new PdfDoc();
+  const wide = PdfDoc.W - PdfDoc.M*2;
+  const red = [.65,.17,.13], amber = [.66,.42,0], grey = [.42,.46,.43];
+
+  let logo = null;
+  try{ logo = await jpegFromDataUrl(LOGO, 420); }catch(e){}
+
+  const title = isPlant ? "Plant Record" : isTool ? "Equipment Record"
+    : "Lifting Equipment Record";
+  const code  = isPlant ? "CGCivils-013" : isTool ? "CGCivils-013" : "CGCivils-007";
+
+  doc.sheetHead(logo, title, code, [
+    ["Site / depot", DB.job, "Produced", shortDate(todayISO())],
+    ["Produced by", c.user.name, "Status", onSite ? st.label : "Off site"]
+  ]);
+
+  doc.text(it.item || "Unnamed item", { size:16, bold:true, after:2 });
+  doc.text([isPlant ? (it.type||"Excavator") : it.type,
+    isPlant ? it.fleetNo : it.idNo].filter(Boolean).join("  ·  "),
+    { size:10, colour:grey, after:8 });
+  doc.rule();
+
+  if(!onSite) doc.banner("OFF SITE" + (it.offDate ? " SINCE " + shortDate(it.offDate).toUpperCase() : ""));
+  else if(st.key === "expired") doc.banner("EXAMINATION OVERDUE");
+
+  doc.heading("Details");
+  const pair = (k,v,col) => { if(v) doc.pair(k, v, col); };
+  if(isPlant){
+    pair("Type", it.type || "Excavator");
+    pair("Fleet number", it.fleetNo || "—");
+    pair("Model", it.model || "—");
+  } else if(isTool){
+    pair("Type", it.type || "—");
+    pair("ID or serial number", it.idNo || "—");
+  } else {
+    pair("Type", it.type || "—");
+    pair("ID or serial number", it.idNo || "—");
+    pair("Safe working load", it.swl || "—");
+  }
+  pair("Owned or hired", it.owner || "—");
+  if((it.owner||"") !== "Owned"){
+    pair("Supplier", it.hireCompany || "—");
+    pair("Hire reference", it.hireRef);
+    pair("Their email", it.hireEmail);
+    pair("Their phone", it.hirePhone);
+  }
+  pair("Site", DB.job);
+  pair("On site from", it.onDate ? longDate(it.onDate) : "—");
+  pair("Off site", it.offDate ? longDate(it.offDate) : "Still on site");
+  if(!isTool){
+    pair(kind === "lifting" ? "LOLER expiry" : "Next examination",
+      examDateOf(it) ? longDate(examDateOf(it)) : "Not set",
+      st.key === "expired" ? red : st.key === "soon" ? amber : [0,0,0]);
+    pair("Certificates held", String((it.docs||[]).length));
+  }
+
+  /* ---------------- examination history ---------------- */
+  const exams = (it.exams||[]).slice();
+  if(exams.length){
+    doc.heading("Examination history");
+    doc.table([wide*0.26, wide*0.26, wide*0.30, wide*0.18],
+      [["Examined","Next due","Examined by","Recorded"]].concat(
+        exams.map(e=>[ e.done?shortDate(e.done):"—", e.next?shortDate(e.next):"—",
+          pdfFit(e.by || "—", wide*0.30, 8), e.at?shortDate(iso(e.at)):"—" ])),
+      { header:true, size:8, pad:2.6 });
+  }
+
+  /* ---------------- open defects ---------------- */
+  if(isPlant){
+    const df = defectsFor(it.id);
+    if(df){
+      doc.heading("Open defects" + (df.unsafe ? " — not fit for use" : ""));
+      doc.table([wide*0.32, wide*0.46, wide*0.22],
+        [["Check","Defect","Reported"]].concat(
+          df.items.map(x=>[ pdfFit(x.item||"—", wide*0.32, 8),
+            pdfFit(x.description||"—", wide*0.46, 8),
+            x.date ? shortDate(x.date) : "—" ])),
+        { header:true, size:8, pad:2.6, colour:(r)=> r===0 ? [0,0,0] : red });
+    }
+  }
+
+  /* ---------------- the certificates themselves ---------------- */
+  const docs = (it.docs||[]).slice().sort((a,b)=>
+    (b.scannedAt||b.addedAt||0) - (a.scannedAt||a.addedAt||0));
+
+  if(docs.length){
+    doc.heading("Documents held (" + docs.length + ")");
+    doc.table([wide*0.40, wide*0.26, wide*0.16, wide*0.18],
+      [["Document","Reference","Added","Expires"]].concat(
+        docs.map(d=>[ pdfFit(d.type||"Document", wide*0.40, 8),
+          pdfFit(d.title || "—", wide*0.26, 8),
+          shortDate(iso(d.scannedAt||d.addedAt||Date.now())),
+          d.expires ? shortDate(d.expires) : "—" ])),
+      { header:true, size:8, pad:2.6,
+        colour:(r,ci)=>{
+          if(r===0) return [0,0,0];
+          if(ci!==3) return [0,0,0];
+          const s = docState(docs[r-1]);
+          return s.cls==="red" ? red : s.cls==="amber" ? amber : [0,0,0];
+        } });
+
+    for(const d of docs){
+      doc.newPage();
+      doc.text(d.type || "Document", { size:13, bold:true, after:2 });
+      doc.text((it.item || "Unnamed item")
+        + (isPlant ? (it.fleetNo ? "  ·  " + it.fleetNo : "")
+                   : (it.idNo ? "  ·  " + it.idNo : ""))
+        + (d.title ? "  ·  " + d.title : ""),
+        { size:9.5, colour:grey, after:2 });
+      const ds = docState(d);
+      if(ds.label) doc.text(ds.label, { size:9.5, after:4,
+        colour: ds.cls==="red" ? red : ds.cls==="amber" ? amber : [.18,.45,.25] });
+      doc.rule();
+      try{
+        const img = await jpegFromDataUrl(d.src, 1400);
+        const maxH = doc.y - PdfDoc.M - 16;
+        let w = wide;
+        if(w * (img.h / img.w) > maxH) w = maxH * (img.w / img.h);
+        doc.image(img, w);
+      }catch(e){
+        doc.text("This scan could not be included.", { size:9.5, colour:grey });
+      }
+      doc.text("Scanned " + stamp(d.scannedAt || d.addedAt || Date.now()),
+        { size:8, colour:[.5,.54,.51] });
+    }
+  } else if(!isTool){
+    doc.heading("Documents held");
+    doc.text("No certificate has been scanned against this item.",
+      { size:9.5, colour:amber, after:4 });
+  }
+
+  doc.y -= 4;
+  doc.rule();
+  doc.text(c.company + " · " + DB.job + " · produced by " + c.user.name
+    + " on " + stamp(Date.now()), { size:8, colour:[.5,.54,.51] });
+
+  const clean = s => String(s||"").replace(/[^\w\- ]+/g,"").trim();
+  return { blob: doc.blob(),
+    name: clean(it.fleetNo || it.idNo || it.item || "item")
+      + " - record - " + todayISO() + ".pdf",
+    docs: docs.length };
+}
+
+async function publishItem(kind, id){
+  toast("Building the record…");
+  let out = null;
+  try{ out = await itemPdf(kind, id); }
+  catch(e){ toast("Could not build the record."); return; }
+  if(!out){ toast("That item could not be found."); return; }
+
+  const file = new File([out.blob], out.name, { type:"application/pdf" });
+  const it = findItem(kind, id) || {};
+  const title = (it.item || "Item") + " — record";
+  if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+    try{ await navigator.share({ files:[file], title }); return; }
+    catch(e){ return; }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("Saved — " + (out.docs ? out.docs + " certificate" + (out.docs===1?"":"s") + " attached"
+    : "no certificates attached"));
 }
 
 /* Paperwork attached to a machine or an item of lifting gear. */
@@ -6821,6 +7154,15 @@ function itemView(){
       <button class="btn ghost" data-weeksheet="${it.id}">This week\u2019s inspection sheet</button>
       ${df ? `<button class="btn ghost" data-report="${it.id}">Send the defect report</button>` : ""}` : ""}
 
+    <div class="sect">Publish</div>
+    <div class="card">
+      <h3>${isTool ? "Equipment record" : isPlant ? "Plant record" : "Lifting equipment record"}</h3>
+      <p>All the details held against this ${isPlant?"machine":"item"}${
+        isTool ? "" : ", its examination history and a page for every certificate scanned against it"}.</p>
+      <button class="btn line" style="margin:14px 0 0"
+        data-itempdf="${kind}:${it.id}">Publish to PDF</button>
+    </div>
+
     <button class="btn" style="margin-top:18px" data-itemedit="1">Edit this item</button>`;
 }
 
@@ -6890,6 +7232,7 @@ function plantView(){
       <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
         <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
           ${docCount(p)?docCount(p)+" document"+(docCount(p)===1?"":"s"):"No documents"}</span>
+        <button class="btn line sm" style="margin:0" data-itempdf="plant:${p.id}">PDF</button>
         <button class="btn line sm" style="margin:0" data-openitem="plant:${p.id}">Open</button>
       </div>
     </div>`;
@@ -6942,7 +7285,14 @@ function plantView(){
     ${onSite.length ? `<div class="sect">On site (${onSite.length})</div><div class="reggrid">${liveRows}</div>`
       : `<div class="card"><h3>Nothing on site yet</h3><p>Add the machines currently on the job.</p></div>`}
     ${addBlock}
-    ${offSite.length ? `<div class="sect">Off site (${offSite.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
+    ${offSite.length ? `<div class="sect">Off site (${offSite.length})</div><div class="reggrid">${offRows}</div>` : ""}
+    <div class="sect">Publish</div>
+    <div class="card">
+      <h3>Plant register</h3>
+      <p>Everything on and off site on one sheet, with fleet numbers, examination dates
+      and any open defects. Send it to the principal contractor or file it with the pack.</p>
+      <button class="btn line" style="margin:14px 0 0" data-regpdf="plant">Publish to PDF</button>
+    </div>`;
 }
 
 let toolDraft = null;
@@ -8339,6 +8689,7 @@ function liftingView(){
       <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
         <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
           ${docCount(l)?docCount(l)+" document"+(docCount(l)===1?"":"s"):"No documents"}</span>
+        <button class="btn line sm" style="margin:0" data-itempdf="lifting:${l.id}">PDF</button>
         <button class="btn line sm" style="margin:0" data-openitem="lifting:${l.id}">Open</button>
       </div></div>`;
   }).join("");
@@ -8387,7 +8738,14 @@ function liftingView(){
       : `<div class="card"><h3>Nothing on site yet</h3>
         <p>Add the slings, shackles and beams being used on this job.</p></div>`}
     ${add}
-    ${off.length ? `<div class="sect">Off site (${off.length})</div><div class="reggrid">${offRows}</div>` : ""}`;
+    ${off.length ? `<div class="sect">Off site (${off.length})</div><div class="reggrid">${offRows}</div>` : ""}
+    <div class="sect">Publish</div>
+    <div class="card">
+      <h3>Register of lifting equipment</h3>
+      <p>Every item on and off site with its ID, safe working load and LOLER expiry,
+      and anything due or overdue called out separately.</p>
+      <button class="btn line" style="margin:14px 0 0" data-regpdf="lifting">Publish to PDF</button>
+    </div>`;
 }
 
 let labourDraft = null;
@@ -10123,6 +10481,17 @@ function bind(){
   app.querySelectorAll("[data-defpdf]").forEach(el=>el.onclick=(e)=>{
     e.stopPropagation();
     printDefectReport(el.getAttribute("data-defpdf"));
+  });
+
+  app.querySelectorAll("[data-regpdf]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    publishRegister(el.getAttribute("data-regpdf"));
+  });
+
+  app.querySelectorAll("[data-itempdf]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    const [kind,id] = el.getAttribute("data-itempdf").split(":");
+    publishItem(kind, id);
   });
   /* documents */
   const parseRef = v => { const [kind,id,docId] = v.split(":"); return {kind,id,docId}; };
