@@ -528,6 +528,42 @@ body.isdemo .app{padding-top:76px}
     transform:none;stroke-dashoffset:0}
 }
 
+/* ---- the mark, once the app is ready -------------------------------------
+   Everything moves once and stops. The logo settles, the name rises letter by
+   letter from behind its own baseline, and a hairline draws out underneath.
+   No looping motion: an animation that never ends stops meaning anything.
+   Easing is cubic-bezier(.16,1,.3,1) throughout — fast out of the gate, long
+   settle, which is what makes a move read as calm rather than bouncy. */
+.sp-done{gap:22px}
+
+.sp-done img{width:116px;opacity:0;transform:scale(.94) translateY(6px)}
+.sp-done.on img{animation:spMark .72s cubic-bezier(.16,1,.3,1) .04s forwards}
+@keyframes spMark{ to{ opacity:1;transform:none } }
+
+/* the wordmark: one span per character, each masked by its own clip */
+.sp-done .nm{display:flex;justify-content:center;font-size:clamp(30px,9.4vw,42px);
+  font-weight:var(--w-bold);letter-spacing:-.05em;color:#fff}
+.sp-done.on .nm{animation:spTrack 1.1s cubic-bezier(.16,1,.3,1) .26s forwards}
+@keyframes spTrack{ to{ letter-spacing:-.032em } }
+.sp-done .nm .c{display:inline-block;overflow:hidden;line-height:1.16}
+.sp-done .nm .c i{display:inline-block;font-style:normal;transform:translateY(112%)}
+.sp-done.on .nm .c i{animation:spChar .62s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes spChar{ to{ transform:none } }
+.sp-done .nm .sp{width:.28em}
+.sp-done .nm .hl i{color:#A6D9B4}
+
+/* hairline, drawn out from the centre once the name has landed */
+.sp-rule{width:112px;height:1px;background:rgba(255,255,255,.34);
+  transform:scaleX(0);transform-origin:50% 50%}
+.sp-done.on .sp-rule{animation:spRule .66s cubic-bezier(.16,1,.3,1) .62s forwards}
+@keyframes spRule{ to{ transform:scaleX(1) } }
+
+@media (prefers-reduced-motion:reduce){
+  .sp-done img,.sp-done.on img,.sp-done .nm,.sp-done .nm .c i,
+  .sp-done.on .nm .c i,.sp-rule,.sp-done.on .sp-rule{
+    animation:none;opacity:1;transform:none;letter-spacing:-.032em}
+}
+
 /* which job everything is going against */
 .hm .jobtag{display:inline-flex;align-items:center;gap:8px;margin-top:8px;
   background:var(--green-50);color:var(--green-700);border-radius:var(--r-pill);
@@ -884,17 +920,61 @@ body.isdemo .app{padding-top:76px}
   font-size:12px;line-height:1.5}
 .sheet h1{font-size:19px;margin:0}
 .sheet .ph-head{display:flex;justify-content:space-between;align-items:flex-start;
-  border-bottom:2.5px solid #1F5A2D;padding-bottom:9px;margin-bottom:14px;gap:14px}
+  border-bottom:2px solid #1F5A2D;padding-bottom:10px;margin-bottom:14px;gap:14px}
 .sheet .ph-head img{width:150px;height:auto}
+.sheet h1{letter-spacing:-.02em;color:#123D1E}
 .pk-page{padding-bottom:26px;margin-bottom:26px;border-bottom:2px dashed #CFD6D1}
 .pk-page:last-child{border-bottom:0;margin-bottom:0}
-.pk-cover{text-align:center;padding:40px 0 30px}
-.pk-cover h1{font-size:26px;margin:18px 0 6px;letter-spacing:-.02em}
-.pk-cover .wc{font-size:15px;color:#555;margin-bottom:22px}
+
+/* ---- cover ---------------------------------------------------------------
+   The same hierarchy as the app's home screen: the mark, then a small spaced
+   over-line, then the title carrying the weight. */
+.pk-cover{text-align:center;padding:52px 0 34px}
+.pk-cover .over{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:#4A7C58;margin:26px 0 10px}
+.pk-cover h1{font-size:32px;margin:0 0 8px;letter-spacing:-.03em;line-height:1.1;color:#123D1E}
+.pk-cover .wc{font-size:15px;color:#555;margin-bottom:24px}
+.pk-cover .rule{width:96px;height:2px;background:#1F5A2D;margin:0 auto 26px}
 .pk-draft{display:inline-block;border:2px solid #A72B22;color:#A72B22;font-weight:700;
   padding:7px 14px;border-radius:4px;margin-bottom:16px;letter-spacing:.04em}
-.pk-h{background:#1F5A2D;color:#fff;font-weight:700;font-size:11px;padding:6px 9px;
-  margin:14px 0 6px;border-radius:2px}
+
+/* ---- contents ------------------------------------------------------------
+   A numbered list with a hairline between rows, not a bordered grid. The
+   numbers here are the numbers printed on the divider pages, so anyone
+   flicking through the pack can find a section without reading it. */
+.pk-toc{margin-top:4px}
+.pk-toc .r{display:flex;align-items:baseline;gap:12px;padding:11px 2px;
+  border-bottom:1px solid #DCE2DE}
+.pk-toc .r:last-child{border-bottom:0}
+.pk-toc .n{width:30px;flex:none;font-size:13px;font-weight:700;color:#1F5A2D;
+  font-variant-numeric:tabular-nums}
+.pk-toc .nm{flex:1;font-size:14px;font-weight:650;color:#111;letter-spacing:-.01em}
+.pk-toc .ct{flex:none;font-size:11.5px;color:#555;white-space:nowrap;font-weight:600}
+.pk-toc .r.gap .n{color:#8A5000}
+.pk-toc .r.gap .nm{color:#8A5000}
+
+/* ---- section divider -----------------------------------------------------
+   A whole page announcing what comes next, so it is obvious in a printed pack
+   where one set of paperwork ends and the next begins. The title sits on a
+   tinted band, which survives a black-and-white photocopier where a colour
+   heading would not. */
+.pk-div{display:flex;flex-direction:column;justify-content:center;min-height:150mm;
+  padding:10px 0}
+.pk-div .mark{width:132px;height:auto;margin-bottom:auto}
+.pk-div .num{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  color:#4A7C58;margin:0 0 16px}
+.pk-div h1{font-size:44px;line-height:1.16;letter-spacing:-.035em;color:#1F5A2D;
+  font-weight:700;margin:0}
+.pk-div h1 span{background:#E4EDE7;padding:2px 12px;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone}
+.pk-div .meta{margin-top:30px;padding-top:14px;border-top:2px solid #1F5A2D;
+  display:flex;flex-wrap:wrap;gap:6px 26px;font-size:12px;color:#555;font-weight:600}
+.pk-div .meta b{color:#111;font-weight:700}
+.pk-div .tail{margin-top:auto;padding-top:26px;font-size:10.5px;color:#777}
+/* Section headings across every sheet share one shape with the app's own:
+   spaced capitals on the brand green, lightly rounded. */
+.pk-h{background:#1F5A2D;color:#fff;font-weight:700;font-size:10.5px;padding:6px 11px;
+  margin:15px 0 7px;border-radius:5px;letter-spacing:.07em;text-transform:uppercase}
 .sheet table.pk{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:10.5px}
 .sheet table.pk.fixed{table-layout:fixed}
 .sheet table.pk.fixed th,.sheet table.pk.fixed td{overflow-wrap:anywhere}
@@ -904,8 +984,8 @@ body.isdemo .app{padding-top:76px}
 .sheet table.pk td.c{text-align:center}
 .sheet table.pk td.bad{color:#A72B22;font-weight:700}
 .sheet .pk-sig{height:46px}
-.sheet h2{font-size:11.5px;background:#1F5A2D;color:#fff;padding:5px 9px;margin:15px 0 8px;
-  border-radius:3px;font-weight:650}
+.sheet h2{font-size:10.5px;background:#1F5A2D;color:#fff;padding:6px 11px;margin:15px 0 8px;
+  border-radius:5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
 .sheet table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px;
   display:table;white-space:normal;overflow:visible}
 .sheet th,.sheet td{border:1px solid #CBD3CD;padding:5px 7px;text-align:left;vertical-align:top}
@@ -924,6 +1004,7 @@ body.isdemo .app{padding-top:76px}
   .sheetwrap{position:static;display:block!important;background:#fff;overflow:visible}
   .pk-page{page-break-after:always;break-after:page}
   .pk-page:last-child{page-break-after:auto;break-after:auto}
+  .pk-div{min-height:225mm}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -1172,7 +1253,8 @@ html,body{ overscroll-behavior-y:none }
   <div class="sp-cap" id="spCap">Starting up</div>
   <div class="sp-done" id="spDone">
     <img id="splashLogo" alt="">
-    <div class="nm">CGC site<em>HUB</em></div>
+    <div class="nm" id="spName" aria-label="CGC siteHUB"></div>
+    <span class="sp-rule"></span>
   </div>
 </div>
 
@@ -1204,6 +1286,11 @@ html,body{ overscroll-behavior-y:none }
    SITE DIARY — Cheltenham Green Civils
    Single file. No internet needed once loaded. Data is stored on the device.
    ========================================================================== */
+
+/* Bumped whenever the file is rebuilt, so it is possible to tell at a glance
+   on the settings screen whether a device is running the latest copy or a
+   cached one. */
+const APP_BUILD = "2026-09-15d";
 
 const LOGO = "data:image/png;base64,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";
 
@@ -1947,6 +2034,9 @@ function warnBanner(on){
    the app is put into the background. */
 function save(){
   if(typeof boardTouch === "function") boardTouch();
+  /* the other device is told about it too, a few seconds behind, and never in
+     a way that makes saving wait on the network */
+  if(typeof syncMaybePush === "function") syncMaybePush();
   clearTimeout(savePending);
   savePending = setTimeout(flushSave, 250);
   return true;
@@ -3082,12 +3172,44 @@ function openPackSheet(ws, draft){
 
   const page = inner => `<div class="pk-page">${inner}</div>`;
 
+  /* How many sheets each section contributes, said the same way on the
+     contents page and on that section's divider. */
+  const sheetCount = sec => {
+    if(sec.key==="plantcheck" && checksOnPaper())
+      return scansFor(ws,"plantcheck").reduce((t,x)=>t+x.pages.length,0);
+    return sec.key==="plantcheck"
+      ? [...new Set(sec.items.map(r=>r.plantId))].length : sec.items.length;
+  };
+  const countWords = sec => {
+    const n = sheetCount(sec);
+    if(sec.key==="plantcheck" && checksOnPaper())
+      return n + (n===1?" scanned sheet":" scanned sheets");
+    return sec.key==="plantcheck" ? n + (n===1?" machine":" machines")
+      : n + (n===1?" record":" records");
+  };
+
+  /* A whole page announcing each section. In a printed pack it is the only
+     reliable way to see where one set of paperwork ends and the next starts. */
+  const divider = (sec, i) => page(`<div class="pk-div">
+      <img class="mark" src="${LOGO}" alt="${esc(c.company)}">
+      <div class="num">Section ${i+1} of ${secs.length}</div>
+      <h1><span>${esc(sec.name)}</span></h1>
+      <div class="meta">
+        <div>${esc(countWords(sec))}</div>
+        <div>Week commencing <b>${shortDate(ws)}</b></div>
+        <div>Site <b>${esc(DB.job)}</b></div>
+      </div>
+      <div class="tail">${esc(c.company)} · Weekly Health and Safety Pack · ${esc(ref)}</div>
+    </div>`);
+
   /* ---- cover and contents ---- */
   let html = page(`<div class="pk-cover">
       <img src="${LOGO}" alt="${esc(c.company)}" style="width:190px">
       ${draft?`<div style="margin-top:22px"><span class="pk-draft">DRAFT — NOT PUBLISHED</span></div>`:""}
+      <div class="over">${esc(c.company)}</div>
       <h1>Weekly Health and Safety Pack</h1>
       <div class="wc">Week commencing ${longDate(ws)}</div>
+      <div class="rule"></div>
     </div>
     ${tbl(null, [
       ["Site", DB.job, "Week", shortDate(ws)+" to "+shortDate(addDays(ws,6))],
@@ -3096,20 +3218,25 @@ function openPackSheet(ws, draft){
     ].concat(gaps.length ? [["Records outstanding", String(gaps.length), "", ""]] : []))}`);
 
   html += page(`<div class="pk-h">Contents</div>
-    ${tbl(["Section","Sheets"], secs.map((sec,i)=>{
-      if(sec.key==="plantcheck" && checksOnPaper()){
-        const sc = scansFor(ws,"plantcheck");
-        const pages = sc.reduce((t,x)=>t+x.pages.length,0);
-        return [(i+1)+".  "+sec.name+" (paper)", pages + (pages===1?" sheet":" sheets")];
-      }
-      const n = sec.key==="plantcheck"
-        ? [...new Set(sec.items.map(r=>r.plantId))].length : sec.items.length;
-      return [(i+1)+".  "+sec.name, n + (sec.key==="plantcheck"
-        ? (n===1?" machine":" machines") : (n===1?" record":" records"))];
-    }).concat(gaps.length ? [["Records outstanding", String(gaps.length)]] : []))}`);
+    <div class="pk-toc">
+      ${secs.map((sec,i)=>`<div class="r">
+        <div class="n">${i+1}</div>
+        <div class="nm">${esc(sec.name)}${
+          sec.key==="plantcheck" && checksOnPaper() ? " (paper)" : ""}</div>
+        <div class="ct">${esc(countWords(sec))}</div>
+      </div>`).join("")}
+      ${gaps.length ? `<div class="r gap">
+        <div class="n">!</div>
+        <div class="nm">Records outstanding</div>
+        <div class="ct">${gaps.length} not done this week</div>
+      </div>` : ""}
+    </div>
+    <p style="font-size:10.5px;color:#555;margin-top:12px"><i>Each section opens with its own
+      page, so the pack can be split up or filed a section at a time.</i></p>`);
 
   /* ---- a page per sheet ---- */
-  secs.forEach(sec=>{
+  secs.forEach((sec, si)=>{
+    html += divider(sec, si);
     if(sec.key === "plantcheck" && checksOnPaper()){
       scansFor(ws, "plantcheck").forEach(sc=>{
         const m = (DB.plant||[]).find(x=>x.id===sc.plantId) || {};
@@ -3369,8 +3496,49 @@ async function buildPackPdf(ws, draft){
     ["Completed by", rec.by || c.user.name, "Reference", rec.ref || ""]
   ].concat(extra || []);
 
+  const countWords = sec => {
+    if(sec.key==="plantcheck" && checksOnPaper()){
+      const n = scansFor(ws,"plantcheck").reduce((t,x)=>t+x.pages.length,0);
+      return n + (n===1?" scanned sheet":" scanned sheets");
+    }
+    if(sec.key==="plantcheck"){
+      const n = [...new Set(sec.items.map(r=>r.plantId))].length;
+      return n + (n===1?" machine":" machines");
+    }
+    return sec.items.length + (sec.items.length===1?" record":" records");
+  };
+
+  /* A page of its own in front of every section, matching the one on screen:
+     the mark, the section number, the name on a tinted band, and what is in
+     it. The band is what makes the break survive a black-and-white copier. */
+  const divider = (sec, i) => {
+    doc.newPage();
+    if(logo) doc.image(logo, 118);
+    doc.y = PdfDoc.H * 0.56;
+    doc.text("SECTION " + (i+1) + " OF " + secs.length,
+      { size:9, bold:true, colour:[.29,.49,.35], after:12 });
+    /* the tinted band behind the title */
+    const bandH = 30;
+    const w = Math.min(wide, pdfWidth(sec.name, 26) + 24);
+    doc.page.ops.push(`0.894 0.929 0.906 rg ${PdfDoc.M} ${(doc.y-bandH+7).toFixed(1)} `
+      + `${w.toFixed(1)} ${bandH} re f`);
+    doc.page.ops.push(`BT 0.122 0.353 0.176 rg /F2 26 Tf 1 0 0 1 ${(PdfDoc.M+12)} `
+      + `${(doc.y-bandH+17).toFixed(1)} Tm (${pdfEsc(sec.name)}) Tj ET`);
+    doc.y -= bandH + 20;
+    doc.page.ops.push(`0.122 0.353 0.176 RG 1.6 w ${PdfDoc.M} ${doc.y.toFixed(1)} m `
+      + `${(PdfDoc.W-PdfDoc.M).toFixed(1)} ${doc.y.toFixed(1)} l S`);
+    doc.y -= 16;
+    doc.text(countWords(sec) + "     Week commencing " + shortDate(ws)
+      + "     Site " + DB.job, { size:10, colour:[.35,.39,.36], after:6 });
+    doc.y = PdfDoc.M + 24;
+    doc.text(c.company + " · Weekly Health and Safety Pack · " + ref,
+      { size:8, colour:[.5,.54,.51] });
+  };
+
   secs.forEach((sec, si)=>{
-    let first = true;
+    divider(sec, si);
+    starts.push(doc.pages.length);
+    let first = false;
 
     /* ---- plant: a page per machine, laid out like the paper sheet ---- */
     if(sec.key === "plantcheck"){
@@ -3631,8 +3799,9 @@ async function buildPackPdf(ws, draft){
   const saveTo = doc.page, saveY = doc.y;
   doc.page = contentsAnchor.page; doc.y = contentsAnchor.y;
   secs.forEach((sec, i)=>{
-    doc.pair((i+1) + ".  " + sec.name,
-      sec.items.length + (sec.items.length===1?" record":" records") + "     page " + starts[i]);
+    /* the page quoted is the section's divider, which is what someone
+       flicking through the printed pack will actually land on */
+    doc.pair((i+1) + ".  " + sec.name, countWords(sec) + "     page " + starts[i]);
   });
   if(gapsPage) doc.pair("Records outstanding", gaps.length + "     page " + gapsPage, [.66,.42,0]);
   doc.pair("Total pages", String(total));
@@ -3833,6 +4002,264 @@ async function reportDefect(plantId){
     + "&body=" + encodeURIComponent(body);
   a.target = "_blank"; a.rel = "noopener";
   document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ================================================== registers on paper ==
+   Same preview sheet every other form uses: it opens in the sheet viewer,
+   and the bar at the top prints it or saves it as a PDF. */
+const regPage = inner => `<div class="pk-page">${inner}</div>`;
+
+function regTbl(head, rows, opts){
+  opts = opts || {};
+  const widths = opts.cols || (opts.widths ? opts.widths.map(x=>(x*100)+"%") : null);
+  const cols = widths
+    ? `<colgroup>${widths.map(w=>`<col style="width:${w}">`).join("")}</colgroup>` : "";
+  return `<table class="pk${widths?" fixed":""}">${cols}${
+    head?`<tr>${head.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`:""}
+    ${rows.map(r=>`<tr>${r.map((v,i)=>{
+      const centre = (opts.centre||[]).includes(i);
+      if((opts.raw||[]).includes(i))
+        return `<td class="${centre?"c":""}">${v==null?"":String(v)}</td>`;
+      return `<td class="${centre?"c ":""}">${esc(v==null?"":String(v))}</td>`;
+    }).join("")}</tr>`).join("")}</table>`;
+}
+
+function regHead(title, code, meta){
+  const c = cfg();
+  return `<div class="ph-head">
+      <img src="${LOGO}" alt="${esc(c.company)}">
+      <div style="text-align:right"><h1>${esc(title)}</h1>
+        ${code?`<div style="font-size:10.5px;color:#555">${esc(code)}</div>`:""}</div>
+    </div>
+    ${meta ? regTbl(null, meta, { cols:["19%","31%","19%","31%"] }) : ""}`;
+}
+
+/* A state as a coloured cell — red overdue, amber due soon. */
+function regState(st){
+  const col = st.key==="expired" ? "#A72B22" : st.key==="soon" ? "#A86B00" : "#111";
+  const wt  = st.key==="expired" || st.key==="soon" ? "700" : "400";
+  return `<span style="color:${col};font-weight:${wt}">${esc(st.label)}</span>`;
+}
+
+function regFoot(extra){
+  const c = cfg();
+  return `<div class="foot"><span>${esc(c.company)} · ${esc(DB.job)}${extra?" · "+esc(extra):""}</span>
+    <span>Produced by ${esc(c.user.name)} on ${stamp(Date.now())}</span></div>`;
+}
+
+/* ---------------------------------------------- the whole register ---- */
+function printRegister(kind){
+  const lifting = kind === "lifting";
+  const c = cfg();
+  const all = (lifting ? (DB.lifting||[]) : (DB.plant||[])).filter(x=>x.job===DB.job);
+  const liveIds = (lifting ? currentLifting() : currentPlant()).map(x=>x.id);
+  const onSite = all.filter(x=>liveIds.includes(x.id));
+  const offSite = all.filter(x=>!liveIds.includes(x.id))
+    .sort((a,b)=>(b.offDate||"").localeCompare(a.offDate||""));
+
+  const title = lifting ? "Register of Lifting Equipment" : "Plant Register";
+  const code  = lifting ? "CGCivils-007" : "CGCivils-013";
+  const due   = lifting ? "LOLER expiry" : "Examination due";
+  const ownerOf = x => (x.owner||"Hired")==="Owned" ? "Owned" : (x.hireCompany || x.owner || "Hired");
+
+  let html = regPage(
+    regHead(title, code, [
+      ["Site / depot", DB.job, "Produced", longDate(todayISO())],
+      ["Produced by", c.user.name, "Items on site", String(onSite.length)]
+    ]) +
+    `<div class="pk-h">On site (${onSite.length})</div>` +
+    (onSite.length
+      ? regTbl(lifting
+          ? ["Description","Type","ID / serial","SWL","Owner / supplier","On site",due,"Status"]
+          : ["Plant item","Type","Fleet no.","Model","Owner / supplier","On site",due,"Status"],
+        onSite.map(x=>{
+          const st = lolerState(x);
+          return (lifting
+            ? [x.item||"Unnamed item", x.type||"—", x.idNo||"—", x.swl||"—", ownerOf(x)]
+            : [x.item||"Unnamed item", x.type||"Excavator", x.fleetNo||"—", x.model||"—", ownerOf(x)]
+          ).concat([ x.onDate?shortDate(x.onDate):"—",
+            examDateOf(x)?shortDate(examDateOf(x)):"—", regState(st) ]);
+        }),
+        { raw:[7], widths: lifting ? [.22,.15,.12,.09,.15,.09,.09,.09]
+                                   : [.22,.12,.11,.11,.15,.09,.10,.10] })
+      : `<p style="font-size:10.5px;color:#555">Nothing on site.</p>`));
+
+  /* what needs attention, on its own */
+  const flagged = onSite.map(x=>({ x, st:lolerState(x) }))
+    .filter(o=>o.st.key==="expired" || o.st.key==="soon");
+  let extra = "";
+  if(flagged.length){
+    extra += `<div class="pk-h">Examinations due or overdue</div>` +
+      regTbl(["Item", lifting?"ID / serial":"Fleet no.", due, "Status"],
+        flagged.map(o=>[o.x.item||"Unnamed item", o.x.idNo||o.x.fleetNo||"—",
+          examDateOf(o.x)?shortDate(examDateOf(o.x)):"—", regState(o.st)]),
+        { raw:[3], widths:[.40,.22,.18,.20] });
+  }
+
+  if(!lifting){
+    const wd = onSite.map(p=>({ p, df:defectsFor(p.id) })).filter(o=>o.df);
+    if(wd.length){
+      extra += `<div class="pk-h">Open defects</div>` +
+        regTbl(["Machine","Fleet no.","Defects","Reported to"],
+          wd.map(o=>{
+            const to = recipientFor(o.p);
+            return [o.p.item||"Unnamed item", o.p.fleetNo||"—",
+              `<span style="color:#A72B22;font-weight:700">${o.df.items.length}${
+                o.df.unsafe?" · not fit for use":""}</span>`,
+              to.name || "Our fitter"];
+          }), { raw:[2], widths:[.34,.18,.20,.28] });
+    }
+  }
+
+  if(offSite.length){
+    extra += `<div class="pk-h">Off site (${offSite.length})</div>` +
+      regTbl(["Item", lifting?"Type":"Fleet no.", "On site", "Off site"],
+        offSite.map(x=>[x.item||"Unnamed item",
+          lifting ? (x.type||"—") : (x.fleetNo||"—"),
+          x.onDate?shortDate(x.onDate):"—", x.offDate?shortDate(x.offDate):"—"]),
+        { widths:[.42,.22,.18,.18] });
+  }
+
+  extra += `<p style="font-size:10px;color:#555;margin-top:12px"><i>${lifting
+    ? "Lifting accessories require a thorough examination every six months, lifting equipment "
+      + "every twelve, or in line with a written scheme of examination."
+    : "Thorough examination under LOLER for lifting equipment, PUWER inspection for everything "
+      + "else. Items with no date require neither."}</i></p>`
+    + regFoot(lifting ? "lifting register" : "plant register");
+
+  html += regPage(extra);
+
+  document.getElementById("sheet").innerHTML = html;
+  document.getElementById("sheetTitle").textContent = title + " — " + shortDate(todayISO());
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
+}
+
+/* ------------------------------------- one item and its certificates ---- */
+function printItemRecord(kind, id){
+  const it = findItem(kind, id);
+  if(!it){ toast("That item could not be found."); return; }
+  const c = cfg();
+  const isPlant = kind === "plant";
+  const isTool  = kind === "tools";
+  const st = lolerState(it);
+  const onSite = (isPlant ? currentPlant() : isTool ? currentTools() : currentLifting())
+    .some(x=>x.id===it.id);
+  const title = isPlant ? "Plant Record" : isTool ? "Equipment Record" : "Lifting Equipment Record";
+  const code  = isPlant || isTool ? "CGCivils-013" : "CGCivils-007";
+
+  const rows = [];
+  const add = (k,v) => { if(v) rows.push([k, v]); };
+  if(isPlant){
+    add("Plant item", it.item||"Unnamed item");
+    add("Type", it.type||"Excavator");
+    add("Fleet number", it.fleetNo||"—");
+    add("Model", it.model||"—");
+  } else {
+    add("Description", it.item||"Unnamed item");
+    add("Type", it.type||"—");
+    add("ID or serial number", it.idNo||"—");
+    if(!isTool) add("Safe working load", it.swl||"—");
+  }
+  add("Owned or hired", it.owner||"—");
+  if((it.owner||"")!=="Owned"){
+    add("Supplier", it.hireCompany||"—");
+    add("Hire reference", it.hireRef);
+    add("Their email", it.hireEmail);
+    add("Their phone", it.hirePhone);
+  }
+  add("Site", DB.job);
+  add("On site from", it.onDate?longDate(it.onDate):"—");
+  add("Off site", it.offDate?longDate(it.offDate):"Still on site");
+  if(!isTool){
+    rows.push([kind==="lifting" ? "LOLER expiry" : "Next examination",
+      examDateOf(it)
+        ? `<span style="color:${st.key==="expired"?"#A72B22":st.key==="soon"?"#A86B00":"#111"};
+            font-weight:${st.key==="expired"||st.key==="soon"?"700":"400"}">${
+            longDate(examDateOf(it))} — ${esc(st.label)}</span>`
+        : "Not set"]);
+  }
+  const docs = (it.docs||[]).slice().sort((a,b)=>
+    (b.scannedAt||b.addedAt||0)-(a.scannedAt||a.addedAt||0));
+
+  let first = regHead(title, code, [
+    ["Site / depot", DB.job, "Produced", longDate(todayISO())],
+    ["Produced by", c.user.name, "Status", onSite ? st.label : "Off site"]
+  ]);
+
+  if(!onSite) first += `<div style="border:2px solid #A72B22;color:#A72B22;font-weight:700;
+    padding:8px 10px;margin-bottom:12px;border-radius:3px">OFF SITE${
+      it.offDate ? " SINCE " + shortDate(it.offDate).toUpperCase() : ""}</div>`;
+  else if(st.key==="expired") first += `<div style="border:2px solid #A72B22;color:#A72B22;
+    font-weight:700;padding:8px 10px;margin-bottom:12px;border-radius:3px">
+    EXAMINATION OVERDUE</div>`;
+
+  first += `<div class="pk-h">Details</div>` +
+    regTbl(null, rows.map((r,i)=>r), { raw:[1], cols:["32%","68%"] });
+
+  const exams = (it.exams||[]).slice();
+  if(exams.length){
+    first += `<div class="pk-h">Examination history</div>` +
+      regTbl(["Examined","Next due","Examined by","Recorded"],
+        exams.map(e=>[e.done?shortDate(e.done):"—", e.next?shortDate(e.next):"—",
+          e.by||"—", e.at?shortDate(iso(e.at)):"—"]),
+        { widths:[.26,.26,.30,.18] });
+  }
+
+  if(isPlant){
+    const df = defectsFor(it.id);
+    if(df){
+      first += `<div class="pk-h">Open defects${df.unsafe?" — not fit for use":""}</div>` +
+        regTbl(["Check","Defect","Reported"],
+          df.items.map(x=>[x.item||"—", x.description||"—",
+            (x.date?shortDate(x.date):"—") + (x.reportedAt?" · "+ageText(x.reportedAt):"")]),
+          { widths:[.32,.46,.22] });
+    }
+  }
+
+  first += `<div class="pk-h">Documents held${docs.length?" ("+docs.length+")":""}</div>`;
+  first += docs.length
+    ? regTbl(["Document","Reference","Added","Expires"],
+        docs.map(d=>{
+          const ds = docState(d);
+          return [d.type||"Document", d.title||"—",
+            shortDate(iso(d.scannedAt||d.addedAt||Date.now())),
+            d.expires
+              ? `<span style="color:${ds.cls==="red"?"#A72B22":ds.cls==="amber"?"#A86B00":"#111"};
+                  font-weight:${ds.cls==="ok"?"400":"700"}">${shortDate(d.expires)}</span>`
+              : "—"];
+        }), { raw:[3], widths:[.38,.26,.16,.20] })
+    : `<p style="font-size:10.5px;color:#A86B00"><b>No certificate has been scanned against
+       this ${isPlant?"machine":"item"}.</b></p>`;
+
+  first += regFoot(it.fleetNo || it.idNo || it.item || "");
+
+  let html = regPage(first);
+
+  /* a page each for the scans themselves */
+  docs.forEach((d,i)=>{
+    const ds = docState(d);
+    html += regPage(
+      regHead(d.type || "Document", code, [
+        [isPlant?"Machine":"Item", (it.item||"Unnamed item")
+          + (isPlant ? (it.fleetNo?" · "+it.fleetNo:"") : (it.idNo?" · "+it.idNo:"")),
+         "Document", (i+1) + " of " + docs.length],
+        ["Reference", d.title || "—",
+         "Expires", d.expires ? shortDate(d.expires) + (ds.cls==="red"?" — expired":"") : "—"]
+      ]) +
+      `<img src="${d.src}" alt="${esc(d.type||"Document")}"
+        style="max-width:100%;max-height:225mm;width:auto;display:block;
+          margin:10px auto 0;border:1px solid #CBD3CD">
+      <p style="font-size:10px;color:#666;margin-top:6px">Scanned ${
+        stamp(d.scannedAt || d.addedAt || Date.now())}</p>` +
+      regFoot(it.fleetNo || it.idNo || ""));
+  });
+
+  document.getElementById("sheet").innerHTML = html;
+  document.getElementById("sheetTitle").textContent =
+    (it.item || "Item") + (isPlant && it.fleetNo ? " — " + it.fleetNo : "");
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
 }
 
 /* ------------------------------------------------- register as a PDF --
@@ -7160,7 +7587,9 @@ function itemView(){
       <p>All the details held against this ${isPlant?"machine":"item"}${
         isTool ? "" : ", its examination history and a page for every certificate scanned against it"}.</p>
       <button class="btn line" style="margin:14px 0 0"
-        data-itempdf="${kind}:${it.id}">Publish to PDF</button>
+        data-itemview="${kind}:${it.id}">Preview record</button>
+      <button class="btn ghost" style="margin:8px 0 0"
+        data-itempdf="${kind}:${it.id}">Share as a file</button>
     </div>
 
     <button class="btn" style="margin-top:18px" data-itemedit="1">Edit this item</button>`;
@@ -7232,7 +7661,7 @@ function plantView(){
       <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
         <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
           ${docCount(p)?docCount(p)+" document"+(docCount(p)===1?"":"s"):"No documents"}</span>
-        <button class="btn line sm" style="margin:0" data-itempdf="plant:${p.id}">PDF</button>
+        <button class="btn line sm" style="margin:0" data-itemview="plant:${p.id}">PDF</button>
         <button class="btn line sm" style="margin:0" data-openitem="plant:${p.id}">Open</button>
       </div>
     </div>`;
@@ -7290,8 +7719,9 @@ function plantView(){
     <div class="card">
       <h3>Plant register</h3>
       <p>Everything on and off site on one sheet, with fleet numbers, examination dates
-      and any open defects. Send it to the principal contractor or file it with the pack.</p>
-      <button class="btn line" style="margin:14px 0 0" data-regpdf="plant">Publish to PDF</button>
+      and any open defects. Preview it first, then print it or save it as a PDF.</p>
+      <button class="btn line" style="margin:14px 0 0" data-regview="plant">Preview register</button>
+      <button class="btn ghost" style="margin:8px 0 0" data-regpdf="plant">Share as a file</button>
     </div>`;
 }
 
@@ -8689,7 +9119,7 @@ function liftingView(){
       <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
         <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
           ${docCount(l)?docCount(l)+" document"+(docCount(l)===1?"":"s"):"No documents"}</span>
-        <button class="btn line sm" style="margin:0" data-itempdf="lifting:${l.id}">PDF</button>
+        <button class="btn line sm" style="margin:0" data-itemview="lifting:${l.id}">PDF</button>
         <button class="btn line sm" style="margin:0" data-openitem="lifting:${l.id}">Open</button>
       </div></div>`;
   }).join("");
@@ -8744,7 +9174,8 @@ function liftingView(){
       <h3>Register of lifting equipment</h3>
       <p>Every item on and off site with its ID, safe working load and LOLER expiry,
       and anything due or overdue called out separately.</p>
-      <button class="btn line" style="margin:14px 0 0" data-regpdf="lifting">Publish to PDF</button>
+      <button class="btn line" style="margin:14px 0 0" data-regview="lifting">Preview register</button>
+      <button class="btn ghost" style="margin:8px 0 0" data-regpdf="lifting">Share as a file</button>
     </div>`;
 }
 
@@ -9754,9 +10185,58 @@ function settingsView(){
       </div>
     </div>
 
+    <div class="sect">Sync between devices</div>
+    ${(function(){
+      const b = boardCfg(), y = syncCfg();
+      const ready = !!(b.repo && b.token);
+      const when = t => t ? shortDate(iso(new Date(t))) + " at " + timeOnly(t) : "";
+      return `<div class="card">
+        <p style="margin-bottom:14px">Keeps the phone and the laptop on the same set of
+        records, through the same repository the office board uses. It pulls when you open
+        the app and pushes a few seconds after anything is saved. Nothing waits on a signal
+        &mdash; if you are out of range it goes up next time you are back on.</p>
+
+        ${!ready ? `<div class="card" style="background:var(--warn-bg);box-shadow:none;margin:0">
+            <p style="color:var(--warn-700)"><b style="font-weight:650">Set the repository up
+            first.</b> The office board settings below take a repository and an access token.
+            Fill those in and this can use them.</p>
+          </div>`
+        : `<div class="spread" style="margin-bottom:4px">
+            <span><b style="font-weight:650">Keep this device in step</b>
+              <span style="display:block;font-size:12.5px;color:var(--ink-2)">
+                Pull on opening, push after each save</span></span>
+            <span class="yn" style="width:118px;flex:none">
+              <button type="button" class="${y.on?"y":""}" data-syncon="1">On</button>
+              <button type="button" class="${y.on?"":"n"}" data-syncon="0">Off</button>
+            </span>
+          </div>
+
+          ${y.on ? `
+            <div class="kv"><span class="k">Last brought in</span>
+              <span class="v">${y.lastPull ? esc(when(y.lastPull)) : "not yet"}</span></div>
+            <div class="kv"><span class="k">Last sent up</span>
+              <span class="v">${y.lastPush ? esc(when(y.lastPush)) : "not yet"}</span></div>
+            <div class="kv"><span class="k">File</span>
+              <span class="v">${esc(y.file)}</span></div>
+            ${y.lastError ? `<p class="sub" style="margin-top:8px;color:var(--bad)">
+              Last try failed &mdash; ${esc(y.lastError)}.</p>` : ""}
+            <div class="g2" style="margin-top:14px">
+              <button class="btn line" style="margin:0" data-syncnow="1">Sync now</button>
+              <button class="btn line" style="margin:0" data-syncpull="1">Bring in changes</button>
+            </div>
+            <p class="hint" style="margin-top:12px">Per record, whichever copy was edited last
+            wins. That is the right rule for one person on two devices. If a crew ever starts
+            filling forms in at the same time, this needs replacing with something built for
+            it &mdash; it is not a limitation you want to find out about on a Friday.</p>`
+          : ""}`}
+      </div>`;
+    })()}
+
     <div class="sect">Your data</div>
     <div class="card">
-      <p style="margin-bottom:14px">Records are held on this device. Until the Microsoft connection is switched on, send a copy to OneDrive from your phone and bring it in on the laptop. It merges, so nothing is lost either way.</p>
+      <p style="margin-bottom:14px">A copy you hold yourself, separate from the sync above.
+      Worth taking one now and again regardless &mdash; it is the only version that survives
+      a mistake being synced everywhere.</p>
       <button class="btn" data-share="1">Send a copy to OneDrive</button>
       <button class="btn line" data-export="1">Download a backup</button>
       <button class="btn line" data-import="1">Bring in a copy from another device</button>
@@ -9810,6 +10290,8 @@ function settingsView(){
       })()}
       ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
         Last copy sent ${stamp(DB.lastShared)}</p>`:""}
+      <p style="margin-top:18px;font-size:12px;color:var(--ink-3);text-align:center">
+        CGC siteHUB &middot; build ${esc(APP_BUILD)}</p>
     </div>`;
 }
 
@@ -10486,6 +10968,17 @@ function bind(){
   app.querySelectorAll("[data-regpdf]").forEach(el=>el.onclick=(e)=>{
     e.stopPropagation();
     publishRegister(el.getAttribute("data-regpdf"));
+  });
+
+  app.querySelectorAll("[data-regview]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    printRegister(el.getAttribute("data-regview"));
+  });
+
+  app.querySelectorAll("[data-itemview]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    const [kind,id] = el.getAttribute("data-itemview").split(":");
+    printItemRecord(kind, id);
   });
 
   app.querySelectorAll("[data-itempdf]").forEach(el=>el.onclick=(e)=>{
@@ -11489,6 +11982,25 @@ function bind(){
     save(); render();
     toast(DB.board.auto ? "The board will follow each form" : "The board is yours to send");
   });
+  app.querySelectorAll("[data-syncon]").forEach(el=>el.onclick=async ()=>{
+    const on = el.getAttribute("data-syncon") === "1";
+    syncCfg().on = on;
+    save(); render();
+    if(on){
+      toast("Bringing this device in step…");
+      const ok = await syncPull(true);
+      if(ok) await syncPush(true);
+      render();
+      toast(syncCfg().lastError ? "Not synced — " + syncCfg().lastError : "In step");
+    } else {
+      toast("This device is on its own now");
+    }
+  });
+  const sn = app.querySelector("[data-syncnow]");
+  if(sn) sn.onclick = async ()=>{ toast("Syncing…"); await syncPush(false); render(); };
+  const spull = app.querySelector("[data-syncpull]");
+  if(spull) spull.onclick = async ()=>{ toast("Looking…"); await syncPull(false); render(); };
+
   const bt = app.querySelector("[data-btest]");
   if(bt) bt.onclick = async ()=>{ toast("Sending…"); await pushBoard(false); render(); };
 }
@@ -11985,6 +12497,184 @@ async function pushBoard(quiet){
   }
 }
 
+/* ==================================================== sync between devices ==
+   The whole record set lives in one file in the same repository the office
+   board uses, so there is nothing new to set up and nothing to pay for.
+
+   How it behaves, and why:
+     - On opening, the app pulls the file and merges it in. Merging, never
+       overwriting, so nothing typed on this device while it was offline is
+       lost to a copy someone saved earlier elsewhere.
+     - On saving, it waits a few seconds for the dust to settle, pulls again,
+       merges, and pushes the combined set back. The pull-before-push is what
+       stops the laptop flattening something entered on the phone five minutes
+       earlier.
+     - Per record, whichever copy was edited last wins. That is the right rule
+       for one person on two devices; it would not be for a crew all writing
+       at once, which is a different problem and a different answer.
+     - Everything is queued if there is no signal. The app already works
+       offline and this changes nothing about that. */
+
+function syncCfg(){
+  DB.sync = DB.sync || { on:false, file:"sitehub-data.json",
+    lastPull:0, lastPush:0, lastError:"", sha:null };
+  return DB.sync;
+}
+
+function unb64(b64str){
+  const bin = atob(String(b64str).replace(/\s/g,""));
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+/* What actually travels. The token never leaves the device it was typed on,
+   and the board settings are per-device too — the laptop may well not be the
+   machine that publishes the wall screen. */
+function syncPayload(){
+  const copy = JSON.parse(JSON.stringify(DB));
+  delete copy.board;
+  delete copy.sync;
+  delete copy.__fromSnapshot;
+  return copy;
+}
+
+/* Fold an incoming copy into what is already here. */
+function syncMerge(d){
+  if(!d || typeof d !== "object") return 0;
+  const before = (DB.records||[]).length;
+  DB.records    = mergeInto(DB.records||[],    d.records||[],    "updatedAt");
+  DB.plant      = mergeInto(DB.plant||[],      d.plant||[],      "id");
+  DB.labour     = mergeInto(DB.labour||[],     d.labour||[],     "id");
+  DB.lifting    = mergeInto(DB.lifting||[],    d.lifting||[],    "id");
+  DB.tools      = mergeInto(DB.tools||[],      d.tools||[],      "id");
+  DB.deliveries = mergeInto(DB.deliveries||[], d.deliveries||[], "id");
+  DB.events     = mergeInto(DB.events||[],     d.events||[],     "id");
+  DB.defects    = mergeInto(DB.defects||[],    d.defects||[],    "id");
+  DB.leave      = mergeInto(DB.leave||[],      d.leave||[],      "id");
+  DB.vos        = mergeInto(DB.vos||[],        d.vos||[],        "id");
+  DB.packs      = mergeInto(DB.packs||[],      d.packs||[],      "id");
+  DB.scans      = mergeInto(DB.scans||[],      d.scans||[],      "id");
+  /* counters only ever go up, or two devices start issuing the same reference */
+  DB.counter = Math.max(DB.counter||0, d.counter||0);
+  if(d.counters){
+    DB.counters = DB.counters || {};
+    Object.keys(d.counters).forEach(k=>{
+      DB.counters[k] = Math.max(DB.counters[k]||0, d.counters[k]||0);
+    });
+  }
+  if(d.job && !DB.job) DB.job = d.job;
+  if(d.config && !DB.config) DB.config = d.config;
+  return (DB.records||[]).length - before;
+}
+
+function syncUrl(){
+  const b = boardCfg(), c = syncCfg();
+  return "https://api.github.com/repos/" + b.repo.trim() + "/contents/" + c.file;
+}
+function syncHead(){
+  return { "Authorization":"Bearer " + boardCfg().token.trim(),
+    "Accept":"application/vnd.github+json" };
+}
+function syncReady(){
+  const b = boardCfg(), c = syncCfg();
+  return !!(c.on && b.repo && b.token);
+}
+function syncFail(e, quiet){
+  const c = syncCfg();
+  c.lastError = (e && e.message) || "it did not go through";
+  save();
+  if(!quiet) toast("Not synced — " + c.lastError);
+  return false;
+}
+
+/* Pull, merge, and say how many records were new. */
+async function syncPull(quiet){
+  if(!syncReady()) return false;
+  const c = syncCfg(), b = boardCfg();
+  try{
+    const got = await fetch(syncUrl() + "?ref=" + (b.branch||"main"),
+      { headers:syncHead(), cache:"no-store" });
+    if(got.status === 404){ c.lastPull = Date.now(); c.lastError = ""; save(); return true; }
+    if(!got.ok) throw new Error(githubWords(got.status));
+    const meta = await got.json();
+    c.sha = meta.sha;
+    const added = syncMerge(JSON.parse(unb64(meta.content)));
+    c.lastPull = Date.now(); c.lastError = "";
+    save();
+    if(!quiet) toast(added ? added + " new record" + (added===1?"":"s") + " pulled in"
+      : "Already up to date");
+    return true;
+  }catch(e){ return syncFail(e, quiet); }
+}
+
+/* Pull first, then push the combined set. */
+async function syncPush(quiet){
+  if(!syncReady()) return false;
+  const c = syncCfg(), b = boardCfg();
+  try{
+    /* read what is up there now, merge it in, and take its sha */
+    const got = await fetch(syncUrl() + "?ref=" + (b.branch||"main"),
+      { headers:syncHead(), cache:"no-store" });
+    if(got.status === 200){
+      const meta = await got.json();
+      c.sha = meta.sha;
+      syncMerge(JSON.parse(unb64(meta.content)));
+    } else if(got.status === 404){
+      c.sha = null;
+    } else throw new Error(githubWords(got.status));
+
+    const text = JSON.stringify(syncPayload());
+    const mb = text.length / 1048576;
+    if(mb > 40) throw new Error("the file is too big at " + mb.toFixed(0) + " MB");
+
+    const body = { message:"siteHUB — " + (cfg().user.name || "device") + " — "
+        + new Date().toLocaleString("en-GB"),
+      content: b64(text), branch: b.branch || "main" };
+    if(c.sha) body.sha = c.sha;
+
+    const put = await fetch(syncUrl(), { method:"PUT", headers:syncHead(),
+      body:JSON.stringify(body) });
+    if(!put.ok) throw new Error(githubWords(put.status));
+    const res = await put.json();
+    c.sha = (res.content && res.content.sha) || c.sha;
+    c.lastPush = Date.now(); c.lastError = "";
+    save();
+    if(!quiet) toast("Synced" + (mb > 8 ? " — " + mb.toFixed(1) + " MB, getting large" : ""));
+    return true;
+  }catch(e){ return syncFail(e, quiet); }
+}
+
+function githubWords(status){
+  return status === 401 ? "the token was refused"
+    : status === 404 ? "that repository could not be found"
+    : status === 403 ? "the token is not allowed to write there"
+    : status === 409 ? "it changed on the other device — try again"
+    : "GitHub said " + status;
+}
+
+/* Saving does not wait for the network. The push happens a few seconds later,
+   and only one is ever in flight. */
+let syncTimer = null, syncBusy = false;
+function syncMaybePush(){
+  if(!syncReady()) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async ()=>{
+    if(syncBusy) { syncMaybePush(); return; }
+    syncBusy = true;
+    try{ await syncPush(true); } finally { syncBusy = false; }
+  }, 4000);
+}
+
+/* Coming back to the app is the moment the other device's work is most likely
+   to be waiting, so that is when it looks. */
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState !== "visible" || !syncReady()) return;
+  if(Date.now() - (syncCfg().lastPull||0) < 30000) return;
+  syncPull(true).then(ok=>{ if(ok) render(); });
+});
+window.addEventListener("online", ()=>{ if(syncReady()) syncMaybePush(); });
+
 /* after something is filed, once the dust has settled */
 let boardTimer = null;
 function boardMaybePush(){
@@ -12160,6 +12850,33 @@ function startLaunch(){
   L.done = document.getElementById("spDone");
   const logo = document.getElementById("splashLogo");
   if(logo) logo.src = LOGO;
+
+  /* the wordmark, split so each letter can be lifted in on its own beat.
+     30ms apart: enough to read as a sweep, quick enough that the whole word
+     has landed inside 600ms. */
+  const nm = document.getElementById("spName");
+  if(nm && !nm.childElementCount){
+    const parts = [["CGC", false], [" ", false], ["site", false], ["HUB", true]];
+    let n = 0;
+    parts.forEach(([text, accent])=>{
+      [...text].forEach(ch=>{
+        if(ch === " "){
+          const sp = document.createElement("span");
+          sp.className = "sp";
+          nm.appendChild(sp);
+          return;
+        }
+        const c = document.createElement("span");
+        c.className = "c" + (accent ? " hl" : "");
+        const i = document.createElement("i");
+        i.textContent = ch;
+        i.style.animationDelay = (0.26 + n*0.03).toFixed(3) + "s";
+        c.appendChild(i);
+        nm.appendChild(c);
+        n++;
+      });
+    });
+  }
   launchShow(0, "Starting up");
 }
 
@@ -12231,6 +12948,7 @@ if(!DB.deliveries) DB.deliveries = [];
 if(!DB.events) DB.events = [];
   if(!DB.leave) DB.leave = [];
   if(!DB.vos) DB.vos = [];
+  syncCfg();
   if(!DB.packs) DB.packs = [];
   (DB.records||[]).forEach(r=>{ if(r.form==="excavator") r.form = "plantcheck"; });
   (DB.plant||[]).forEach(p=>{ if(!p.type) p.type = "Excavator"; });
@@ -12311,6 +13029,13 @@ if(!DB.events) DB.events = [];
   window.addEventListener("visibilitychange", flush);
   window.addEventListener("pagehide", flush);
   window.addEventListener("beforeunload", flush);
+
+  /* Whatever was done on the other device, collected once the app is already
+     usable. It is deliberately after render(): the screen never waits on the
+     network, and if there is no signal nothing here matters. */
+  if(syncReady()){
+    syncPull(true).then(ok=>{ if(ok) render(); });
+  }
 })();
 
 </script>

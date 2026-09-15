@@ -91,85 +91,111 @@ body{background:var(--canvas);color:var(--ink);
 /* --- header -------------------------------------------------------------- */
 .top{display:flex;align-items:center;gap:var(--s6)}
 .top .mark{height:var(--mark);flex:none}
-.jobpill{background:var(--green);color:#fff;padding:12px 32px;
+/* The app shows the job as a tinted pill with an inset ring, not a solid slab.
+   A solid green block here competed with the logo and with every status colour
+   on the board; tinted, it names the job and then gets out of the way. */
+.jobpill{display:inline-flex;align-items:center;gap:14px;
+  background:var(--green-50);color:var(--green-700);padding:11px 26px;
   border-radius:var(--r-pill);font-size:var(--t-title);font-weight:var(--w-bold);
-  letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  box-shadow:inset 0 0 0 1.5px var(--green-100)}
 .clock{margin-left:auto;text-align:right;flex:none}
-.clock .t{font-size:var(--t-display);font-weight:var(--w-bold);letter-spacing:-.03em;
-  font-variant-numeric:tabular-nums;line-height:1}
+.clock .t{font-size:var(--t-display);font-weight:var(--w-bold);letter-spacing:-.035em;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;line-height:1;
+  color:var(--ink)}
 .clock .d{font-size:var(--t-sub);color:var(--ink-2);font-weight:var(--w-med);margin-top:4px}
 
 /* --- the four rings ------------------------------------------------------ */
+/* Surfaces carry a shadow or a border, never both. The app uses shadow alone,
+   so the board does too — stacking the two is what made these read as boxes
+   drawn on a page rather than cards sitting on one. */
 .rings{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s4)}
-.ring{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:var(--s4) var(--s3) var(--s4);text-align:center;box-shadow:var(--sh);
-  display:flex;flex-direction:column;align-items:center;gap:var(--s2)}
-.ring h3{font-size:var(--t-head);font-weight:var(--w-bold);letter-spacing:-.01em}
+.ring{background:var(--paper);border-radius:var(--r-lg);
+  padding:var(--s5) var(--s3);text-align:center;box-shadow:var(--sh);
+  display:flex;flex-direction:column;align-items:center;gap:var(--s3)}
+/* The title steps back and the figure leads. Before, the two were competing at
+   nearly the same weight and the eye had nowhere to land first. */
+.ring h3{font-size:var(--t-over);font-weight:var(--w-bold);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);line-height:1.2}
 .dial{position:relative;width:var(--dial);height:var(--dial)}
 .dial svg{width:100%;height:100%;display:block}
 .mid{position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center}
-.big{font-size:var(--t-title);font-weight:var(--w-bold);letter-spacing:-.03em;line-height:1}
-.sub{font-size:var(--t-cap);color:var(--ink-2);font-weight:var(--w-med);margin-top:2px}
+.big{font-size:var(--t-title);font-weight:var(--w-bold);letter-spacing:-.035em;
+  line-height:1;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.sub{font-size:var(--t-cap);color:var(--ink-3);font-weight:var(--w-med);margin-top:4px}
 .note{font-size:var(--t-sub);font-weight:var(--w-med);color:var(--ink-2);
-  line-height:1.3;max-width:26ch}
+  line-height:1.35;max-width:26ch}
 /* the state in words as well as colour — this is what carries across a room */
 .rstate{display:inline-flex;align-items:center;gap:var(--s2);padding:5px 14px;
   border-radius:var(--r-pill);font-size:var(--t-cap);font-weight:var(--w-bold);
-  letter-spacing:.02em;border:1px solid transparent}
+  letter-spacing:.02em}
 .rstate b{font-size:var(--t-cap);line-height:1}
-.rstate.ok{background:var(--ok-bg);color:var(--ok);border-color:rgba(30,107,54,.3)}
-.rstate.part,.rstate.wip{background:var(--warn-bg);color:var(--warn-700);
-  border-color:rgba(107,62,0,.3)}
-.rstate.none{background:var(--bad-bg);color:var(--bad);border-color:rgba(143,33,25,.3)}
-.rstate.idle{background:var(--canvas);color:var(--ink-2);border-color:var(--line)}
+.rstate.ok{background:var(--ok-bg);color:var(--ok)}
+.rstate.part,.rstate.wip{background:var(--warn-bg);color:var(--warn-700)}
+.rstate.none{background:var(--bad-bg);color:var(--bad)}
+.rstate.idle{background:var(--canvas);color:var(--ink-3)}
 
 /* --- needs attention ----------------------------------------------------- */
 /* This was being built and then thrown away. It is the single most useful
    thing on an office wall, so it now sits full width under the rings. */
-.attention{background:var(--paper);border:1px solid var(--line);border-left:8px solid var(--bad);
-  border-radius:var(--r-lg);padding:var(--s4) var(--s5);box-shadow:var(--sh)}
-.attention.clear{border-left-color:var(--ok)}
-.attention h2{font-size:var(--t-over);letter-spacing:.12em;text-transform:uppercase;
-  color:#fff;background:var(--bad);padding:6px 16px;border-radius:var(--r-pill);
-  font-weight:var(--w-bold);display:inline-block;margin-bottom:var(--s3)}
-.attention.clear h2{background:var(--ok)}
-.attgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2) var(--s3)}
+/* The heavy left bar and the filled red badge were doing the same job twice.
+   One coloured dot and coloured wording is enough to find it across a room,
+   and it leaves the red free to mean something on the rows themselves. */
+.attention{background:var(--paper);border-radius:var(--r-lg);
+  padding:var(--s4) var(--s5) var(--s5);box-shadow:var(--sh)}
+.attention h2{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--bad);font-weight:var(--w-bold);display:flex;align-items:center;
+  gap:var(--s2);padding:0 0 var(--s3);margin-bottom:var(--s3);
+  border-bottom:1px solid var(--line-2)}
+.attention h2::before{content:"";width:9px;height:9px;border-radius:50%;
+  background:var(--bad);flex:none}
+.attention.clear h2{color:var(--ok)}
+.attention.clear h2::before{background:var(--ok)}
+.attgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 var(--s6)}
 .attgrid.two{grid-template-columns:repeat(2,1fr)}
 
 /* --- the three panels ---------------------------------------------------- */
 .cols{display:grid;grid-template-columns:1fr 1fr .72fr;gap:var(--s4);min-height:0}
-.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg);
-  padding:var(--s4) var(--s5);box-shadow:var(--sh);display:flex;flex-direction:column;
-  min-height:0;overflow:hidden}
-.panel h2{font-size:var(--t-over);letter-spacing:.12em;text-transform:uppercase;color:#fff;
-  background:var(--green);padding:6px 16px;border-radius:var(--r-pill);margin-bottom:var(--s3);
-  font-weight:var(--w-bold);align-self:flex-start}
+.panel{background:var(--paper);border-radius:var(--r-lg);
+  padding:var(--s4) var(--s5) var(--s5);box-shadow:var(--sh);display:flex;
+  flex-direction:column;min-height:0;overflow:hidden}
+/* Section headings follow the app's own: small, spaced capitals in grey above a
+   hairline. Three filled green pills across the bottom of the board were three
+   loud labels shouting over the data they were labelling. */
+.panel h2{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:var(--w-bold);padding:0 0 var(--s3);
+  margin-bottom:var(--s3);border-bottom:1px solid var(--line-2)}
 .panel .list,.panel #week{flex:1;min-height:0;overflow:auto;
   scrollbar-width:none;-ms-overflow-style:none}
 .panel .list::-webkit-scrollbar,.panel #week::-webkit-scrollbar{display:none}
 .attgrid{max-height:26vh;overflow:auto;scrollbar-width:none}
 .attgrid::-webkit-scrollbar{display:none}
-.panel.dark{background:var(--dark);border-color:var(--green-deep)}
-.panel.dark h2{background:var(--green-200);color:var(--green-deep)}
+/* the one dark surface, matched to the app's home hero */
+.panel.dark{background:#0C2A18}
+.panel.dark h2{color:var(--green-200);border-bottom-color:rgba(255,255,255,.14)}
 
 /* --- rows ---------------------------------------------------------------- */
-.item{padding:var(--s3) var(--s4);border-radius:var(--r-sm);background:var(--canvas);
-  border:1px solid var(--line-2);margin-bottom:var(--s2);position:relative;
-  padding-left:var(--s6);display:flex;align-items:flex-start;gap:var(--s3)}
-.item i{position:absolute;left:10px;top:10px;bottom:10px;width:6px;border-radius:3px;
-  background:var(--green)}
+/* Rows used to be bordered, filled tiles stacked with gaps between them — four
+   edges and a background per row, which is a lot of furniture for one line of
+   text. They are now separated by a hairline, the way the app separates rows,
+   with a single dot carrying the colour. Status still reads three ways: dot,
+   glyph and coloured wording, so it survives a cheap panel and colourblindness. */
+.item{padding:var(--s3) 2px var(--s3) var(--s5);background:transparent;border:0;
+  border-bottom:1px solid var(--line-2);margin:0;position:relative;
+  display:flex;align-items:flex-start;gap:var(--s3)}
+.item:last-child{border-bottom:0}
+.item i{position:absolute;left:2px;top:calc(var(--s3) + 6px);width:9px;height:9px;
+  border-radius:50%;background:var(--green)}
 .item .txt{flex:1;min-width:0}
 .item b{display:block;font-size:var(--t-lead);font-weight:var(--w-med);letter-spacing:-.01em;
   margin-top:3px;color:var(--ink)}
 .item span{display:block;font-size:var(--t-cap);color:var(--ink-2);margin-top:2px}
-.item .when{flex:none;font-size:var(--t-cap);font-weight:var(--w-bold);color:var(--ink-2);
-  white-space:nowrap;text-align:right}
-.item.alert{background:var(--red-bg);border-color:rgba(143,33,25,.25)}
+.item .when{flex:none;font-size:var(--t-cap);font-weight:var(--w-bold);color:var(--ink-3);
+  white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
 .item.alert i{background:var(--red)} .item.alert b{color:var(--red)}
-.item.warnbg{background:var(--amber-bg);border-color:rgba(107,62,0,.25)}
 .item.warnbg i{background:var(--amber)} .item.warnbg b{color:var(--warn-700)}
-.item.done b{color:var(--ok)}
+.item.done i{background:var(--ok)} .item.done b{color:var(--ok)}
 /* the glyph does the work colour used to do on its own */
 .item.alert .txt b::before{content:"\26a0  ";font-weight:800}
 .item.warnbg .txt b::before{content:"\25AA  ";font-weight:800}
@@ -180,9 +206,10 @@ body{background:var(--canvas);color:var(--ink);
 
 /* density: fewer rows, never smaller words. Below this the board stops being
    readable from a desk, so extra items roll into a "+ n more" line instead. */
-.list.compact .item{padding:var(--s2) var(--s3) var(--s2) var(--s6);margin-bottom:6px}
+.list.compact .item{padding-top:var(--s2);padding-bottom:var(--s2)}
+.list.compact .item i{top:calc(var(--s2) + 6px)}
 .list.compact .item b{font-size:var(--t-body)}
-.list.two{display:grid;grid-template-columns:1fr 1fr;gap:6px var(--s3);align-content:start}
+.list.two{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s6);align-content:start}
 .list.two .item{margin-bottom:0}
 .list.two .item b{font-size:var(--t-body)}
 .list.two .item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -202,14 +229,15 @@ body{background:var(--canvas);color:var(--ink);
 .tag.part{background:var(--amber-bg);color:var(--warn-700);border-color:rgba(107,62,0,.3)}
 
 /* --- this week ----------------------------------------------------------- */
-.stat{padding:var(--s3) var(--s4);border-radius:var(--r-sm);background:rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.10);margin-bottom:var(--s2);display:flex;
-  align-items:center;gap:var(--s3)}
+.stat{padding:var(--s3) 0;background:transparent;border:0;
+  border-bottom:1px solid rgba(255,255,255,.10);display:flex;
+  align-items:center;gap:var(--s4)}
+.stat:last-child{border-bottom:0}
 .stat .n{font-size:var(--t-title);font-weight:var(--w-bold);letter-spacing:-.03em;
   color:#fff;min-width:88px;line-height:1;font-variant-numeric:tabular-nums}
 .stat .l{flex:1;font-size:var(--t-cap);color:#E4F0E8;font-weight:var(--w-med);line-height:1.3}
 .stat .l span{display:block;color:var(--green-200);font-weight:600;font-size:var(--t-over);
-  margin-top:2px}
+  margin-top:3px;letter-spacing:.04em}
 
 /* --- footer -------------------------------------------------------------- */
 .foot{display:flex;align-items:center;gap:var(--s3);font-size:var(--t-cap);
@@ -231,6 +259,33 @@ body{background:var(--canvas);color:var(--ink);
 .state p{font-size:var(--t-lead);color:var(--ink-2);max-width:56ch;line-height:1.5}
 .state code{background:#fff;border:1px solid var(--line);padding:3px 10px;
   border-radius:8px;font-size:var(--t-sub)}
+
+/* --- motion --------------------------------------------------------------
+   Two moves, both one-shot. The board settles in when it first receives a
+   snapshot, and a region gives one short settle when its contents actually
+   change. Nothing loops: a wall screen with a permanent animation on it is
+   read once and then ignored, and the office stops trusting that movement
+   means news. Easing is the app's own long-settle curve. */
+@keyframes bRise{ from{ opacity:0; transform:translateY(14px) } to{ opacity:1; transform:none } }
+@keyframes bSettle{ from{ opacity:.35; transform:translateY(5px) } to{ opacity:1; transform:none } }
+
+.wrap.first .top{ animation:bRise .5s cubic-bezier(.16,1,.3,1) both }
+.wrap.first .ring{ animation:bRise .58s cubic-bezier(.16,1,.3,1) both }
+.wrap.first .ring:nth-child(1){ animation-delay:.06s }
+.wrap.first .ring:nth-child(2){ animation-delay:.12s }
+.wrap.first .ring:nth-child(3){ animation-delay:.18s }
+.wrap.first .ring:nth-child(4){ animation-delay:.24s }
+.wrap.first .attention{ animation:bRise .58s cubic-bezier(.16,1,.3,1) .30s both }
+.wrap.first .cols .panel:nth-child(1){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .36s both }
+.wrap.first .cols .panel:nth-child(2){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .42s both }
+.wrap.first .cols .panel:nth-child(3){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .48s both }
+.wrap.first .foot{ animation:bRise .5s cubic-bezier(.16,1,.3,1) .54s both }
+.fresh{ animation:bSettle .42s cubic-bezier(.16,1,.3,1) both }
+
+@media (prefers-reduced-motion:reduce){
+  .wrap.first .top,.wrap.first .ring,.wrap.first .attention,
+  .wrap.first .cols .panel,.wrap.first .foot,.fresh{ animation:none;opacity:1;transform:none }
+}
 
 /* --- fitting whatever window it lands in --------------------------------- */
 
@@ -326,6 +381,26 @@ body{background:var(--canvas);color:var(--ink);
    ------------------------------------------------------------------------ */
 var REFRESH_MS = 30000;
 
+/* The board re-reads the file every thirty seconds whether anything changed or
+   not. Rewriting innerHTML each time makes the whole wall blink, and a blink
+   with no new information in it trains people to stop looking. So each region
+   is only written when its markup has actually changed. */
+var lastHTML = {};
+function setHTML(id, html){
+  if(lastHTML[id] === html) return;
+  lastHTML[id] = html;
+  var el = document.getElementById(id);
+  el.innerHTML = html;
+  /* a region that changed after the first paint gets a single short settle, so
+     the eye is drawn to what moved rather than to the whole board */
+  if(painted){
+    el.classList.remove("fresh");
+    void el.offsetWidth;
+    el.classList.add("fresh");
+  }
+}
+var painted = false;
+
 function pad(n){ return (n<10?"0":"")+n; }
 function iso(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function parse(s){ var p=String(s).split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
@@ -376,11 +451,11 @@ function ring(title, done, total, note, wip){
   var key = total===0 ? "idle" : pct>=1 ? "ok"
     : pct>0 ? "part" : (wip ? "wip" : "none");
   var st = RING_STATE[key], col = st.col;
-  var track = "var(--line)";
+  var track = "var(--line-2)";
   return '<div class="ring"><h3>'+title+'</h3>'
     + '<div class="dial"><svg viewBox="0 0 180 180" preserveAspectRatio="xMidYMid meet">'
-    + '<circle cx="90" cy="90" r="'+R+'" fill="none" stroke="'+track+'" stroke-width="16"/>'
-    + '<circle cx="90" cy="90" r="'+R+'" fill="none" stroke="'+col+'" stroke-width="16" '
+    + '<circle cx="90" cy="90" r="'+R+'" fill="none" stroke="'+track+'" stroke-width="9"/>'
+    + '<circle cx="90" cy="90" r="'+R+'" fill="none" stroke="'+col+'" stroke-width="9" '
     + 'stroke-linecap="round" stroke-dasharray="'+(C*pct).toFixed(1)+' '+(C*(1-pct)).toFixed(1)+'" '
     + 'transform="rotate(-90 90 90)"/></svg>'
     + '<div class="mid"><div class="big" style="color:'+col+'">'
@@ -448,12 +523,11 @@ function draw(D){
         : "All machines checked") : "No plant on site");
   }
 
-  document.getElementById("rings").innerHTML =
-    plantRing
-  + ring("Excavation Inspections", excDone, excOpen,
-      excOpen ? (excOpen-excDone ? (excOpen-excDone)+" before work starts" : "All signed off")
-        : "None left open")
-  + ring("Today&rsquo;s Paperwork", formsDone, 2,
+  /* The order is the order the office asks about it: today's paperwork first,
+     then the two inspection regimes, then the weekly registers that are only
+     chased at the end of the week. */
+  setHTML("rings",
+    ring("Today&rsquo;s Paperwork", formsDone, 2,
       formsDone===2 ? "Briefing and diary in"
         : formsWip ? ["briefing","diary"].filter(function(k){
               return !done(k,T) && started(k,T); })
@@ -461,6 +535,10 @@ function draw(D){
             + " started, waiting to be signed off"
         : (done("briefing",T) ? "Diary still to come" : "Briefing still to come"),
       formsWip)
+  + ring("Excavation Inspections", excDone, excOpen,
+      excOpen ? (excOpen-excDone ? (excOpen-excDone)+" before work starts" : "All signed off")
+        : "None left open")
+  + plantRing
   + (function(){
       /* the registers are not chased until the day they fall due */
       var wk = (D.weekly||[]).filter(function(x){ return x.key!=="toolboxtalk"; });
@@ -479,7 +557,7 @@ function draw(D){
         done >= wk.length ? "All in"
           : wk.filter(function(x){ return !x.done; }).map(function(x){ return x.short; })
               .join(" and ") + " still to do");
-    })();
+    })());
 
   /* today on site */
   /* the bar colours come from the tokens, so the palette is changed in one place */
@@ -526,14 +604,14 @@ function draw(D){
   ovList.className = "list two" + (ov.length>8 ? " compact" : "");
   var OV_CAP = 14;
   var ovShow = ov.length > OV_CAP ? ov.slice(0,OV_CAP) : ov;
-  ovList.innerHTML = ov.length
+  setHTML("overview", ov.length
     ? ovShow.map(function(x){
         return '<div class="item"><i style="background:'+COL[x.k]+'"></i><div class="txt">'
           + '<span class="tag '+x.k+'">'+x.label+'</span><b>'+esc(x.b)+'</b>'
           + '<span>'+esc(x.s)+'</span></div><div class="when">'+esc(x.when)+'</div></div>';
       }).join("") + (ov.length>OV_CAP ? '<div class="more">and '+(ov.length-OV_CAP)
           +' more booked in</div>' : "")
-    : '<div class="empty">Nothing booked in for today.</div>';
+    : '<div class="empty">Nothing booked in for today.</div>');
 
   /* needs attention */
   var att=[];
@@ -589,7 +667,7 @@ function draw(D){
   /* same steps as the other side, so both panels hold what they are given */
   var REC_CAP = 14;
   recList.className = "list two" + (inToday.length>8 ? " compact" : "");
-  recList.innerHTML = inToday.length
+  setHTML("received", inToday.length
     ? inToday.slice(0, REC_CAP).map(function(x){
         return '<div class="item'+(x.full?" done":"")+'">'
           + '<i style="background:'+(x.full?"var(--ok)":"var(--amber)")+'"></i>'
@@ -600,7 +678,7 @@ function draw(D){
       }).join("")
       + (inToday.length>REC_CAP ? '<div class="more">and '+(inToday.length-REC_CAP)
           +' more in</div>' : "")
-    : '<div class="empty">Nothing taken in yet today.</div>';
+    : '<div class="empty">Nothing taken in yet today.</div>');
 
   /* This list used to be built and thrown away — it was never on the wall.
      It is the first thing the office needs, so it sits under the rings.
@@ -612,14 +690,14 @@ function draw(D){
   document.getElementById("attHead").textContent = att.length
     ? "Needs attention \u2014 " + att.length : "Nothing outstanding";
   attList.className = "attgrid" + (att.length <= 4 ? " two" : "");
-  attList.innerHTML = att.length
+  setHTML("attList", att.length
     ? att.slice(0, CAP).map(function(x){
         return '<div class="item '+x.cls+'"><i></i><div class="txt"><b>'+esc(x.b)+'</b>'
           + '<span>'+esc(x.s)+'</span></div>'
           + (x.when ? '<div class="when">'+esc(x.when)+'</div>' : "") + '</div>'; }).join("")
       + (att.length>CAP ? '<div class="more">and '+(att.length-CAP)
           +' more on the registers</div>' : "")
-    : '<div class="empty">Everything is in. No open defects, no lapsed certificates.</div>';
+    : '<div class="empty">Everything is in. No open defects, no lapsed certificates.</div>');
 
   /* this week */
   var wkRecs = recs.filter(function(r){ return weekStart(r.date)===WS && r.status==="submitted"; });
@@ -630,7 +708,7 @@ function draw(D){
     .filter(function(x){ return x.onSite===true; }).length : 0;
   var stat=function(n,l,s){ return '<div class="stat"><div class="n">'+n+'</div>'
     + '<div class="l">'+l+'<span>'+s+'</span></div></div>'; };
-  document.getElementById("week").innerHTML =
+  setHTML("week",
       stat(wkRecs.length, "records in the pack", "week commencing "+shortDate(WS))
     + (chk.how==="paper"
         ? stat((D.scans||[]).filter(function(x){ return x.job===D.job
@@ -639,12 +717,20 @@ function draw(D){
         : stat(checksWeek, "plant checks done", "this week"))
     + stat(labour, "on site", "from the last diary")
     + stat(onSite.length, "machines on site",
-        (D.tools||[]).filter(function(x){ return x.job===D.job; }).length+" items of equipment")
-;
+        (D.tools||[]).filter(function(x){ return x.job===D.job; }).length+" items of equipment"));
 
   document.getElementById("job").textContent = D.job || "—";
   document.getElementById("state").style.display = "none";
-  document.getElementById("board").style.display = "";
+  var board = document.getElementById("board");
+  board.style.display = "";
+  /* the entrance runs once, on the first snapshot the board ever receives */
+  if(!painted){
+    board.classList.add("first");
+    painted = true;
+    /* the entrance is a one-off; the class is dropped so a later refresh that
+       rebuilds a region doesn't replay it */
+    setTimeout(function(){ board.classList.remove("first"); }, 1400);
+  }
 }
 
 function clock(publishedAt){
