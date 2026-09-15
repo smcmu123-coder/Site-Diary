@@ -103,7 +103,7 @@ html[data-theme="dark"] :focus-visible{outline-color:var(--green-600)}
   background:var(--paper);overflow-x:hidden}
 .projgrid{display:grid;gap:12px}
 .reggrid{display:grid;gap:0}
-@media(min-width:760px){
+@media(min-width:1024px){
   .reggrid{grid-template-columns:1fr 1fr;gap:12px;align-items:start}
   .reggrid > .card,.reggrid > .rep{margin-bottom:0}
 }
@@ -229,10 +229,12 @@ h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;
 .row{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px 0}
 .row+.row{border-top:1px solid var(--line-2)}
 .row .n{flex:1;min-width:0}
+.docrow{flex-wrap:wrap;row-gap:8px}
+.docrow .pill{margin-left:auto}
 .row .n b{display:block;font-size:16px;font-weight:620}
 .row .n span{display:block;font-size:13px;color:var(--ink-3);margin-top:1px}
 .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;
-  font-size:12px;font-weight:680;white-space:nowrap}
+  font-size:12px;font-weight:680;white-space:nowrap;flex:0 0 auto;max-width:100%}
 .pill.ok{background:var(--ok-bg);color:var(--ok)}
 .pill.amber{background:var(--warn-bg);color:var(--warn-700)}
 .pill.red{background:var(--bad-bg);color:var(--bad)}
@@ -2403,11 +2405,14 @@ function currentPlant(){
 function examDateOf(p){ return p.examDate || p.lolerDate || ""; }
 function lolerState(p){
   const dt = examDateOf(p);
-  if(!dt) return { key:"none", label:"No examination date", cls:"grey" };
+  if(!dt) return { key:"none", label:"No examination date", short:"No exam date", cls:"grey" };
   const days = Math.round((parse(dt) - parse(todayISO())) / 86400000);
-  if(days < 0) return { key:"expired", label:"Thorough examination overdue — "+shortDate(dt), cls:"red", days };
-  if(days <= 30) return { key:"soon", label:"Thorough examination due in "+days+" day"+(days===1?"":"s"), cls:"amber", days };
-  return { key:"ok", label:"Thorough examination due "+shortDate(dt), cls:"ok", days };
+  if(days < 0) return { key:"expired", label:"Thorough examination overdue — "+shortDate(dt),
+    short:"Overdue "+shortDate(dt), cls:"red", days };
+  if(days <= 30) return { key:"soon", label:"Thorough examination due in "+days+" day"+(days===1?"":"s"),
+    short:"Due in "+days+" day"+(days===1?"":"s"), cls:"amber", days };
+  return { key:"ok", label:"Thorough examination due "+shortDate(dt),
+    short:"Due "+shortDate(dt), cls:"ok", days };
 }
 function lolerAlerts(){
   return currentPlant().map(p=>({p, st:lolerState(p)}))
@@ -4631,8 +4636,8 @@ function docsBlock(kind, it){
   return `<div class="sect" style="margin:22px 0 8px">Documents${docs.length?" ("+docs.length+")":""}</div>
     ${docs.length ? `<div class="card" style="padding:4px 14px">${docs.map(d=>{
       const st = docState(d);
-      return `<div class="row">
-        <button style="flex:1;text-align:left;display:block;min-width:0"
+      return `<div class="row docrow">
+        <button style="flex:1 1 160px;text-align:left;display:block;min-width:0"
           data-docopen="${kind}:${it.id}:${d.id}">
           <b style="display:block;font-size:15px;font-weight:640">${esc(d.type||"Document")}</b>
           <span style="display:block;font-size:12.5px;color:var(--ink-3)">
@@ -4750,7 +4755,7 @@ function refreshLiftPill(id){
   if(!l || !el) return;
   const st = lolerState(l);
   el.className = "pill " + st.cls;
-  el.textContent = st.label;
+  el.textContent = st.short || st.label;
   const inp = document.querySelector('[data-lf-'+id+'="examDate"]');
   if(inp) inp.classList.toggle("err", st.key==="expired");
 }
@@ -4761,7 +4766,7 @@ function refreshPlantPill(id){
   if(!p || !el) return;
   const st = lolerState(p);
   el.className = "pill " + st.cls;
-  el.textContent = st.label;
+  el.textContent = st.short || st.label;
   const inp = document.querySelector('[data-pl-'+id+'="examDate"]');
   if(inp) inp.classList.toggle("err", st.key==="expired");
 }
@@ -6173,7 +6178,7 @@ function homeView(){
     </div>
 
     <div class="daylead">
-      <div class="big">${restDay ? "&mdash;" : ahead ? "Ahead" : p.pct===null ? "&mdash;" : p.pct + "%"}</div>
+      <div class="big">${restDay ? "&mdash;" : ahead ? "Get ahead" : p.pct===null ? "&mdash;" : p.pct + "%"}</div>
       <div class="meta">
         <b>${isToday ? "Today" : longDate(sel)}</b>
         <span>${restDay ? "Not a working day"
@@ -7242,8 +7247,8 @@ function plantHistoryView(){
   const checks = DB.records.filter(r=>r.form==="plantcheck" && r.plantId===pid && r.status==="submitted").length;
 
   const card = d => `<button class="card" style="width:100%;text-align:left" data-defopen="${d.id}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:15.5px;font-weight:650;display:block">${esc(d.item)}</b>
           <span style="font-size:13px;color:var(--ink-2)">${esc(d.description||"")}</span>
           <span style="display:block;font-size:12.5px;color:var(--ink-3);margin-top:3px">
@@ -7544,7 +7549,7 @@ function itemView(){
       + row("LOLER expiry", examDateOf(it)?shortDate(examDateOf(it)):"Not set");
 
   return `<div class="top">${back}
-      <span class="pill ${onSite?st.cls:"grey"}">${onSite?esc(st.label):"Off site"}</span>
+      <span class="pill ${onSite?st.cls:"grey"}">${onSite?esc(st.short||st.label):"Off site"}</span>
     </div>
 
     <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(it.item||"Unnamed item")}</h1>
@@ -7626,14 +7631,14 @@ function plantView(){
     const tint = (ls.key==="expired" || df) ? "background:var(--bad-bg);box-shadow:none"
       : ls.key==="soon" ? "background:var(--warn-bg);box-shadow:none" : "";
     return `<div class="card" style="${tint}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(p.item||"Unnamed item")}</b>
           <span style="font-size:13px;color:var(--ink-2)">
             ${esc(p.type||"Excavator")} · ${esc(p.fleetNo||"No fleet no.")} · on site ${p.onDate?shortDate(p.onDate):"—"}
           </span>
         </div>
-        <span class="pill ${ls.cls}" id="pill_${p.id}">${esc(ls.label)}</span>
+        <span class="pill ${ls.cls}" id="pill_${p.id}">${esc(ls.short||ls.label)}</span>
       </div>
       ${df ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(0,0,0,.08)">
         <b style="color:var(--bad);font-size:14px;display:block;margin-bottom:6px">
@@ -7669,8 +7674,8 @@ function plantView(){
 
   const offRows = offSite.map(p=>`
     <div class="card" style="background:var(--canvas);box-shadow:none;opacity:.72">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:15.5px;font-weight:620;display:block;color:var(--ink-2)">${esc(p.item||"Unnamed item")}</b>
           <span style="font-size:13px;color:var(--ink-3)">
             ${esc(p.fleetNo||"No fleet no.")} · off site ${p.offDate?shortDate(p.offDate):"—"}
@@ -7807,10 +7812,10 @@ function deliveryLine(d){
   const got = receivedTotal(d), want = Number(d.qty)||0;
   const pct = want ? Math.min(100, Math.round(got/want*100)) : 0;
   return `<button class="card" style="width:100%;text-align:left" data-delopen="${d.id}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
         <span style="width:4px;align-self:stretch;border-radius:3px;flex:none;
           background:${DELIVERY_COLOURS[d.type]||"#6B6B6B"}"></span>
-        <div style="flex:1;min-width:0">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16px;font-weight:650;display:block">${esc(d.description||d.type)}</b>
           <span style="font-size:13px;color:var(--ink-2)">
             ${esc(d.type)}${d.supplier?" · "+esc(d.supplier):""} · ${shortDate(d.dueDate)}</span>
@@ -8398,8 +8403,8 @@ function toolsView(){
     .sort((a,b)=>b.date.localeCompare(a.date))[0];
 
   const card = t => `<div class="card">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(t.item||"Unnamed tool")}</b>
           <span style="font-size:13px;color:var(--ink-2)">
             ${esc(t.type||"")}${t.idNo?" · "+esc(t.idNo):""}${
@@ -9107,14 +9112,14 @@ function liftingView(){
     const tint = ls.key==="expired" ? "background:var(--bad-bg);box-shadow:none"
       : ls.key==="soon" ? "background:var(--warn-bg);box-shadow:none" : "";
     return `<div class="card" style="${tint}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(l.item||"Unnamed item")}</b>
           <span style="font-size:13px;color:var(--ink-2)">
             ${esc(l.type||"")}${l.idNo?" · "+esc(l.idNo):""}${l.swl?" · SWL "+esc(l.swl):""}
           </span>
         </div>
-        <span class="pill ${ls.cls}" id="pill_${l.id}">${esc(ls.label)}</span>
+        <span class="pill ${ls.cls}" id="pill_${l.id}">${esc(ls.short||ls.label)}</span>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
         <span style="flex:1;font-size:12.5px;color:var(--ink-3)">
@@ -9126,8 +9131,8 @@ function liftingView(){
 
   const offRows = off.map(l=>`
     <div class="card" style="background:var(--canvas);box-shadow:none;opacity:.72">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:15.5px;font-weight:620;display:block;color:var(--ink-2)">${esc(l.item||"Unnamed item")}</b>
           <span style="font-size:13px;color:var(--ink-3)">${esc(l.type||"")} · off site ${l.offDate?shortDate(l.offDate):"—"}</span>
         </div>
@@ -9217,8 +9222,8 @@ function labourView(){
         <button class="btn" style="margin:14px 0 0" data-lbdone="${l.id}">Done</button></div>`;
     }
     return `<div class="card">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(l.name||"Unnamed")}</b>
           <span style="font-size:13px;color:var(--ink-2)">${esc(l.trade)} · ${esc(l.company||"")}</span>
         </div>
@@ -9231,8 +9236,8 @@ function labourView(){
 
   const offRows = off.map(l=>`
     <div class="card" style="background:var(--canvas);box-shadow:none;opacity:.72">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:15.5px;font-weight:620;display:block;color:var(--ink-2)">${esc(l.name||"Unnamed")}</b>
           <span style="font-size:13px;color:var(--ink-3)">${esc(l.trade)} · left ${l.offDate?shortDate(l.offDate):"—"}</span>
         </div>
@@ -9309,8 +9314,8 @@ function leaveView(){
   const card = (l, faded) => {
     const days = (function(){ let n=0,d=l.from; while(d<=l.to && n<400){ if(isWorking(d)) n++; d=addDays(d,1);} return n; })();
     return `<div class="card" style="${faded?"background:var(--canvas);box-shadow:none;opacity:.72":""}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(nameOf(l.personId))}</b>
           <span style="font-size:13px;color:var(--ink-2)">
             ${shortDate(l.from)}${l.from===l.to?"":" to "+shortDate(l.to)} · ${days} working day${days===1?"":"s"}
@@ -9421,8 +9426,8 @@ function voListView(){
       <p>Answer yes to dayworks on a diary and a numbered sheet is raised here automatically. If one has been missed, raise it by hand below.</p></div>`}
     <button class="btn add" data-vonew="1">+ New daywork sheet</button>
     ${vos.map(v=>`<button class="card" style="width:100%;text-align:left" data-vo="${v.id}">
-      <div style="display:flex;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(v.ref)}${v.data.ref?" · "+esc(v.data.ref):""}</b>
           <span style="font-size:13px;color:var(--ink-2)">${longDate(v.date)}</span>
           <span style="display:block;font-size:13px;color:var(--ink-3);margin-top:3px;
