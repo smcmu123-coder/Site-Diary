@@ -1246,6 +1246,66 @@ html,body{ overscroll-behavior-y:none }
     animation-duration:.01ms!important; animation-iteration-count:1!important;
     transition-duration:.01ms!important; scroll-behavior:auto!important }
 }
+/* --- the day is done ------------------------------------------------------ */
+/* The one moment in the app that is allowed to celebrate. It is earned: it
+   only ever appears on the submit that clears the last record of the day, and
+   it says what was completed rather than just "well done". Tap anywhere, or
+   wait, and it goes. Reduced motion strips the movement and leaves the words. */
+.cel{position:fixed;inset:0;z-index:115;display:flex;align-items:center;justify-content:center;
+  background:rgba(13,23,17,.95);padding:24px;text-align:center;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.cel-in{max-width:340px;width:100%}
+.cel-mark{position:relative;width:132px;height:132px;margin:0 auto 26px}
+.cel-ring{width:132px;height:132px;display:block;transform:rotate(-90deg)}
+.cel-ring .trk{fill:none;stroke:rgba(255,255,255,.14);stroke-width:5}
+.cel-ring .run{fill:none;stroke:#7FBE8E;stroke-width:5;stroke-linecap:round;
+  stroke-dasharray:326.7;stroke-dashoffset:326.7}
+.cel-tick{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.cel-tick svg{width:56px;height:56px}
+.cel-tick path{fill:none;stroke:#fff;stroke-width:7;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:60;stroke-dashoffset:60}
+.cel h2{color:#fff;font-size:30px;font-weight:660;letter-spacing:-.03em;margin:0 0 10px}
+.cel .lede{color:#C9D8CC;font-size:15px;line-height:1.5;margin:0 0 4px}
+.cel .dt{color:#7C9184;font-size:13px;margin:0}
+.cel .cel-btn{margin-top:30px;background:#fff;color:#123D1E}
+.cel .cel-next{margin-top:10px;color:#9FB8A6;font-size:13.5px;font-weight:620;
+  background:none;min-height:40px}
+/* a short burst, not confetti: eight strokes that leave as quickly as they came */
+.cel-burst{position:absolute;inset:0;pointer-events:none}
+.cel-burst i{position:absolute;left:50%;top:50%;width:2px;height:13px;border-radius:2px;
+  background:#4E8C5E;opacity:0;transform-origin:50% 76px}
+
+@keyframes celIn{ from{ opacity:0 } to{ opacity:1 } }
+@keyframes celOut{ from{ opacity:1 } to{ opacity:0 } }
+@keyframes celRing{ from{ stroke-dashoffset:326.7 } to{ stroke-dashoffset:0 } }
+@keyframes celTick{ from{ stroke-dashoffset:60 } to{ stroke-dashoffset:0 } }
+@keyframes celRise{
+  from{ opacity:0; transform:translate3d(0,14px,0) }
+  to  { opacity:1; transform:none }
+}
+@keyframes celSpark{
+  0%{ opacity:0; transform:rotate(var(--a)) translateY(0) scaleY(.4) }
+  35%{ opacity:.95 }
+  100%{ opacity:0; transform:rotate(var(--a)) translateY(-26px) scaleY(1) }
+}
+.cel{ animation:celIn var(--d-3) var(--e-soft) both }
+.cel.out{ animation:celOut var(--d-2) var(--e-in) both }
+.cel .run{ animation:celRing .72s var(--e-out) .06s both }
+.cel .cel-tick path{ animation:celTick .34s var(--e-out) .70s both }
+.cel-burst i{ animation:celSpark .62s var(--e-out) .72s both }
+.cel h2{ animation:celRise var(--d-3) var(--e-out) .82s both }
+.cel .lede{ animation:celRise var(--d-3) var(--e-out) .90s both }
+.cel .dt{ animation:celRise var(--d-3) var(--e-out) .96s both }
+.cel .cel-btn{ animation:celRise var(--d-3) var(--e-out) 1.04s both }
+.cel .cel-next{ animation:celRise var(--d-3) var(--e-out) 1.10s both }
+
+@media (prefers-reduced-motion:reduce){
+  /* no drawing, no burst — the ring is simply full and the words are there */
+  .cel .run{ stroke-dashoffset:0 }
+  .cel .cel-tick path{ stroke-dashoffset:0 }
+  .cel-burst{ display:none }
+}
+
 </style>
 </head>
 <body>
@@ -12026,6 +12086,55 @@ function saveDraft(){
   save();
   return rec;
 }
+/* ------------------------------------------------- the day is done ------ */
+let celTimer = null;
+/* Shown once, on the submit that clears the last record of a day. It is not a
+   toast: finishing the day is the one thing worth stopping the screen for. */
+function celebrationGone(){
+  const el = document.getElementById("cel");
+  if(celTimer){ clearTimeout(celTimer); celTimer = null; }
+  if(!el) return;
+  el.classList.add("out");
+  setTimeout(()=>{ el.remove(); }, 320);
+}
+
+function celebrate(date){
+  if(document.getElementById("cel")) return;
+  const pr = dayProgress(date);
+  const el = document.createElement("div");
+  el.className = "cel";
+  el.id = "cel";
+  el.setAttribute("role","status");
+  el.innerHTML = `<div class="cel-in">
+      <div class="cel-mark">
+        <svg class="cel-ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="trk" cx="60" cy="60" r="52"></circle>
+          <circle class="run" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="cel-burst" aria-hidden="true">${
+          Array.from({length:8},(_,i)=>`<i style="--a:${i*45}deg"></i>`).join("")}</div>
+        <div class="cel-tick" aria-hidden="true">
+          <svg viewBox="0 0 60 60"><path d="M15 31 l11 12 l20 -24"></path></svg>
+        </div>
+      </div>
+      <h2>Day complete</h2>
+      <p class="lede">${pr.total} record${pr.total===1?"":"s"} signed off${
+        DB.job ? " on " + esc(DB.job) : ""}. Nothing left owing for today.</p>
+      <p class="dt">${longDate(date)}</p>
+      <button class="btn cel-btn" data-celdone="1">Done</button>
+      <button class="cel-next" data-celrecords="1">See today&rsquo;s records</button>
+    </div>`;
+  document.body.appendChild(el);
+
+  el.addEventListener("click", (e)=>{
+    if(e.target.closest("[data-celrecords]")){
+      celebrationGone(); listDate = date; listFilter = "all"; go("list"); return;
+    }
+    celebrationGone();
+  });
+  celTimer = setTimeout(celebrationGone, 6000);
+}
+
 function submitForm(){
   if(formState.date > todayISO()){
     toast("This is for " + shortDate(formState.date)
@@ -12059,10 +12168,16 @@ function submitForm(){
   boardMaybePush();          /* the office screen follows along on its own */
   const raised = (DB.vos||[]).filter(v=>v.recordId===rec.id);
   const what = formDef(rec.form).name;
-  toast(raised.length
-    ? what+" submitted · "+raised.map(v=>v.ref).join(", ")+" raised"
-    : what+" submitted — thank you");
-  go("record",{id:rec.id});
+  /* did that clear the day? only for a real working day, and only for today */
+  const pr = dayProgress(rec.date);
+  const cleared = rec.date === todayISO() && isWorking(rec.date) && inScope(rec.date)
+    && pr.total > 0 && pr.left === 0;
+  if(raised.length)
+    toast(what+" submitted · "+raised.map(v=>v.ref).join(", ")+" raised");
+  else if(!cleared)
+    toast(what+" submitted — thank you");
+  if(cleared){ go("home"); celebrate(rec.date); }
+  else go("record",{id:rec.id});
 }
 
 /* -------------------------------------------------------------------- PDF -- */
