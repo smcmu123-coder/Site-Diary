@@ -1079,50 +1079,21 @@ html[data-theme="dark"] .navpill{background:var(--paper);border-color:var(--line
 }
 
 /* --- the screen ---------------------------------------------------------- */
-/* A view arrives with a short rise and fade. 14px, not 40 — enough to read as
-   movement, not so much that it reads as a slide show. */
-@keyframes viewIn{
-  from{ opacity:0; transform:translate3d(14px,6px,0) }
-  to  { opacity:1; transform:none }
-}
-@keyframes viewInBack{
-  from{ opacity:0; transform:translate3d(-14px,6px,0) }
-  to  { opacity:1; transform:none }
-}
-.app.vin{ animation:viewIn var(--d-4) var(--e-out) both }
-.app.vin.vback{ animation-name:viewInBack }
-
-/* --- lists arrive in order ----------------------------------------------- */
-/* A stagger says "these are separate things" without a word of copy. Capped at
-   eight so a long list never leaves the reader waiting on the tail. */
-@keyframes rowIn{
-  from{ opacity:0; transform:translate3d(0,10px,0) }
-  to  { opacity:1; transform:none }
-}
-.hm .task, .hm .chipitem, .hm .quickbar .qa, .card, .hm .rest{
-  animation:rowIn var(--d-3) var(--e-out) both }
-.hm .task:nth-child(1),.card:nth-child(1){ animation-delay:.02s }
-.hm .task:nth-child(2),.card:nth-child(2){ animation-delay:.05s }
-.hm .task:nth-child(3),.card:nth-child(3){ animation-delay:.08s }
-.hm .task:nth-child(4),.card:nth-child(4){ animation-delay:.11s }
-.hm .task:nth-child(5),.card:nth-child(5){ animation-delay:.14s }
-.hm .task:nth-child(6),.card:nth-child(6){ animation-delay:.16s }
-.hm .task:nth-child(7),.card:nth-child(7){ animation-delay:.18s }
-.hm .task:nth-child(n+8),.card:nth-child(n+8){ animation-delay:.20s }
+/* Nothing. Screens change instantly.
+   A view entrance and a row stagger were both in here and they fought each
+   other: the whole page slid while the rows inside it slid separately, so the
+   eye had three or four things to follow for half a second on every tap. One
+   of them alone might have read as polish; together they read as unsettled.
+   A screen change is not something that needs explaining — you tapped, you
+   know why it changed — so it gets no motion. What is left below only moves
+   where the movement carries information. */
 
 /* --- the week rings draw themselves -------------------------------------- */
 /* The arc was already given a transition, but innerHTML replaces the circle
    every render so there was never a previous value to move from. An animation
    works where a transition cannot. r=18, so the circumference is 113.1. */
 @keyframes ringDraw{ from{ stroke-dashoffset:113.1 } to{ stroke-dashoffset:0 } }
-.hm .wday .run{ animation:ringDraw .72s var(--e-out) both }
-.hm .wday:nth-child(2) .run{ animation-delay:.04s }
-.hm .wday:nth-child(3) .run{ animation-delay:.08s }
-.hm .wday:nth-child(4) .run{ animation-delay:.12s }
-.hm .wday:nth-child(5) .run{ animation-delay:.16s }
-.hm .wday:nth-child(6) .run{ animation-delay:.20s }
-.hm .wday:nth-child(7) .run{ animation-delay:.24s }
-.hm .wmark{ animation:rowIn .34s var(--e-out) both; animation-delay:.42s }
+.hm .wday .run{ animation:ringDraw .55s var(--e-out) both }
 
 /* --- press ---------------------------------------------------------------- */
 /* Gloved hands get no tactile edge from glass, so the screen has to answer.
@@ -1157,7 +1128,7 @@ button,.task,.row,.ctab,.chipitem,.qa{
     to  { opacity:1; transform:none }
   }
 }
-.sheetwrap.open{ animation:viewIn var(--d-3) var(--e-out) both }
+.sheetwrap.open{ animation:scrimIn var(--d-3) var(--e-soft) both }
 .lightbox{ animation:scrimIn var(--d-2) var(--e-soft) both }
 .lightbox .lbimg img{ animation:sheetUp var(--d-3) var(--e-out) both }
 
@@ -5199,18 +5170,8 @@ const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 /* ------------------------------------------------------------------ views -- */
-/* Which way the screen is travelling, so a view pushes in from the right and
-   a back step slides in from the left. Depth is what makes an app feel placed
-   rather than redrawn. */
-let navDepth = 0;
-const VIEW_DEPTH = { home:0, plan:0, project:0, settings:0 };
-function depthOf(name){ return VIEW_DEPTH[name] === undefined ? 1 : 0; }
-
 function render(){
   const app = document.getElementById("app");
-  const d = depthOf(view.name);
-  const back = d < navDepth;
-  navDepth = d;
   if(view.name==="home") app.innerHTML = homeView();
   else if(view.name==="form") app.innerHTML = formView();
   else if(view.name==="record") app.innerHTML = recordView();
@@ -5247,15 +5208,6 @@ function render(){
   }
   bind();
   updateNav();
-
-  /* Restart the entrance every time. innerHTML replaces the nodes, so a CSS
-     transition has no previous state to move from — an animation does. */
-  if(!REDUCED.matches){
-    app.classList.remove("vin","vback");
-    void app.offsetWidth;                       /* forces the restart */
-    app.classList.add("vin");
-    if(back) app.classList.add("vback");
-  }
   countUp();
 }
 
