@@ -321,10 +321,10 @@ body{background:var(--canvas);color:var(--ink);
 
 <script>
 /* ------------------------------------------------------------------------
-   The board reads a snapshot the app publishes. It re-reads it every two
-   minutes, so a fresh publish appears on the wall without anyone touching it.
+   The board reads a snapshot the app publishes. It re-reads it every thirty
+   seconds, so a fresh publish appears on the wall without anyone touching it.
    ------------------------------------------------------------------------ */
-var REFRESH_MS = 120000;
+var REFRESH_MS = 30000;
 
 function pad(n){ return (n<10?"0":"")+n; }
 function iso(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
