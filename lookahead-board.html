@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Two Week Look Ahead — CGC siteHUB</title>
+<style>
+/* ==========================================================================
+   The wall board.
+
+   This screen is read from four or five metres away by somebody walking past,
+   so it is built to different rules from the app: nothing is tappable, nothing
+   scrolls, and the whole fortnight has to fit one screen at a glance.
+
+   It holds no logic of its own. The app works out what is booked in and writes
+   it into board-data.json; this page only draws it. That way the board can
+   never disagree with the phone.
+   ========================================================================== */
+
+:root{
+  --paper:#0E1A13;
+  --card:#16261C;
+  --card-2:#1B2E22;
+  --line:rgba(255,255,255,.10);
+  --line-2:rgba(255,255,255,.06);
+  --ink:#F2F6F3;
+  --ink-2:#A8BDAF;
+  --ink-3:#748B7C;
+  --green:#4E8C5E;
+  --green-l:#7FBE8E;
+  --amber:#E0A93B;
+  --bad:#E06A5C;
+
+  /* everything scales from one number, so the board can be tuned to the screen
+     it is actually hanging on without touching the layout */
+  --u: 1vw;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  font-feature-settings:"tnum" 1;
+  display:flex;flex-direction:column;
+  padding:calc(var(--u) * 1.4);
+  gap:calc(var(--u) * 1.1);
+}
+
+/* ---------- the head ---------- */
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:calc(var(--u)*2);
+  flex:none;padding:0 calc(var(--u)*.4)}
+.head .l .kick{font-size:calc(var(--u)*.85);font-weight:800;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--green-l)}
+.head .l h1{font-size:calc(var(--u)*2.5);font-weight:700;letter-spacing:-.02em;margin-top:.15em;
+  line-height:1}
+.head .l .job{font-size:calc(var(--u)*1.15);color:var(--ink-2);margin-top:.35em}
+.head .r{text-align:right;flex:none}
+.head .r .range{font-size:calc(var(--u)*1.5);font-weight:700;letter-spacing:-.01em}
+.head .r .meta{font-size:calc(var(--u)*.85);color:var(--ink-3);margin-top:.35em}
+.head .r .clock{font-size:calc(var(--u)*2.5);font-weight:700;letter-spacing:-.02em;
+  color:var(--green-l);line-height:1}
+
+/* ---------- the weeks ---------- */
+.weeks{flex:1;display:flex;flex-direction:column;gap:calc(var(--u)*.9);min-height:0}
+.week{flex:1;display:flex;flex-direction:column;min-height:0}
+.wlab{display:flex;align-items:center;gap:calc(var(--u)*.7);
+  font-size:calc(var(--u)*.8);font-weight:800;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:calc(var(--u)*.45);flex:none}
+.wlab::after{content:"";flex:1;height:1px;background:var(--line-2)}
+.wlab b{color:var(--ink-2);font-weight:800}
+
+.grid{flex:1;display:grid;grid-template-columns:repeat(7,1fr);gap:calc(var(--u)*.5);min-height:0}
+
+.day{background:var(--card);border-radius:calc(var(--u)*.7);padding:calc(var(--u)*.6);
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+  border:2px solid transparent}
+.day.we{background:transparent;border-color:var(--line-2)}
+.day.past{opacity:.34}
+.day.today{border-color:var(--green-l);background:var(--card-2)}
+
+.dh{display:flex;align-items:baseline;gap:calc(var(--u)*.4);flex:none;
+  margin-bottom:calc(var(--u)*.45)}
+.dh .dw{font-size:calc(var(--u)*.72);font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-3)}
+.dh .dn{font-size:calc(var(--u)*1.5);font-weight:700;letter-spacing:-.02em;line-height:1}
+.day.today .dh .dn,.day.today .dh .dw{color:var(--green-l)}
+.dh .mo{font-size:calc(var(--u)*.78);font-weight:700;color:var(--ink-3)}
+.dh .tag{margin-left:auto;font-size:calc(var(--u)*.68);font-weight:800;letter-spacing:.12em;
+  text-transform:uppercase;color:#0E1A13;background:var(--green-l);
+  padding:.25em .6em;border-radius:99px}
+
+.items{flex:1;display:flex;flex-direction:column;gap:calc(var(--u)*.3);min-height:0;overflow:hidden}
+.it{display:flex;gap:calc(var(--u)*.4);align-items:flex-start;flex:none;min-width:0;
+  padding:calc(var(--u)*.38) calc(var(--u)*.45);border-radius:calc(var(--u)*.42);
+  background:rgba(255,255,255,.055)}
+.it i{flex:none;width:calc(var(--u)*.42);height:calc(var(--u)*.42);border-radius:50%;
+  margin-top:calc(var(--u)*.35)}
+.it .tx{min-width:0;flex:1;display:block;white-space:normal}
+.it b{display:block;font-size:calc(var(--u)*.82);font-weight:650;line-height:1.25;
+  overflow-wrap:break-word;hyphens:auto}
+.it .tx > span{display:block;font-size:calc(var(--u)*.7);color:var(--ink-3);line-height:1.25;
+  margin-top:.12em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{font-size:calc(var(--u)*.72);font-weight:700;color:var(--ink-3);
+  padding:calc(var(--u)*.2) calc(var(--u)*.45)}
+.quiet{font-size:calc(var(--u)*.75);color:var(--ink-3);opacity:.7}
+
+/* ---------- the foot ---------- */
+.foot{flex:none;display:flex;align-items:center;gap:calc(var(--u)*1.1);flex-wrap:wrap;
+  padding:0 calc(var(--u)*.4)}
+.key{display:flex;align-items:center;gap:calc(var(--u)*.35);
+  font-size:calc(var(--u)*.78);font-weight:650;color:var(--ink-2)}
+.key i{width:calc(var(--u)*.5);height:calc(var(--u)*.5);border-radius:calc(var(--u)*.16);display:block}
+.foot .stamp{margin-left:auto;font-size:calc(var(--u)*.78);color:var(--ink-3)}
+.foot .stamp.stale{color:var(--amber);font-weight:700}
+
+/* ---------- when there is nothing to draw ---------- */
+.msg{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:calc(var(--u)*.6)}
+.msg h2{font-size:calc(var(--u)*2);font-weight:700}
+.msg p{font-size:calc(var(--u)*1);color:var(--ink-2);max-width:40em;line-height:1.6}
+.msg code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:var(--card);padding:.15em .45em;border-radius:.3em;color:var(--green-l)}
+
+/* A board on a wall is often a portrait screen. Two weeks of seven does not
+   work portrait, so the columns become days down the page instead. */
+@media (orientation:portrait){
+  :root{ --u: 1.6vw }
+  .grid{grid-template-columns:repeat(4,1fr)}
+}
+@media print{ body{background:#fff;color:#111} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* Where the figures come from. The app writes this file into the same folder
+   the board sits in, so no address needs configuring here. */
+var DATA_URL = "board-data.json";
+var REFRESH_MS = 5 * 60 * 1000;     /* how often the board re-reads the file  */
+var STALE_MS   = 36 * 60 * 60 * 1000; /* after this it says so, rather than lying */
+var MAX_PER_DAY = 5;                /* beyond this a day says "+n more"      */
+
+var DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+function parse(iso){
+  var p = String(iso).split("-");
+  return new Date(+p[0], +p[1] - 1, +p[2]);
+}
+function todayISO(){
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0")
+    + "-" + String(d.getDate()).padStart(2,"0");
+}
+function shortDate(iso){
+  var d = parse(iso);
+  return String(d.getDate()).padStart(2,"0") + "/"
+    + String(d.getMonth()+1).padStart(2,"0") + "/" + d.getFullYear();
+}
+function ago(ms){
+  var mins = Math.round((Date.now() - ms) / 60000);
+  if(mins < 2) return "just now";
+  if(mins < 60) return mins + " minutes ago";
+  var hrs = Math.round(mins / 60);
+  if(hrs < 24) return hrs + " hour" + (hrs === 1 ? "" : "s") + " ago";
+  var days = Math.round(hrs / 24);
+  return days + " day" + (days === 1 ? "" : "s") + " ago";
+}
+
+function message(title, body){
+  document.getElementById("root").innerHTML =
+    '<div class="msg"><h2>' + esc(title) + '</h2><p>' + body + '</p></div>';
+}
+
+function dayCell(day, kinds, today, first){
+  var d = day.date;
+  var dt = parse(d);
+  var items = day.items || [];
+  var shown = items.slice(0, MAX_PER_DAY);
+  var over = items.length - shown.length;
+  var cls = "day";
+  if(!day.working) cls += " we";
+  if(d < today) cls += " past";
+  if(d === today) cls += " today";
+
+  return '<div class="' + cls + '">'
+    + '<div class="dh">'
+      + '<span class="dw">' + DOW[(dt.getDay() + 6) % 7] + '</span>'
+      + '<span class="dn">' + dt.getDate() + '</span>'
+      + (dt.getDate() === 1 || first
+          ? '<span class="mo">' + MON[dt.getMonth()] + '</span>' : "")
+      + (d === today ? '<span class="tag">Today</span>' : "")
+    + '</div>'
+    + '<div class="items">'
+      + (items.length
+          ? shown.map(function(it){
+              var k = kinds[it.kind] || { colour:"#7FBE8E" };
+              return '<div class="it"><i style="background:' + esc(k.colour) + '"></i>'
+                + '<span class="tx"><b>'
+                + (it.time ? esc(it.time) + " " : "") + esc(it.text) + '</b>'
+                + (it.sub ? '<span>' + esc(it.sub) + '</span>' : "")
+                + '</span></div>';
+            }).join("")
+            + (over > 0 ? '<div class="more">+' + over + ' more</div>' : "")
+          : (day.working ? '<div class="quiet">&mdash;</div>' : ""))
+    + '</div></div>';
+}
+
+function weekBlock(days, kinds, today, label, offset){
+  var tally = {};
+  days.forEach(function(day){
+    (day.items || []).forEach(function(it){
+      tally[it.kind] = (tally[it.kind] || 0) + 1;
+    });
+  });
+  var bits = Object.keys(tally).map(function(k){
+    var kk = kinds[k] || {};
+    return tally[k] + " " + (tally[k] === 1 ? (kk.one || k) : (kk.many || k));
+  });
+
+  return '<div class="week">'
+    + '<div class="wlab"><b>' + esc(label) + '</b>'
+      + '<span>' + (bits.length ? esc(bits.join(" \u00b7 ")) : "nothing booked in") + '</span>'
+    + '</div>'
+    + '<div class="grid">'
+      + days.map(function(day, i){
+          return dayCell(day, kinds, today, i === 0 && offset === 0);
+        }).join("")
+    + '</div></div>';
+}
+
+function draw(data){
+  window.__last = data;
+  var la = data.lookahead || [];
+  if(!la.length){
+    message("No look ahead yet",
+      "The app has not published a fortnight to this board. Open the app, go to "
+      + "Settings and send the board, or turn on automatic updates.");
+    return;
+  }
+  var kinds = data.planKinds || {};
+  var today = todayISO();
+  var wk1 = la.slice(0, 7), wk2 = la.slice(7, 14);
+
+  /* what the two weeks are called, worked out against the real date so the
+     board stays honest if nobody updates it over a weekend */
+  var label = function(days){
+    if(!days.length) return "";
+    var from = days[0].date, to = days[days.length - 1].date;
+    if(today >= from && today <= to) return "This week";
+    if(from > today) {
+      var gap = Math.round((parse(from) - parse(today)) / 86400000);
+      return gap <= 7 ? "Next week" : "Week commencing " + shortDate(from);
+    }
+    return "Week commencing " + shortDate(from);
+  };
+
+  var published = data.publishedAt || 0;
+  var stale = published && (Date.now() - published > STALE_MS);
+  var now = new Date();
+
+  document.getElementById("root").outerHTML =
+    '<div id="root" style="display:contents">'
+    + '<div class="head">'
+      + '<div class="l">'
+        + '<div class="kick">CGC siteHUB</div>'
+        + '<h1>Two week look ahead</h1>'
+        + '<div class="job">' + esc(data.job || "") + '</div>'
+      + '</div>'
+      + '<div class="r">'
+        + '<div class="clock">' + String(now.getHours()).padStart(2,"0") + ":"
+          + String(now.getMinutes()).padStart(2,"0") + '</div>'
+        + '<div class="range">' + shortDate(la[0].date) + ' &ndash; '
+          + shortDate(la[la.length - 1].date) + '</div>'
+      + '</div>'
+    + '</div>'
+
+    + '<div class="weeks">'
+      + weekBlock(wk1, kinds, today, label(wk1), 0)
+      + (wk2.length ? weekBlock(wk2, kinds, today, label(wk2), 7) : "")
+    + '</div>'
+
+    + '<div class="foot">'
+      + Object.keys(kinds).map(function(k){
+          return '<span class="key"><i style="background:' + esc(kinds[k].colour) + '"></i>'
+            + esc(kinds[k].label || k) + '</span>';
+        }).join("")
+      + '<span class="stamp' + (stale ? " stale" : "") + '">'
+        + (published
+            ? (stale ? "Not updated since " : "Updated ") + ago(published)
+              + (data.publishedBy ? " \u00b7 " + esc(data.publishedBy) : "")
+            : "")
+      + '</span>'
+    + '</div></div>';
+}
+
+function load(){
+  fetch(DATA_URL + "?t=" + Date.now(), { cache:"no-store" })
+    .then(function(r){
+      if(!r.ok) throw new Error(r.status);
+      return r.json();
+    })
+    .then(draw)
+    .catch(function(){
+      if(!document.querySelector(".head")){
+        message("Waiting for the site",
+          "This board reads <code>board-data.json</code> from the folder it sits in, "
+          + "and that file is not there yet. It appears as soon as the app sends the board.");
+      }
+      /* if the board is already drawn, leave it up: yesterday's plan on the
+         wall is worth more than an error message */
+    });
+}
+
+load();
+setInterval(load, REFRESH_MS);
+/* redraw on the minute so the clock, and which day is today, stay right
+   without waiting on the next fetch */
+setInterval(function(){ if(window.__last) draw(window.__last); }, 60000);
+</script>
+</body>
+</html>
