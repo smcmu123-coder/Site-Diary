@@ -855,6 +855,16 @@ body.isdemo .app{padding-top:76px}
 .ph img{width:100%;height:100%;object-fit:cover;display:block}
 .ph button{position:absolute;top:5px;right:5px;width:28px;height:28px;border-radius:9px;
   background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1}
+/* document pages keep their shape rather than being cropped square */
+.ph.pgpage{aspect-ratio:210/297;background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.ph.pgpage img{object-fit:contain}
+.ph.pgpage.land{aspect-ratio:297/210}
+.ph .rot{top:auto;bottom:5px;font-size:15px}
+.ph .pgno{position:absolute;left:6px;bottom:6px;min-width:22px;height:22px;padding:0 6px;
+  border-radius:7px;background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:650;
+  display:grid;place-items:center}
+.docstrip{display:flex;gap:8px;overflow-x:auto;padding:10px 0 4px}
+.docstrip .ph{flex:none;width:84px}
 
 
 /* progress */
@@ -1004,6 +1014,18 @@ body.isdemo .app{padding-top:76px}
 .sheet th,.sheet td{border:1px solid #CBD3CD;padding:5px 7px;text-align:left;vertical-align:top}
 .sheet th{background:#EDF2EE;width:32%;font-weight:640}
 .sheet .imgs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+/* A document page (an unpacked PDF page or a scanned sheet) printed whole,
+   sized to fit the paper, with a running line above it. */
+.pk-pgcap{display:flex;justify-content:space-between;gap:12px;font-size:9.5px;color:#555;
+  font-weight:600;margin:0 0 6px}
+.pk-docpg{display:block;width:100%;height:auto;border:1px solid #D8DFDA;break-inside:avoid}
+.pk-toc .r.tsub{padding:4px 2px;border-bottom:0}
+.pk-toc .r.tsub .nm{font-size:12px;font-weight:500;color:#333}
+.pk-toc .r.tsub.tl1 .nm{padding-left:14px;color:#555}
+.pk-toc .r.tsub .ct{font-weight:500}
+.pk-toc .r.tsub + .r:not(.tsub){border-top:1px solid #DCE2DE}
+/* a page that is all document: nothing added below it to push it over */
+.pk-page.pk-full{break-inside:avoid}
 .sheet .imgs img{width:100%;height:96px;object-fit:cover;border:1px solid #CBD3CD}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
   font-size:10px;display:flex;justify-content:space-between}
@@ -1018,6 +1040,8 @@ body.isdemo .app{padding-top:76px}
   .pk-page{page-break-after:always;break-after:page}
   .pk-page:last-child{page-break-after:auto;break-after:auto}
   .pk-div{min-height:225mm}
+  .pk-page.pk-full{padding:0;margin:0;border:0}
+  .pk-docpg{width:auto;max-width:100%;max-height:256mm;margin:0 auto;border:0}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -1826,8 +1850,8 @@ function toolboxSections(){
         hint:"e.g. Buried services, manual handling, working near plant" },
       { id:"deliveredBy", type:"text", label:"Delivered by", required:true },
       { id:"position", type:"text", label:"Position" },
-      { id:"sheet", type:"photos", label:"Photograph of the talk", required:true, max:6,
-        hint:"The sheet or the board, so what was covered is on the record." },
+      { id:"sheet", type:"photos", scan:true, label:"The talk sheet", required:true, max:20,
+        hint:"Scan each page. They are straightened and sized to A4 for the pack." },
       { id:"points", type:"textarea", label:"Anything raised",
         hint:"Questions asked, or anything that needs following up." }
     ]},
@@ -2710,6 +2734,25 @@ PdfDoc.prototype.image = function(img, maxW){
   return h;
 };
 
+/* An image filling the page inside the margins, kept in proportion, with a
+   running line across the top. */
+PdfDoc.prototype.fullPage = function(img, left, right){
+  const size = 8, capH = 14;
+  const ty = PdfDoc.H - PdfDoc.M - size;
+  if(left) this.page.ops.push(`BT 0.35 0.39 0.36 rg /F2 ${size} Tf 1 0 0 1 ${PdfDoc.M} `
+    + `${ty.toFixed(1)} Tm (${pdfEsc(left)}) Tj ET`);
+  if(right) this.page.ops.push(`BT 0.35 0.39 0.36 rg /F1 ${size} Tf 1 0 0 1 `
+    + `${(PdfDoc.W - PdfDoc.M - pdfWidth(right, size)).toFixed(1)} ${ty.toFixed(1)} Tm (${pdfEsc(right)}) Tj ET`);
+  const boxW = PdfDoc.W - PdfDoc.M*2, boxH = PdfDoc.H - PdfDoc.M*2 - capH;
+  const k = Math.min(boxW / img.w, boxH / img.h);
+  const w = img.w * k, h = img.h * k;
+  const x = PdfDoc.M + (boxW - w)/2, y = PdfDoc.M + (boxH - h)/2;
+  const name = "Im" + (this.page.images.length + 1);
+  this.page.images.push(Object.assign({ name }, img));
+  this.page.ops.push(`q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)} cm /${name} Do Q`);
+  this.y = PdfDoc.M;
+};
+
 /* JPEG bytes and dimensions, via a canvas so PNGs work too */
 function jpegFromDataUrl(src, maxPx, quality){
   return new Promise((res, rej)=>{
@@ -3226,13 +3269,19 @@ async function packImages(ws, secs){
     });
   }));
 
+  /* the toolbox talk sheet prints a page per page, so it needs to be legible */
+  const pageSrcs = new Set();
+  secs.forEach(sec=>sec.items.forEach(r=>((r.data||{}).sheet||[]).forEach(ph=>pageSrcs.add(ph.src))));
+
   const map = new Map();
   for(const src of wanted){
     /* in a pack a photograph is a thumbnail on a contact sheet, not a print,
        so it is taken down hard — it keeps the file small enough to email */
     const isSig = sigSrcs.has(src);
+    const isPage = pageSrcs.has(src);
     try{ map.set(src, await jpegFromDataUrl(src,
-      src===LOGO ? 460 : isSig ? 520 : 340, isSig ? 0.8 : 0.55)); }catch(e){}
+      src===LOGO ? 460 : isSig ? 520 : isPage ? 1754 : 340,
+      isSig ? 0.8 : isPage ? 0.62 : 0.55)); }catch(e){}
   }
   return map;
 }
@@ -3475,8 +3524,9 @@ function openPackSheet(ws, draft){
           (d.points ? `<div class="pk-h">Raised on the day</div>
             <p style="font-size:10.5px;margin:0 0 8px">${esc(d.points)}</p>` : "") +
           ((d.sheet||[]).length
-            ? `<div class="pk-h">The talk as given</div><div class="imgs">`
-              + d.sheet.map(p2=>`<img src="${p2.src}" alt="Toolbox talk">`).join("") + `</div>`
+            ? `<div class="pk-h">The talk as given</div>
+               <p style="font-size:10.5px;margin:0 0 8px">${d.sheet.length} page${
+                 d.sheet.length===1?"":"s"}, following this sheet.</p>`
             : "") +
           `<div class="pk-h">Attendees</div>` +
           tbl(["","Name","Signature"],
@@ -3486,6 +3536,12 @@ function openPackSheet(ws, draft){
             { raw:[2], widths:[0.07,0.45,0.48] }) +
           declaration([["Delivered by", d.deliveredBy||rec.by||""],
             ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
+        /* each page of the talk on a page of its own, sized to the paper */
+        (d.sheet||[]).forEach((p2, i)=>{
+          html += `<div class="pk-page pk-full"><div class="pk-pgcap"><span>Toolbox Talk — ${esc(d.subject||"")}</span>
+              <span>${esc(rec.ref||"")} · page ${i+1} of ${d.sheet.length}</span></div>
+            <img class="pk-docpg" src="${p2.src}" alt="Toolbox talk page ${i+1}"></div>`;
+        });
         return;
       }
       if(sec.key === "havs"){
@@ -3768,27 +3824,28 @@ async function buildPackPdf(ws, draft){
       }
 
       if(sec.key === "toolboxtalk"){
-        const att = (d.attendees || []).map(a => typeof a === "string" ? { name:a } : a);
-        html += page(
-          head("Toolbox Talk", rec.ref||"", metaFor(rec, [
-            ["Subject", d.subject||"", "Delivered by", d.deliveredBy||rec.by||""]])) +
-          `<div class="pk-h">The talk</div>` +
-          tbl(["Subject","Delivered by","Position"],
-            [[d.subject||"—", d.deliveredBy||rec.by||"—", d.position||"—"]]) +
-          (d.points ? `<div class="pk-h">Raised on the day</div>
-            <p style="font-size:10.5px;margin:0 0 8px">${esc(d.points)}</p>` : "") +
-          ((d.sheet||[]).length
-            ? `<div class="pk-h">The talk as given</div><div class="imgs">`
-              + d.sheet.map(p2=>`<img src="${p2.src}" alt="Toolbox talk">`).join("") + `</div>`
-            : "") +
-          `<div class="pk-h">Attendees</div>` +
-          tbl(["","Name","Signature"],
-            att.length ? att.map((a,i)=>[(i+1)+".", a.name||"",
-              a.sig && a.sig.src ? `<img src="${a.sig.src}" style="height:30px;display:block">` : "&mdash;"])
-              : [["","None recorded",""]],
-            { raw:[2], widths:[0.07,0.45,0.48] }) +
-          declaration([["Delivered by", d.deliveredBy||rec.by||""],
-            ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
+        doc.sheetHead(logo, "Toolbox Talk", "", meta(rec, [
+          ["Subject", d.subject || "", "Delivered by", d.deliveredBy || rec.by || ""]
+        ]));
+        doc.table([wide*0.45, wide*0.30, wide*0.25],
+          [["Subject","Delivered by","Position"],
+           [d.subject || "—", d.deliveredBy || rec.by || "—", d.position || "—"]], { header:true });
+        if(d.points) doc.pair("Raised on the day", d.points);
+        const talk = (d.sheet||[]).map(p2=>imgs.get(p2.src)).filter(Boolean);
+        if(talk.length) doc.text("The talk as given — " + talk.length
+          + (talk.length===1 ? " page, following this sheet" : " pages, following this sheet"),
+          { size:9.5, colour:[.42,.46,.43], after:4 });
+        doc.text("Attendees", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
+        const att = (d.attendees||[]).map(a => typeof a === "string" ? { name:a } : (a||{}));
+        doc.signRows(att.map(a=>({ name:a.name||"",
+          img: a.sig && a.sig.src ? imgs.get(a.sig.src) : null,
+          at: a.sig && a.sig.signedAt })));
+        doc.signature(d.signature && imgs.get(d.signature.src), d.deliveredBy || rec.by, rec.submittedAt);
+        talk.forEach((im, i)=>{
+          doc.newPage();
+          doc.fullPage(im, "Toolbox Talk - " + (d.subject || ""),
+            (rec.ref ? rec.ref + "   " : "") + "page " + (i+1) + " of " + talk.length);
+        });
         return;
       }
       if(sec.key === "havs"){
@@ -5254,6 +5311,28 @@ function nextRamsRevNo(){
   const all = ramsForJob();
   return all.length ? Math.max(...all.map(r=>r.revNo))+1 : 1;
 }
+/* The revision as the document itself names it — a letter, a number or
+   something like P02. Revisions saved before it could be typed in show the
+   running number instead. revNo stays the order they were uploaded in. */
+function revText(rev){ return rev ? String(rev.revLabel || rev.revNo) : ""; }
+function cleanRevLabel(v){
+  return String(v||"").trim().replace(/^rev(ision)?\.?\s*/i, "").toUpperCase().slice(0, 12);
+}
+/* What the next one is probably called, worked out from the last one. */
+function suggestRevLabel(){
+  const last = ramsForJob()[0];
+  if(!last || !last.revLabel) return "";
+  const l = last.revLabel;
+  let m = l.match(/^(.*?)(\d+)$/);
+  if(m) return m[1] + String(Number(m[2]) + 1).padStart(m[2].length, "0");
+  m = l.match(/^([A-Z]*)([A-Z])$/);
+  if(m) return m[2] === "Z" ? m[1] + "AA" : m[1] + String.fromCharCode(m[2].charCodeAt(0) + 1);
+  return "";
+}
+function revLabelTaken(label, exceptId){
+  return ramsForJob().some(r=>r.id!==exceptId && revText(r).toUpperCase() === label.toUpperCase());
+}
+
 function ramsOutstanding(rev){
   if(!rev) return [];
   const signed = (rev.sigs||[]).map(s=>s.personId);
@@ -5996,14 +6075,14 @@ function openSignaturePad(existing, onSave){
   };
 }
 
-function openPhoto(src, takenAt){
+function openPhoto(src, takenAt, plain){
   const wrap = document.createElement("div");
   wrap.className = "lightbox";
   wrap.innerHTML = `
     <div class="lbtop"><button data-close>Close</button></div>
     <div class="lbimg"><img src="${src}" alt="Site photograph"></div>
-    <div class="lbfoot">${takenAt?esc(stamp(Number(takenAt))):""}<br>
-      <span style="opacity:.65">The time and logo are part of the image itself</span></div>`;
+    <div class="lbfoot">${plain ? "" : `${takenAt?esc(stamp(Number(takenAt))):""}<br>
+      <span style="opacity:.65">The time and logo are part of the image itself</span>`}</div>`;
   const close = () => wrap.remove();
   wrap.onclick = close;
   wrap.querySelector("[data-close]").onclick = close;
@@ -6098,7 +6177,7 @@ async function ramsBuildFiles(target, what){
 async function ramsSendCopy(rev, add, person, kind){
   if(!person.email && !person.phone) return;
   const target = add || rev;
-  const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + rev.revNo);
+  const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + revText(rev));
   const subject = "Signed copy — " + what + " — " + DB.job;
   const body = "Hi " + (person.name||"").split(" ")[0] + ",\n\nAttached is your signed copy of "
     + what + " for " + DB.job + ".\n\n" + cfg().company;
@@ -6132,7 +6211,7 @@ async function ramsNotifyAll(rev, add){
   const people = onSiteLabour(todayISO());
   const reachable = people.filter(p=>p.email || p.phone);
   if(!reachable.length){ toast("Nobody on the register has an email or number yet."); return; }
-  const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + rev.revNo);
+  const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + revText(rev));
   const subject = "Please sign — " + what + " — " + DB.job;
   const body = "The " + what + " for " + DB.job + " needs signing on site as soon as you can.";
   const emails = reachable.filter(p=>p.email).map(p=>p.email);
@@ -6181,62 +6260,182 @@ function openRamsLog(list){
    shape the weekly Health and Safety pack uses, so it prints and reads the
    same way. A final page on each part lists who has signed it and when —
    name and date only, nothing that identifies how to reach them. */
-function ramsSignedPage(sigs, label){
-  const rows = (sigs||[]).slice().sort((a,b)=>a.signedAt-b.signedAt);
-  return regPage(
-    `<div class="pk-h">Signed by</div>
-     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(label)}</p>` +
-    (rows.length
-      ? regTbl(["", "Name", "Signature", "Date signed"],
-          rows.map((s,i)=>[String(i+1), s.name||"—",
-            s.sigSrc ? `<img src="${s.sigSrc}" alt="Signature" style="height:32px;display:block">` : "—",
-            shortDate(iso(new Date(s.signedAt)))]),
-          { widths:[.06,.30,.40,.24], raw:[2] })
-      : `<p style="font-size:10.5px;color:#555">Nobody has signed this yet.</p>`));
+const RAMS_SIG_ROWS = 18;     /* signatures that fit on one printed page */
+const RAMS_TOC_UNITS = 32;    /* contents that fit on one printed page: a document line
+                                 counts as 1.7, a line from inside it as 1 */
+
+function chunkRows(rows, n){
+  const out = [];
+  for(let i=0;i<rows.length;i+=n) out.push(rows.slice(i, i+n));
+  return out.length ? out : [[]];
 }
 
-/* The document's body for a pack page — an image sits inline; a PDF can't
-   be flattened into the printed pack, so this names it and links to it
-   for anyone reading on screen, and it still goes across whole when the
-   pack is shared as a file. */
-function ramsDocBody(doc){
-  if(!doc) return `<p style="font-size:10.5px;color:#555">No document has been added.</p>`;
+/* Who has signed, split over as many pages as it needs — name and date only,
+   nothing that identifies how to reach them. */
+function ramsSignedPages(sigs, label){
+  const rows = (sigs||[]).slice().sort((a,b)=>a.signedAt-b.signedAt);
+  const parts = chunkRows(rows, RAMS_SIG_ROWS);
+  return {
+    count: parts.length,
+    html: parts.map((part, pi)=>regPage(
+      `<div class="pk-h">Signed by${parts.length>1 ? ` — ${pi+1} of ${parts.length}` : ""}</div>
+       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(label)}</p>` +
+      (rows.length
+        ? regTbl(["", "Name", "Signature", "Date signed"],
+            part.map((s,i)=>[String(pi*RAMS_SIG_ROWS + i + 1), s.name||"—",
+              s.sigSrc ? `<img src="${s.sigSrc}" alt="Signature" style="height:32px;display:block">` : "—",
+              shortDate(iso(new Date(s.signedAt)))]),
+            { widths:[.06,.30,.40,.24], raw:[2] })
+        : `<p style="font-size:10.5px;color:#555">Nobody has signed this yet.</p>`))).join("")
+  };
+}
+function ramsSignedPage(sigs, label){ return ramsSignedPages(sigs, label).html; }
+
+const regFullPage = inner => `<div class="pk-page pk-full">${inner}</div>`;
+
+/* How many printed pages a document takes. */
+const ramsDocCount = doc => doc && doc.pages && doc.pages.length ? doc.pages.length : 1;
+
+/* A document in the pack. An unpacked PDF or a scan prints page for page,
+   each sized to the paper with a running line above it. A PDF that could not
+   be opened is named, with a link to the original. */
+function ramsDocPages(doc, label, start, total){
+  const cap = (left, right) => `<div class="pk-pgcap"><span>${esc(left)}</span><span>${esc(right)}</span></div>`;
+  if(!doc){
+    return regPage(cap(label, "Page " + start + " of " + total)
+      + `<p style="font-size:10.5px;color:#555">No document has been added.</p>`);
+  }
+  if(doc.pages && doc.pages.length){
+    const n = doc.pages.length;
+    return doc.pages.map((pg, i)=>regFullPage(
+      cap(label, (n>1 ? (i+1) + " of " + n + "  ·  " : "") + "Page " + (start+i) + " of " + total)
+      + `<img class="pk-docpg" src="${pg.src}" alt="${esc(label)} — page ${i+1}">`)).join("");
+  }
   if(doc.pdf){
-    return `<div style="border:1.5px dashed #CBD3CD;border-radius:10px;padding:22px;text-align:center">
+    return regPage(cap(label, "Page " + start + " of " + total) +
+      `<div style="border:1.5px dashed #CBD3CD;border-radius:10px;padding:22px;text-align:center">
         <div style="font-size:28px">📄</div>
         <p style="font-size:11px;color:#333;margin:8px 0 2px;font-weight:650">
           ${esc(doc.name||"Document.pdf")}</p>
-        <p style="font-size:10px;color:#777;margin:0 0 12px">Attached as a PDF — it isn't shown
-          page by page here, but it is included whenever this is shared or printed as a file.</p>
+        <p style="font-size:10px;color:#777;margin:0 0 12px">The pages of this PDF couldn't be opened
+          on this device, so it isn't printed here. It still goes across whole whenever it is shared.</p>
         <a href="${doc.src}" target="_blank" rel="noopener"
           style="font-size:11px;font-weight:650;color:#1F5A2D">Open the PDF</a>
-      </div>`;
+      </div>`);
   }
+  return regFullPage(cap(label, "Page " + start + " of " + total)
+    + `<img class="pk-docpg" src="${doc.src}" alt="${esc(label)}">`);
+}
+
+/* Kept for anything else that shows a single document inline. */
+function ramsDocBody(doc){
+  if(!doc) return `<p style="font-size:10.5px;color:#555">No document has been added.</p>`;
+  if(doc.pages && doc.pages.length)
+    return doc.pages.map(pg=>`<img class="pk-docpg" src="${pg.src}" style="margin-bottom:8px">`).join("");
+  if(doc.pdf) return `<a href="${doc.src}" target="_blank" rel="noopener">${esc(doc.name||"Open the PDF")}</a>`;
   return `<img src="${doc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`;
 }
 
+/* A contents line for a document, and one beneath it for each entry in the
+   document's own contents, with the page it lands on in this pack. */
+function ramsTocRows(num, name, doc, start){
+  const n = ramsDocCount(doc);
+  const rows = [{ n:String(num), name, right: n>1 ? "Pages " + start + "–" + (start+n-1) : "Page " + start }];
+  if(doc && doc.pages && doc.pages.length){
+    (doc.contents||[]).forEach(e=>{
+      if(e.page < 1 || e.page > n) return;
+      rows.push({ sub:true, level:e.level||0, name:e.title, right:"Page " + (start + e.page - 1) });
+    });
+  }
+  return rows;
+}
+function ramsTocChunks(rows){
+  const parts = [[]];
+  let used = 0;
+  rows.forEach(r=>{
+    const w = r.sub ? 1 : 1.7;
+    /* never leave a document's heading alone at the foot of a page */
+    const room = r.sub ? w : w + 1;
+    if(used + room > RAMS_TOC_UNITS && parts[parts.length-1].length){ parts.push([]); used = 0; }
+    parts[parts.length-1].push(r); used += w;
+  });
+  return parts;
+}
+function ramsTocHtml(rows){
+  const parts = ramsTocChunks(rows);
+  return parts.map((part, pi)=>regPage(
+    `<div class="pk-h">Contents${parts.length>1 ? ` — ${pi+1} of ${parts.length}` : ""}</div>
+     <div class="pk-toc">${part.map(r=>`<div class="r${r.sub?" tsub"+(r.level?" tl1":""):""}">
+        <div class="n">${r.sub ? "" : esc(r.n)}</div>
+        <div class="nm">${esc(r.name)}</div>
+        <div class="ct">${esc(r.right)}</div></div>`).join("")}</div>`)).join("");
+}
+
+function ramsDivider(label, title, extraMeta){
+  const c = cfg();
+  return regPage(`<div class="pk-div">
+      <img class="mark" src="${LOGO}" alt="${esc(c.company)}">
+      <div class="num">${esc(label)}</div>
+      <h1><span>${esc(title)}</span></h1>
+      <div class="meta"><div>Site <b>${esc(DB.job)}</b></div>${extraMeta||""}</div>
+    </div>`);
+}
+
 function ramsDocSheet(target, titleLine, subLine){
-  /* a single addendum, viewed on its own: its own divider, then who has
-     signed it, then the document itself */
+  /* a single addendum, viewed on its own: its own divider, who has signed
+     it, then the document page by page */
   if(target.__isAddendum){
-    const divider = regPage(`<div class="pk-div">
-        <img class="mark" src="${LOGO}" alt="${esc(cfg().company)}">
-        <div class="num">${esc(target.__label||"Addendum")}</div>
-        <h1><span>${esc(titleLine)}</span></h1>
-        <div class="meta"><div>Site <b>${esc(DB.job)}</b></div></div>
-      </div>`);
-    const docPage = regPage(
-      `<div class="pk-h">${esc(titleLine)}</div>
-       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(subLine)}</p>` + ramsDocBody(target.doc));
-    return divider + ramsSignedPage(target.sigs, subLine) + docPage;
+    const signed = ramsSignedPages(target.sigs, subLine);
+    const start = 1 + signed.count + 1;
+    const total = start + ramsDocCount(target.doc) - 1;
+    return ramsDivider(target.__label||"Addendum", titleLine) + signed.html
+      + ramsDocPages(target.doc, titleLine, start, total);
   }
 
-  /* the current revision, viewed as the whole pack: cover, who has signed
-     it, contents, the RAMS itself, then every addendum behind its own
-     divider */
+  /* the current revision as the whole pack: cover, who has signed it,
+     contents, the risk assessment and method statement page by page, then
+     every addendum behind its own divider */
   const c = cfg();
   const pc = jobInfo().pc || "";
   const addendums = target.addendums || [];
+  const title = target.title || "RAMS";
+
+  const docs = [];
+  if(target.raDoc) docs.push({ label:"Risk Assessment — " + title, doc:target.raDoc });
+  if(target.msDoc) docs.push({ label:"Method Statement — " + title, doc:target.msDoc });
+  if(!docs.length) docs.push({ label:title, doc:null });
+
+  const signed = ramsSignedPages(target.sigs, DB.job + " · Rev " + revText(target));
+  const addSigned = addendums.map((a,i)=>
+    ramsSignedPages(a.sigs, DB.job + " · Addendum " + (i+1) + " — " + (a.title||"Addendum")));
+
+  /* the contents can run to more than one page, and the page numbers inside
+     it depend on how long it is — so count the lines first, then lay out */
+  const layout = tocPages => {
+    let pg = 1 + signed.count + tocPages + 1;
+    const rows = [];
+    docs.forEach((d, i)=>{
+      d.start = pg;
+      rows.push(...ramsTocRows(i+1, d.label, d.doc, pg));
+      pg += ramsDocCount(d.doc);
+    });
+    addendums.forEach((a, i)=>{
+      a.__start = pg;
+      const docStart = pg + 1 + addSigned[i].count;
+      rows.push(...ramsTocRows(docs.length+i+1, "Addendum " + (i+1) + " — " + (a.title||"Addendum"),
+        a.doc, docStart).map((r, ri)=> ri ? r : Object.assign(r, { right: "Page " + pg })));
+      a.__docStart = docStart;
+      pg = docStart + ramsDocCount(a.doc);
+    });
+    return { rows, total: pg - 1 };
+  };
+  let tocPages = 1, plan = layout(1);
+  for(let k=0;k<4;k++){
+    const need = ramsTocChunks(plan.rows).length;
+    if(need === tocPages) break;
+    tocPages = need; plan = layout(tocPages);
+  }
+  const total = plan.total;
 
   const cover = regPage(`<div class="pk-cover">
       <img src="${LOGO}" alt="${esc(c.company)}" style="width:190px">
@@ -6247,60 +6446,39 @@ function ramsDocSheet(target, titleLine, subLine){
       <div class="rule"></div>
     </div>
     ${regTbl(null, [
-      ["Revision", "Rev " + target.revNo, "Uploaded", shortDate(iso(new Date(target.uploadedAt)))],
-      ["Title", target.title || "RAMS", "Produced", stamp(Date.now())]
+      ["Revision", "Rev " + revText(target), "Uploaded", shortDate(iso(new Date(target.uploadedAt)))],
+      ["Title", title, "Produced", stamp(Date.now())],
+      ["Pages", String(total), "Addendums", String(addendums.length)]
     ], { cols:["19%","31%","19%","31%"] })}`);
 
-  const toc = regPage(`<div class="pk-h">Contents</div>
-    <div class="pk-toc">
-      <div class="r"><div class="n">1</div>
-        <div class="nm">Risk Assessment and Method Statement — ${esc(target.title||"RAMS")}</div>
-        <div class="ct">Rev ${target.revNo}</div></div>
-      ${addendums.map((a,i)=>`<div class="r">
-        <div class="n">${i+2}</div>
-        <div class="nm">Addendum ${i+1} — ${esc(a.title||"Addendum")}</div>
-        <div class="ct">Added ${shortDate(iso(new Date(a.uploadedAt)))}</div>
-      </div>`).join("")}
-    </div>`);
-
-  /* the risk assessment and the method statement are usually separate
-     documents on site, so each gets its own page rather than being forced
-     together onto one */
-  const raPage = target.raDoc ? regPage(
-    `<div class="pk-h">Risk Assessment — ${esc(target.title||"RAMS")}</div>
-     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>`
-     + ramsDocBody(target.raDoc)) : "";
-  const msPage = target.msDoc ? regPage(
-    `<div class="pk-h">Method Statement — ${esc(target.title||"RAMS")}</div>
-     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>`
-     + ramsDocBody(target.msDoc)) : "";
-  const docPages = (raPage + msPage) || regPage(
-    `<div class="pk-h">${esc(target.title||"RAMS")}</div>` + ramsDocBody(null));
-
-  let html = cover + ramsSignedPage(target.sigs, DB.job + " · Rev " + target.revNo) + toc + docPages;
+  let html = cover + signed.html + ramsTocHtml(plan.rows);
+  docs.forEach(d=>{ html += ramsDocPages(d.doc, d.label, d.start, total); });
 
   addendums.forEach((a,i)=>{
-    html += regPage(`<div class="pk-div">
-        <img class="mark" src="${LOGO}" alt="${esc(c.company)}">
-        <div class="num">Addendum ${i+1} of ${addendums.length}</div>
-        <h1><span>${esc(a.title||"Addendum")}</span></h1>
-        <div class="meta"><div>Site <b>${esc(DB.job)}</b></div>
-          <div>Added <b>${shortDate(iso(new Date(a.uploadedAt)))}</b></div></div>
-      </div>`);
-    html += ramsSignedPage(a.sigs, DB.job + " · Addendum " + (i+1) + " — " + (a.title||"Addendum"));
-    html += regPage(
-      `<div class="pk-h">Addendum ${i+1} — ${esc(a.title||"Addendum")}</div>
-       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)}</p>` + ramsDocBody(a.doc));
+    html += ramsDivider("Addendum " + (i+1) + " of " + addendums.length, a.title||"Addendum",
+      `<div>Added <b>${shortDate(iso(new Date(a.uploadedAt)))}</b></div>`);
+    html += addSigned[i].html;
+    html += ramsDocPages(a.doc, "Addendum " + (i+1) + " — " + (a.title||"Addendum"), a.__docStart, total);
+    delete a.__start; delete a.__docStart;
   });
 
   return html;
 }
 
-function printRamsDoc(key){
+async function printRamsDoc(key){
   const { rev, add, target } = ramsParseKey(key);
   if(!rev || !target){ toast("That document could not be found."); return; }
-  const titleLine = add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + rev.revNo;
-  const subLine = DB.job + (add ? " · Addendum to Rev " + rev.revNo : "");
+  const docs = add ? [add.doc]
+    : [rev.raDoc, rev.msDoc, rev.doc].concat((rev.addendums||[]).map(a=>a.doc));
+  const pending = docs.filter(d=>d && d.pdf && !(d.pages && d.pages.length));
+  if(pending.length){
+    toast("Opening the PDF…");
+    let changed = false;
+    for(const d of pending) if(await ensureDocPages(d)) changed = true;
+    if(changed) save();
+  }
+  const titleLine = add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + revText(rev);
+  const subLine = DB.job + (add ? " · Addendum to Rev " + revText(rev) : "");
   const built = add ? Object.assign({}, target, { __isAddendum:true, __label:"Addendum" }) : target;
   document.getElementById("sheet").innerHTML = ramsDocSheet(built, titleLine, subLine);
   document.getElementById("sheetTitle").textContent = titleLine;
@@ -6344,18 +6522,202 @@ function askDocType(onPick){
   wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
 }
 
+/* ------------------------------------------------------ PDF unpacking --
+   An uploaded PDF is kept whole, so it still goes out as the original file,
+   and is also opened up into A4 page images so it can be read in the app and
+   printed page by page. pdf.js is fetched the first time a PDF is opened and
+   the browser keeps it after that. */
+const PDFJS_SOURCES = [
+  "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/",   /* runs on older phones too */
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/"
+];
+let pdfjsReady = null;
+function loadPdfJs(){
+  if(pdfjsReady) return pdfjsReady;
+  pdfjsReady = (async () => {
+    for(const base of PDFJS_SOURCES){
+      try{
+        const lib = await import(base + "pdf.min.mjs");
+        lib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.mjs";
+        return lib;
+      }catch(e){ /* try the next source */ }
+    }
+    throw new Error("pdf.js could not be loaded");
+  })();
+  pdfjsReady.catch(()=>{ pdfjsReady = null; });   /* no signal — try again next time */
+  return pdfjsReady;
+}
+
+const isPdfFile = f => !!f && (f.type === "application/pdf" || /\.pdf$/i.test(f.name||""));
+
+function dataUrlBytes(u){
+  const bin = atob(String(u).slice(String(u).indexOf(",")+1));
+  const out = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function readAsDataUrl(file){
+  return new Promise((res,rej)=>{
+    const fr = new FileReader();
+    fr.onerror = ()=>rej(fr.error);
+    fr.onload = ()=>res(fr.result);
+    fr.readAsDataURL(file);
+  });
+}
+
+/* A4 at 150dpi — sharp enough to read small print, small enough to keep. */
+const A4PX = { w:1240, h:1754 };
+
+/* Any image or canvas onto a white A4 page, scaled to fit without cropping.
+   Landscape pages go onto landscape A4. */
+function fitToA4(src, opts){
+  opts = opts || {};
+  const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+  const landscape = sw > sh;
+  const W = landscape ? A4PX.h : A4PX.w, H = landscape ? A4PX.w : A4PX.h;
+  const m = opts.margin || 0;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0,0,W,H);
+  const k = Math.min((W-m*2)/sw, (H-m*2)/sh);
+  const w = sw*k, h = sh*k;
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = "high";
+  g.drawImage(src, (W-w)/2, (H-h)/2, w, h);
+  const out = { src: cv.toDataURL("image/jpeg", opts.quality || 0.74), landscape };
+  cv.width = cv.height = 0;
+  return out;
+}
+
+/* A quarter turn clockwise, then back onto A4. */
+async function rotatePage(src){
+  const im = await loadImage(src);
+  const cv = document.createElement("canvas");
+  cv.width = im.naturalHeight; cv.height = im.naturalWidth;
+  const g = cv.getContext("2d");
+  g.translate(cv.width, 0); g.rotate(Math.PI/2);
+  g.drawImage(im, 0, 0);
+  return fitToA4(cv);
+}
+
+/* An uploaded photo of a page: straightened if the page edge is clear and the
+   page is not already the whole picture, then sized to A4. */
+async function autoScanFile(file){
+  const url = await readAsDataUrl(file);
+  const im = await loadImage(url);
+  let page = im;
+  try{
+    const det = detectPage(im);
+    if(det.found){
+      const q = det.corners;
+      let area = 0;
+      for(let i=0;i<4;i++){ const a=q[i], b=q[(i+1)%4]; area += a.x*b.y - b.x*a.y; }
+      area = Math.abs(area)/2;
+      if(area < im.naturalWidth*im.naturalHeight*0.9)
+        page = await loadImage(warpToPage(im, q, true));
+    }
+  }catch(e){ /* use the photo as it is */ }
+  return fitToA4(page);
+}
+
+/* Every page of a PDF as an A4 image, plus a contents list taken from its
+   bookmarks — or, if it has none, from the headings on its pages. */
+async function unpackPdf(data){
+  const lib = await loadPdfJs();
+  const bytes = typeof data === "string" ? dataUrlBytes(data) : new Uint8Array(data);
+  const pdf = await lib.getDocument({ data: bytes, isEvalSupported:false }).promise;
+  try{
+    const pages = [];
+    for(let n=1;n<=pdf.numPages;n++){
+      const pg = await pdf.getPage(n);
+      const base = pg.getViewport({ scale:1 });
+      const scale = Math.min(4, A4PX.w / Math.min(base.width, base.height));
+      const vp = pg.getViewport({ scale });
+      const cv = document.createElement("canvas");
+      cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+      const g = cv.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0,0,cv.width,cv.height);
+      await pg.render({ canvasContext:g, viewport:vp }).promise;
+      pages.push(fitToA4(cv, { quality:0.66 }));
+      cv.width = cv.height = 0;
+      pg.cleanup();
+    }
+    return { pages, contents: await pdfContents(pdf) };
+  } finally {
+    pdf.destroy();
+  }
+}
+
+async function pdfContents(pdf){
+  const out = [];
+  const walk = async (items, level) => {
+    for(const it of (items||[])){
+      if(out.length >= 60) return;
+      try{
+        let dest = it.dest;
+        if(typeof dest === "string") dest = await pdf.getDestination(dest);
+        if(Array.isArray(dest) && dest[0] != null){
+          const idx = typeof dest[0] === "number" ? dest[0] : await pdf.getPageIndex(dest[0]);
+          const title = String(it.title||"").replace(/\s+/g," ").trim();
+          if(title) out.push({ title: title.slice(0,90), page: idx+1, level });
+        }
+      }catch(e){ /* a broken bookmark is skipped */ }
+      if(level < 1) await walk(it.items, level+1);
+    }
+  };
+  try{ await walk(await pdf.getOutline(), 0); }catch(e){}
+  if(out.length) return out;
+
+  /* no bookmarks: a line clearly bigger than the body text is a heading */
+  for(let n=1;n<=pdf.numPages && out.length<60;n++){
+    try{
+      const tc = await (await pdf.getPage(n)).getTextContent();
+      const items = tc.items.filter(t=>t.str && t.str.trim() && t.height);
+      if(!items.length) continue;
+      const hs = items.map(t=>t.height).sort((a,b)=>a-b);
+      const body = hs[Math.floor(hs.length/2)];
+      const big = hs[hs.length-1];
+      if(big < body*1.25) continue;
+      const top = items.filter(t=>Math.abs(t.height-big) < 0.5);
+      const y = top[0].transform[5];
+      const line = top.filter(t=>Math.abs(t.transform[5]-y) < 1)
+        .map(t=>t.str).join(" ").replace(/\s+/g," ").trim();
+      if(line.length > 2 && !(out.length && out[out.length-1].title === line))
+        out.push({ title: line.slice(0,90), page:n, level:0 });
+    }catch(e){}
+  }
+  return out;
+}
+
+/* A PDF saved before pages were unpacked is opened up the first time it is
+   looked at. Returns true if anything changed. */
+async function ensureDocPages(doc){
+  if(!doc || !doc.pdf || (doc.pages && doc.pages.length)) return false;
+  try{
+    Object.assign(doc, await unpackPdf(doc.src));
+    delete doc.unpackFailed;
+    return true;
+  }catch(e){ return false; }
+}
+
 /* An uploaded document, sized down but kept readable. */
 function compressDoc(file){
   /* a PDF can't be decoded as an image — keep it as-is rather than trying
      to run it through the canvas and quietly failing */
-  if(file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name||""))){
-    return new Promise((res,rej)=>{
-      const fr = new FileReader();
-      fr.onerror = ()=>rej();
-      fr.onload = () => res({ src: fr.result, name: file.name || "Document.pdf",
-        pdf:true, scannedAt: Date.now() });
-      fr.readAsDataURL(file);
-    });
+  if(isPdfFile(file)){
+    return (async () => {
+      const src = await readAsDataUrl(file);
+      const doc = { src, name: file.name || "Document.pdf", pdf:true, scannedAt: Date.now() };
+      toast("Opening the PDF…");
+      try{ Object.assign(doc, await unpackPdf(src)); }
+      catch(e){
+        doc.unpackFailed = true;
+        toast(navigator.onLine ? "Attached — the pages could not be opened."
+          : "Attached — pages will open once there's a signal.");
+      }
+      return doc;
+    })();
   }
   return new Promise((res,rej)=>{
     const fr = new FileReader();
@@ -7032,6 +7394,24 @@ function fieldHtml(f, v, err, path){
     }
     case "photos":{
       const arr = val||[];
+      if(f.scan){
+        c = (arr.length?`<div class="pg">`+arr.map((p,i)=>
+          `<div class="ph pgpage${p.landscape?" land":""}"><img src="${p.src}" alt="Page ${i+1}" data-plain="1">
+            <span class="pgno">${i+1}</span>
+            <button type="button" data-rmph="${id}" data-i="${i}" aria-label="Remove page ${i+1}">&times;</button>
+            <button type="button" class="rot" data-rotpg="${id}" data-i="${i}"
+              aria-label="Turn page ${i+1} a quarter">&#8635;</button></div>`
+          ).join("")+`</div>`:"") +
+          `<div class="g2">
+            <button type="button" class="btn line" style="margin:0" data-scanpg="${id}">${
+              arr.length?"Scan next page":"Scan page"}</button>
+            <button type="button" class="btn line" style="margin:0" data-uppg="${id}">Upload</button>
+          </div>
+          <div class="hint" style="margin:8px 0 0">${arr.length
+            ? arr.length+" page"+(arr.length===1?"":"s")+" · turn any that came out sideways"
+            : "Upload takes photos or a PDF."}</div>`;
+        break;
+      }
       c = (arr.length?`<div class="pg">`+arr.map((p,i)=>
         `<div class="ph"><img src="${p.src}" alt="Photograph ${i+1}" data-taken="${p.takenAt||""}">
           <button type="button" data-rmph="${id}" data-i="${i}" aria-label="Remove">&times;</button></div>`
@@ -7484,8 +7864,9 @@ function readRow(f, val){
   if(f.type==="photos"){
     if(!val||!val.length) return "";
     return `<div class="kv" style="display:block"><span class="k">${esc(f.label)}</span>
-      <div class="pg" style="margin-top:8px">`+val.map((p,i)=>
-        `<div class="ph"><img src="${p.src}" alt="Photograph ${i+1}" data-taken="${p.takenAt||""}"></div>`
+      <div class="pg" style="margin-top:8px">`+val.map((p,i)=> p.scanned
+        ? `<div class="ph pgpage${p.landscape?" land":""}"><img src="${p.src}" alt="Page ${i+1}" data-plain="1"></div>`
+        : `<div class="ph"><img src="${p.src}" alt="Photograph ${i+1}" data-taken="${p.takenAt||""}"></div>`
       ).join("")+`</div>
       <div style="font-size:12.5px;color:var(--ink-3);margin-top:6px">Tap a photo to see it full size.</div></div>`;
   }
@@ -9636,7 +10017,7 @@ function projectView(){
         return tile("rams", TILE_ICONS.rams, "RAMS",
           !cur ? "None uploaded yet"
             : out ? out+" still to sign"
-            : "Rev "+cur.revNo+" — all signed",
+            : "Rev "+revText(cur)+" — all signed",
           !cur ? "" : out ? "amber" : "", out || "");
       })()}
       ${tile("timesheet", TILE_ICONS.timesheet, "Timesheet",
@@ -9754,7 +10135,10 @@ function liftingView(){
 /* ====================================================================== ==
    RAMS — risk assessments and method statements
    ====================================================================== */
-function blankRamsDraft(){ return { title:"", raDoc:null, msDoc:null }; }
+function blankRamsDraft(){
+  const last = ramsForJob()[0];
+  return { title: last ? (last.title||"") : "", rev: suggestRevLabel(), raDoc:null, msDoc:null };
+}
 function blankRamsAddendumDraft(revId){ return { revId, title:"", doc:null }; }
 
 function ramsSignRow(person, sigs, signKey){
@@ -9808,6 +10192,37 @@ function ramsDistLine(dist){
     to ${esc(last.to||"")}</button>`;
 }
 
+/* The documents held on a revision, each with a way to take it off. A
+   revision always keeps at least one — to lose them all, delete the revision.
+   A document that was never added can be added to the current revision. */
+function ramsDocMeta(d){
+  if(d.pdf) return d.pages && d.pages.length ? d.pages.length + " page" + (d.pages.length===1?"":"s") : "PDF";
+  return "Scanned page";
+}
+function ramsDocRows(rev, editable){
+  const del = cfg().allowDelete;
+  const slots = [["raDoc","Risk assessment"],["msDoc","Method statement"]];
+  const held = slots.filter(([f])=>rev[f]).length;
+  if(!held) return "";
+  return `<div style="margin-top:14px;border-top:1px solid var(--line-2)">` + slots.map(([f, label])=>{
+    const d = rev[f];
+    if(!d && !editable) return "";
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-2)">
+      <span style="flex:1;min-width:0">
+        <b style="display:block;font-size:14px;font-weight:640">${label}</b>
+        <span style="display:block;font-size:12.5px;color:var(--ink-3);overflow-wrap:anywhere">${
+          d ? esc((d.name ? d.name + " · " : "") + ramsDocMeta(d)) : "Not added yet"}</span>
+      </span>
+      ${d ? (del && held > 1 ? `<button type="button" data-ramsdocrm="${rev.id}:${f}"
+          style="color:var(--bad);font-weight:650;font-size:13px;flex:none">Remove</button>` : "")
+        : `<button type="button" class="btn line sm" style="margin:0;flex:none"
+          data-ramsdocadd="${rev.id}:${f}">Add</button>`}
+    </div>`;
+  }).join("") + `</div>`;
+}
+const ramsDelBtn = key => cfg().allowDelete
+  ? `<button class="btn line sm" style="margin:0;color:var(--bad)" data-ramsdel="${key}">Delete</button>` : "";
+
 function ramsRevCard(rev, people){
   const out = ramsOutstanding(rev);
   const allSigned = !out.length;
@@ -9815,7 +10230,7 @@ function ramsRevCard(rev, people){
   return `<div class="card">
     <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <div style="flex:1 1 170px;min-width:0">
-        <b style="font-size:16.5px;font-weight:650;display:block">${esc(rev.title||"RAMS")} — Rev ${rev.revNo}</b>
+        <b style="font-size:16.5px;font-weight:650;display:block">${esc(rev.title||"RAMS")} — Rev ${esc(revText(rev))}</b>
         <span style="font-size:13px;color:var(--ink-2)">Uploaded ${shortDate(iso(new Date(rev.uploadedAt)))}</span>
       </div>
       <span class="pill ${allSigned?"ok":"amber"}">${allSigned?"All signed":out.length+" to sign"}</span>
@@ -9823,7 +10238,9 @@ function ramsRevCard(rev, people){
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <button class="btn line sm" style="margin:0" data-ramsdoc="rev:${rev.id}">View document</button>
       <button class="btn line sm" style="margin:0" data-ramsnotify="rev:${rev.id}">Notify everyone</button>
+      ${ramsDelBtn("rev:"+rev.id)}
     </div>
+    ${ramsDocRows(rev, true)}
     <div style="margin-top:14px">${ramsSignTable(people, rev.sigs, "rev:"+rev.id)}</div>
     <div data-ramsdistfor="rev:${rev.id}">${ramsDistLine(rev.distribution)}</div>
   </div>
@@ -9844,6 +10261,7 @@ function ramsRevCard(rev, people){
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
         <button class="btn line sm" style="margin:0" data-ramsdoc="add:${rev.id}:${add.id}">View document</button>
         <button class="btn line sm" style="margin:0" data-ramsnotify="add:${rev.id}:${add.id}">Notify everyone</button>
+        ${ramsDelBtn("add:"+rev.id+":"+add.id)}
       </div>
       <div style="margin-top:14px">${ramsSignTable(people, add.sigs, "add:"+rev.id+":"+add.id)}</div>
       <div data-ramsdistfor="add:${rev.id}:${add.id}">${ramsDistLine(add.distribution)}</div>
@@ -9855,6 +10273,23 @@ function ramsRevCard(rev, people){
    a PDF can't be shown as a picture, so say what it is instead. */
 function ramsDocPreview(doc, label, rmKey){
   if(!doc) return "";
+  if(doc.pdf && doc.pages && doc.pages.length){
+    const n = doc.pages.length;
+    return `<div class="card" style="background:var(--canvas);box-shadow:none;margin-bottom:10px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="flex:1;min-width:0">
+          <b style="display:block;font-size:13.5px;font-weight:640;overflow-wrap:anywhere">${esc(doc.name || "Document.pdf")}</b>
+          <span style="font-size:12.5px;color:var(--ink-3)">${n} page${n===1?"":"s"}${
+            (doc.contents||[]).length ? " · " + doc.contents.length + " in the contents" : ""}</span>
+        </span>
+        <button type="button" data-${rmKey}="1" aria-label="Remove"
+          style="color:var(--bad);font-weight:650;font-size:13px;flex:none">Remove</button>
+      </div>
+      <div class="docstrip">${doc.pages.map((pg,i)=>
+        `<div class="ph pgpage${pg.landscape?" land":""}"><img src="${pg.src}" alt="${esc(label)} page ${i+1}" data-plain="1">
+          <span class="pgno">${i+1}</span></div>`).join("")}</div>
+    </div>`;
+  }
   if(doc.pdf){
     return `<div class="card" style="background:var(--canvas);box-shadow:none;
         display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:12px 14px">
@@ -9903,6 +10338,11 @@ function ramsRevDocFields(d){
     <div class="f"><label>Title</label>
       <input class="in" data-ramsnd="title" value="${esc(d.title||"")}"
         placeholder="e.g. Excavation and drainage RAMS"></div>
+    <div class="f"><label>Revision</label>
+      <input class="in" data-ramsnd="rev" value="${esc(d.rev||"")}" autocapitalize="characters"
+        placeholder="e.g. A, 02 or P03" style="max-width:180px">
+      <div class="hint" style="margin:6px 0 0">As printed on the document. Leave it blank and it's
+        numbered ${nextRamsRevNo()}.</div></div>
     ${ramsDocSlot(d.raDoc, "Risk assessment", "Usually a separate document to the method statement.",
       "ramsrascan", "ramsraup", "ramsradrm")}
     ${ramsDocSlot(d.msDoc, "Method statement", "Add it now, or come back and add it once it's ready.",
@@ -9917,7 +10357,7 @@ function ramsView(){
   const uploadBlock = ramsDraft
     ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
         <h3 style="margin-bottom:14px">${cur?"New revision":"Upload the RAMS"}</h3>
-        ${cur ? `<p class="hint" style="margin:-8px 0 14px">This supersedes Rev ${cur.revNo} —
+        ${cur ? `<p class="hint" style="margin:-8px 0 14px">This supersedes Rev ${esc(revText(cur))} —
           everyone signs again from scratch.</p>` : ""}
         ${ramsRevDocFields(ramsDraft)}
         <button class="btn" style="margin:16px 0 8px" data-ramsupsave="1">
@@ -9941,7 +10381,7 @@ function ramsView(){
         <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
           <div style="flex:1 1 170px;min-width:0">
             <b style="font-size:15px;font-weight:640;display:block;color:var(--ink-2)">
-              ${esc(rev.title||"RAMS")} — Rev ${rev.revNo}</b>
+              ${esc(rev.title||"RAMS")} — Rev ${esc(revText(rev))}</b>
             <span style="font-size:13px;color:var(--ink-3)">Superseded ${
               rev.supersededAt?shortDate(iso(new Date(rev.supersededAt))):"—"}</span>
           </div>
@@ -9949,7 +10389,9 @@ function ramsView(){
         </div>
         <div style="display:flex;gap:8px;margin-top:12px">
           <button class="btn line sm" style="flex:1;margin:0" data-ramsdoc="rev:${rev.id}">View document</button>
+          ${ramsDelBtn("rev:"+rev.id)}
         </div>
+        ${ramsDocRows(rev, false)}
         <p class="hint" style="margin:10px 0 0">${signedCount} signature${signedCount===1?"":"s"}
           kept on record${(rev.addendums||[]).length?" · "+(rev.addendums||[]).length+" addendum"+
           ((rev.addendums||[]).length===1?"":"s"):""}.</p>
@@ -11109,6 +11551,41 @@ function nextRef(prefix, peek){
 }
 
 /* ------------------------------------------------------------------ photos -- */
+/* Pages for a scanned-sheet field. Photos are straightened when a page edge
+   can be found; a PDF is opened up page by page. Every page ends up A4. */
+function addSheetPages(fieldId, pages){
+  if(!pages.length) return;
+  const cur = formState.values[fieldId] || [];
+  formState.values[fieldId] = cur.concat(pages).slice(0, 20);
+  render();
+  toast(pages.length + " page" + (pages.length===1?"":"s") + " added");
+}
+function pickSheetPages(fieldId){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*,application/pdf"; inp.multiple = true;
+  inp.onchange = async () => {
+    const files = Array.from(inp.files || []).slice(0, 10);
+    if(!files.length) return;
+    toast("Sizing the pages…");
+    const out = []; let failed = 0;
+    for(const f of files){
+      try{
+        if(isPdfFile(f)){
+          const { pages } = await unpackPdf(await f.arrayBuffer());
+          pages.forEach(pg=>out.push({ src:pg.src, landscape:pg.landscape, scanned:true, takenAt:Date.now() }));
+        } else {
+          const fit = await autoScanFile(f);
+          out.push({ src:fit.src, landscape:fit.landscape, scanned:true, takenAt:Date.now() });
+        }
+      }catch(e){ failed++; }
+    }
+    addSheetPages(fieldId, out);
+    if(failed) setTimeout(()=>toast(failed + (failed===1?" file":" files") + " could not be read"
+      + (files.some(isPdfFile) && !navigator.onLine ? " — PDFs need a signal the first time." : ".")), 2900);
+  };
+  inp.click();
+}
+
 function pickPhoto(fieldId, useCamera){
   const inp = document.createElement("input");
   inp.type="file"; inp.accept="image/*"; inp.multiple=true;
@@ -11544,6 +12021,29 @@ function bind(){
   });
   app.querySelectorAll("[data-cam]").forEach(el=>el.onclick=()=>pickPhoto(el.dataset.cam,true));
   app.querySelectorAll("[data-lib]").forEach(el=>el.onclick=()=>pickPhoto(el.dataset.lib,false));
+  /* the toolbox talk sheet: scanned, straightened, sized to A4 */
+  app.querySelectorAll("[data-scanpg]").forEach(el=>el.onclick=()=>{
+    const fid = el.dataset.scanpg;
+    openScanner(async doc=>{
+      try{
+        const fit = fitToA4(await loadImage(doc.src));
+        addSheetPages(fid, [{ src:fit.src, landscape:fit.landscape, scanned:true,
+          takenAt:doc.scannedAt||Date.now() }]);
+      }catch(e){ toast("That scan could not be used — try again."); }
+    });
+  });
+  app.querySelectorAll("[data-uppg]").forEach(el=>el.onclick=()=>pickSheetPages(el.dataset.uppg));
+  app.querySelectorAll("[data-rotpg]").forEach(el=>el.onclick=async e=>{
+    e.stopPropagation();
+    const arr = formState.values[el.dataset.rotpg] || [];
+    const pg = arr[Number(el.dataset.i)];
+    if(!pg) return;
+    try{
+      const r = await rotatePage(pg.src);
+      pg.src = r.src; pg.landscape = r.landscape;
+      after();
+    }catch(e){ toast("That page could not be turned."); }
+  });
   app.querySelectorAll("[data-rmph]").forEach(el=>el.onclick=()=>{
     const id=el.dataset.rmph, i=Number(el.dataset.i);
     formState.values[id]=formState.values[id].filter((_,ix)=>ix!==i); after(); });
@@ -11597,7 +12097,7 @@ function bind(){
   const dr = app.querySelector("[data-draft]"); if(dr) dr.onclick = ()=>{ saveDraft(); toast("Draft saved"); go("home"); };
   app.querySelectorAll(".ph img").forEach(img=>{
     img.style.cursor = "zoom-in";
-    img.onclick = (e) => { e.stopPropagation(); openPhoto(img.src, img.dataset.taken); };
+    img.onclick = (e) => { e.stopPropagation(); openPhoto(img.src, img.dataset.taken, !!img.dataset.plain); };
   });
 
   const pdf = app.querySelector("[data-pdf]"); if(pdf) pdf.onclick = ()=>printRecord(pdf.dataset.pdf);
@@ -12066,13 +12566,17 @@ function bind(){
     if(!ramsDraft.raDoc && !ramsDraft.msDoc){
       toast("Add the risk assessment or the method statement first."); return;
     }
+    const label = cleanRevLabel(ramsDraft.rev);
+    if(label && revLabelTaken(label)){
+      toast("Rev " + label + " is already on this job — check the revision."); return;
+    }
     DB.rams = DB.rams || [];
     const cur = currentRams();
     if(cur){
       cur.status = "superseded";
       cur.supersededAt = Date.now();
     }
-    DB.rams.push({ id:"rams_"+Date.now(), job:DB.job, revNo:nextRamsRevNo(),
+    DB.rams.push({ id:"rams_"+Date.now(), job:DB.job, revNo:nextRamsRevNo(), revLabel: label,
       title: ramsDraft.title.trim() || "RAMS", raDoc: ramsDraft.raDoc, msDoc: ramsDraft.msDoc,
       uploadedAt: Date.now(), status:"current", addendums:[], sigs:[], distribution:[] });
     ramsDraft = null;
@@ -12131,6 +12635,87 @@ function bind(){
       || (DB.labour||[]).find(p=>p.id===personId) || { id:personId, name:sig.name };
     if(!person.email && !person.phone) ramsPromptContact(person, ()=>ramsSendCopy(rev, add, person, "receipt"));
     else ramsSendCopy(rev, add, person, "receipt");
+  });
+
+  /* delete a whole revision or an addendum */
+  app.querySelectorAll("[data-ramsdel]").forEach(el=>el.onclick=()=>{
+    const { rev, add } = ramsParseKey(el.getAttribute("data-ramsdel"));
+    if(!rev) return;
+    if(add){
+      const n = (add.sigs||[]).length;
+      askConfirm("Delete this addendum?",
+        (add.title||"Addendum") + " and its document are removed"
+          + (n ? ", along with " + n + " signature" + (n===1?"":"s") : "") + ". This can't be undone.",
+        "Delete addendum", ()=>{
+          rev.addendums = (rev.addendums||[]).filter(a=>a.id!==add.id);
+          save(); render(); toast("Addendum deleted");
+        });
+      return;
+    }
+    const n = (rev.sigs||[]).length;
+    const adds = (rev.addendums||[]).length;
+    const wasCurrent = rev.status === "current";
+    const previous = wasCurrent ? ramsHistory()[0] : null;
+    askConfirm("Delete Rev " + revText(rev) + "?",
+      "Its documents" + (adds ? ", " + adds + " addendum" + (adds===1?"":"s") : "")
+        + (n ? " and " + n + " signature" + (n===1?"":"s") : "") + " are removed. "
+        + (previous ? "Rev " + revText(previous) + " becomes the current revision again, with its signatures. "
+          : wasCurrent ? "The job will have no RAMS until one is uploaded. " : "")
+        + "This can't be undone.",
+      "Delete revision", ()=>{
+        DB.rams = (DB.rams||[]).filter(r=>r.id!==rev.id);
+        if(previous){ previous.status = "current"; delete previous.supersededAt; }
+        save(); render();
+        toast("Rev " + revText(rev) + " deleted" + (previous ? " — Rev " + revText(previous) + " is current" : ""));
+      });
+  });
+
+  /* take one document off a revision */
+  app.querySelectorAll("[data-ramsdocrm]").forEach(el=>el.onclick=()=>{
+    const [id, field] = el.getAttribute("data-ramsdocrm").split(":");
+    const rev = (DB.rams||[]).find(r=>r.id===id);
+    if(!rev || !rev[field]) return;
+    const label = field === "raDoc" ? "risk assessment" : "method statement";
+    askConfirm("Remove the " + label + "?",
+      "It comes off Rev " + revText(rev) + ". Signatures already given stay on record. This can't be undone.",
+      "Remove it", ()=>{ rev[field] = null; save(); render(); toast("The " + label + " was removed"); });
+  });
+
+  /* add a document that wasn't ready when the revision went up */
+  app.querySelectorAll("[data-ramsdocadd]").forEach(el=>el.onclick=()=>{
+    const [id, field] = el.getAttribute("data-ramsdocadd").split(":");
+    const rev = (DB.rams||[]).find(r=>r.id===id);
+    if(!rev) return;
+    const put = doc => {
+      if(!doc) return;
+      rev[field] = doc; save(); render();
+      toast((field === "raDoc" ? "Risk assessment" : "Method statement") + " added to Rev " + revText(rev));
+    };
+    const wrap = document.createElement("div");
+    wrap.className = "scrim";
+    wrap.innerHTML = `<div class="dlg">
+        <h3>Add the ${field === "raDoc" ? "risk assessment" : "method statement"}</h3>
+        <p>It's added to Rev ${esc(revText(rev))}. Anyone who has already signed will need
+          telling it's there — use Notify everyone.</p>
+        <button class="btn line" data-scan>Scan it</button>
+        <button class="btn line" data-up>Upload a PDF or photo</button>
+        <button class="btn ghost" style="margin:0" data-x>Cancel</button>
+      </div>`;
+    document.body.appendChild(wrap);
+    const close = () => wrap.remove();
+    wrap.onclick = e => { if(e.target===wrap) close(); };
+    wrap.querySelector("[data-x]").onclick = close;
+    wrap.querySelector("[data-scan]").onclick = () => { close(); openScanner(put); };
+    wrap.querySelector("[data-up]").onclick = () => {
+      close();
+      const inp = document.createElement("input");
+      inp.type = "file"; inp.accept = "image/*,application/pdf";
+      inp.onchange = async () => {
+        try{ put(await compressDoc(inp.files[0])); }
+        catch(e){ toast("That file could not be read."); }
+      };
+      inp.click();
+    };
   });
 
   app.querySelectorAll("[data-ramsnotify]").forEach(el=>el.onclick=()=>{
