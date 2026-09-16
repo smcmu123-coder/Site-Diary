@@ -5,7 +5,11 @@
 <title>CGC siteHUB — Site Board</title>
 <style>
 /* ==========================================================================
-   CGC siteHUB — office board
+   CGC siteHUB — office board, portrait
+   The site board and the two week look ahead on one screen, stacked the way
+   they are asked about: where are we today at the top, what is coming at the
+   bottom. Same file, same tokens, same data — the fortnight is simply another
+   region of the same board rather than a second page to keep in step.
    Same design language as the app: the palette is sampled from the logo, the
    spacing scale is the app's, and no status is ever told by colour alone.
    What differs is distance. This is read from three or four metres across an
@@ -86,7 +90,8 @@ body{background:var(--canvas);color:var(--ink);
 /* Grid, not floats. Rows size themselves and the panels take what is left,
    so nothing is clipped when the board goes on a different screen. */
 .wrap{position:relative;height:100vh;padding:var(--s6) var(--s7) var(--s5);
-  display:grid;grid-template-rows:auto auto auto 1fr auto;gap:var(--s5)}
+  display:grid;grid-template-rows:auto auto auto minmax(0,1fr) minmax(0,1.15fr) auto;
+  gap:var(--s5)}
 
 /* --- header -------------------------------------------------------------- */
 .top{display:flex;align-items:center;gap:var(--s6)}
@@ -201,6 +206,10 @@ body{background:var(--canvas);color:var(--ink);
 .item.warnbg .txt b::before{content:"\25AA  ";font-weight:800}
 .item.done .txt b::before{content:"\2713  ";font-weight:800}
 .empty{color:var(--ink-2);font-size:var(--t-sub);padding:var(--s2) 2px}
+/* last step before a row gets cut in half on a short screen: the qualifier
+   under each row goes, the row itself stays */
+.list.tight .item span,.attgrid.tight .item span{display:none}
+#week.tight .stat .l span{display:none}
 .more{color:var(--ink-2);font-size:var(--t-cap);font-weight:var(--w-bold);
   padding:var(--s2) 2px}
 
@@ -239,10 +248,76 @@ body{background:var(--canvas);color:var(--ink);
 .stat .l span{display:block;color:var(--green-200);font-weight:600;font-size:var(--t-over);
   margin-top:3px;letter-spacing:.04em}
 
+/* --- the two week look ahead -------------------------------------------- */
+/* Everything below is scoped to .la so it cannot reach the panels above it.
+   The cells follow the same rules as every other surface here: a shadow or a
+   border, never both, and the state of a day said in words inside the card
+   rather than by giving the card different furniture. */
+.la{display:grid;grid-template-rows:auto 1fr 1fr;gap:var(--s3);min-height:0}
+.la h2{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:var(--w-bold);padding:0 0 var(--s3);
+  border-bottom:1px solid var(--line-2);display:flex;align-items:baseline;gap:var(--s3)}
+.la h2 .rng{margin-left:auto;letter-spacing:.04em;color:var(--ink-2)}
+.laweek{display:grid;grid-template-rows:auto 1fr;gap:var(--s2);min-height:0}
+.lahead{display:flex;align-items:baseline;gap:var(--s3);
+  font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:var(--w-bold)}
+.lahead .tally{margin-left:auto;letter-spacing:.04em;color:var(--ink-2)}
+.ladays{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s3);min-height:0}
+
+.day{background:var(--paper);border-radius:var(--r);box-shadow:var(--sh);
+  padding:var(--s2) var(--s3) var(--s3);display:flex;flex-direction:column;
+  min-height:0;overflow:hidden}
+.day.rest{background:transparent;box-shadow:inset 0 0 0 1px var(--line-2)}
+.day.past{opacity:.5}
+.day.today{box-shadow:var(--sh-lift), inset 0 0 0 2px var(--green-600)}
+.dhead{display:flex;align-items:baseline;gap:var(--s2);
+  padding-bottom:var(--s1);margin-bottom:var(--s2);
+  border-bottom:1px solid var(--line-2)}
+.dow{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:var(--w-bold)}
+.dnum{margin-left:auto;font-size:var(--t-cap);font-weight:var(--w-bold);
+  letter-spacing:-.02em;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.day.today .dow,.day.today .dnum{color:var(--green-600)}
+.day.today .dhead{border-bottom-color:var(--green-100)}
+.todaytag{font-size:var(--t-over);font-weight:var(--w-bold);letter-spacing:.06em;
+  text-transform:uppercase;background:var(--green-50);color:var(--green-700);
+  border-radius:var(--r-pill);padding:1px 8px;
+  box-shadow:inset 0 0 0 1px var(--green-100)}
+
+/* Everything inside a cell is sized in em against the cell, never in absolute
+   steps, because a cell has to show everything booked on it and the only way
+   to do that on a heavy day is to give up some size. See fitCell(). */
+.dlist{flex:1;min-height:0;overflow:hidden;font-size:var(--t-cap)}
+.la .it{padding:.4em 0;border-bottom:1px solid var(--line-2)}
+.la .it:last-child{border-bottom:0}
+.la .it b{display:block;font-size:1em;font-weight:var(--w-med);letter-spacing:-.01em;
+  color:var(--ink);line-height:1.25}
+.la .it .sub{display:block;font-size:.82em;color:var(--ink-2);margin-top:.1em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.la .it .at{font-size:.82em;font-weight:var(--w-bold);color:var(--ink-3);
+  font-variant-numeric:tabular-nums;margin-right:.4em}
+.la .it .tag{font-size:.74em;padding:.12em .65em;margin-bottom:.15em;display:inline-block}
+.la .none{font-size:.82em;color:var(--ink-3);padding:.4em 0;font-weight:var(--w-med)}
+/* steps down the ladder: the tag moves onto the title's line, then the second
+   line of detail goes. Both cost less than making the wording smaller. */
+.dlist.inline .it{display:flex;align-items:baseline;gap:.45em}
+.dlist.inline .it .tag{flex:none;margin:0}
+.dlist.inline .it .tx{flex:1;min-width:0}
+.dlist.nosub .it .sub{display:none}
+.dlist.nosub .it{padding:.28em 0}
+
 /* --- footer -------------------------------------------------------------- */
 .foot{display:flex;align-items:center;gap:var(--s3);font-size:var(--t-cap);
   color:var(--ink-2);font-weight:var(--w-med)}
 .foot .right{margin-left:auto}
+/* The key is read from further away than anything else on the board and was
+   the one place a pale tint did not survive the distance. The swatches carry
+   the kind's own colour at full strength; the tags on the cells stay tinted,
+   because there the wording sits on top of them. */
+.foot .legend{display:flex;gap:var(--s4);flex-wrap:wrap;align-items:center}
+.foot .lg{display:inline-flex;align-items:center;gap:6px;font-weight:var(--w-med)}
+.foot .sw{width:12px;height:12px;border-radius:4px;display:inline-block;flex:none}
 /* freshness is told by a word, not only by the colour of a dot */
 .dot{width:11px;height:11px;border-radius:50%;background:var(--ok);display:inline-block;
   flex:none}
@@ -259,6 +334,10 @@ body{background:var(--canvas);color:var(--ink);
 .state p{font-size:var(--t-lead);color:var(--ink-2);max-width:56ch;line-height:1.5}
 .state code{background:#fff;border:1px solid var(--line);padding:3px 10px;
   border-radius:8px;font-size:var(--t-sub)}
+.tried{display:flex;flex-direction:column;gap:6px;margin-top:var(--s3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--t-cap)}
+.tried span{background:#fff;border:1px solid var(--line);border-radius:8px;
+  padding:5px 12px;color:var(--ink-2)}
 
 /* --- motion --------------------------------------------------------------
    Two moves, both one-shot. The board settles in when it first receives a
@@ -291,6 +370,13 @@ body{background:var(--canvas);color:var(--ink);
 
 /* A narrow browser window — half a laptop screen, or a portrait display.
    Two rings abreast and the panels stack rather than squeezing to slivers. */
+/* A portrait screen. The fortnight would be seven slivers across 1080px, so
+   it goes four across and takes four rows; the rings stay in one row because
+   they are the first thing looked at. */
+@media (max-width:1400px){
+  .ladays{grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(0,1fr)}
+  .la{grid-template-rows:auto 1fr 1fr}
+}
 @media (max-width:1180px){
   .rings{grid-template-columns:repeat(2,1fr)}
   .attgrid{grid-template-columns:repeat(2,1fr)}
@@ -299,6 +385,7 @@ body{background:var(--canvas);color:var(--ink);
   .list.two{grid-template-columns:1fr}
 }
 @media (max-width:820px){
+  .ladays{grid-template-columns:repeat(2,1fr)}
   .rings{grid-template-columns:repeat(2,1fr)}
   .attgrid{grid-template-columns:1fr}
   .cols{grid-template-columns:1fr}
@@ -326,6 +413,58 @@ body{background:var(--canvas);color:var(--ink);
   .ring h3{flex:1;min-width:0}
   .ring .note{display:none}
   .rings{grid-template-columns:repeat(2,1fr)}
+}
+
+/* A tall portrait screen — the wall panel this board was made for. The narrow
+   rules above are written for a laptop window that happens to be narrow, where
+   height is the scarce thing. Here width is scarce and height is not, so the
+   rings go back to one row across the top and the space that frees up goes to
+   the fortnight, which is the half of the board with the most to say. */
+@media (orientation:portrait) and (min-height:1000px){
+  .wrap{grid-template-rows:auto auto auto minmax(0,.85fr) minmax(0,1.7fr) auto}
+  .rings{grid-template-columns:repeat(4,1fr)}
+  .ring{padding:var(--s4) var(--s2);gap:var(--s2)}
+  .ring h3{font-size:var(--t-cap)}
+  .dial{width:clamp(70px, 8vh, 120px);height:clamp(70px, 8vh, 120px)}
+  .ring .note{font-size:var(--t-cap);max-width:20ch}
+  .cols{grid-template-columns:1fr 1fr}
+  .panel.dark{grid-column:1 / -1}
+  .attgrid{grid-template-columns:repeat(2,1fr);max-height:18vh}
+  /* the week's four figures go two abreast rather than in one tall column,
+     which is what was pushing the last two off the bottom of the panel */
+  /* the week's four figures go across the panel in one row rather than down
+     it, which is what was pushing the last of them off the bottom */
+  .panel.dark #week{display:grid;grid-template-columns:repeat(4,1fr);
+    gap:0 var(--s5);align-content:start}
+  .stat{border-bottom:0}
+  .stat .n{min-width:0}
+  .stat{padding:var(--s1) 0}
+  .stat:nth-child(2){border-bottom:1px solid rgba(255,255,255,.10)}
+  .stat .l span{margin-top:1px}
+  .stat .n{font-size:var(--t-head);min-width:64px}
+}
+
+/* A wide, short screen — a landscape TV or a laptop. Both halves of the board
+   are on one screen here too, so the top half gives up its dials: the count and
+   the state in words carried the meaning anyway, and the height they free is
+   worth more to the fortnight underneath. */
+@media (orientation:landscape) and (max-height:1200px){
+  .wrap{grid-template-rows:auto auto auto minmax(0,.7fr) minmax(0,1.5fr) auto;
+    gap:var(--s3)}
+  .dial{width:auto;height:auto}
+  .dial svg{display:none}
+  .mid{position:static;flex-direction:row;align-items:baseline;gap:var(--s2)}
+  .ring{flex-direction:row;align-items:center;text-align:left;
+    padding:var(--s3) var(--s4);gap:var(--s3)}
+  .ring h3{flex:1;min-width:0}
+  .ring .note{display:none}
+  .attgrid{max-height:14vh}
+  .panel.dark #week{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s6);
+    align-content:start}
+  .stat{padding:var(--s1) 0;border-bottom:0}
+  /* the qualifier under each figure is the first thing to go when the panel
+     is short: the figure and its label still say it */
+  .stat .l span{display:none}
 }
 
 /* Print, for anyone who wants the morning position on paper */
@@ -367,9 +506,20 @@ body{background:var(--canvas);color:var(--ink);
     <div class="panel dark"><h2>This week</h2><div id="week"></div></div>
   </div>
 
+  <div class="la" id="la">
+    <h2>Two week look ahead<span class="rng" id="laRange">&mdash;</span></h2>
+    <div class="laweek"><div class="lahead"><span>This week</span>
+      <span class="tally" id="tally0"></span></div>
+      <div class="ladays" id="week0"></div></div>
+    <div class="laweek"><div class="lahead"><span>Next week</span>
+      <span class="tally" id="tally1"></span></div>
+      <div class="ladays" id="week1"></div></div>
+  </div>
+
   <div class="foot">
     <span class="dot" id="dot"></span>
     <span id="stamp">&mdash;</span>
+    <span class="legend" id="legend"></span>
     <span class="right">CGC siteHUB &middot; site board</span>
   </div>
 </div>
@@ -463,6 +613,163 @@ function ring(title, done, total, note, wip){
     + '<div class="sub">'+(total===0 ? "to complete" : "complete")+'</div></div></div>'
     + '<div class="rstate '+key+'"><b>'+st.mark+'</b>'+st.word+'</div>'
     + '<div class="note">'+note+'</div></div>';
+}
+
+
+/* ------------------------------------------------------------------------
+   The two week look ahead. The board holds no rules of its own: which days
+   are working days, what is booked on them, and what each kind is called and
+   coloured all arrive in the snapshot, so the wall can never disagree with
+   the phone.
+   ------------------------------------------------------------------------ */
+var DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function dowOf(x){ return DOW[(parse(x).getDay()+6)%7]; }
+function dayMonth(x){ var d=parse(x); return d.getDate()+" "+MON[d.getMonth()]; }
+
+var KINDS = {};
+function kindOf(k){
+  return KINDS[k] || { label:String(k||"Item").replace(/^./,function(c){return c.toUpperCase();}),
+                       colour:"#48534D", bg:"#EEF1EF" };
+}
+/* the tag border is the tag's own colour, softened, so a kind added in the app
+   needs nothing changed here */
+function softBorder(hex){
+  var h=String(hex||"").replace("#","");
+  if(h.length!==6) return "transparent";
+  return "rgba("+parseInt(h.slice(0,2),16)+","+parseInt(h.slice(2,4),16)+","
+    + parseInt(h.slice(4,6),16)+",.3)";
+}
+
+function dayCell(d, T){
+  var cls=["day"];
+  if(d.date===T) cls.push("today");
+  else if(d.date<T) cls.push("past");
+  if(!d.working) cls.push("rest");
+  var head='<div class="dhead"><span class="dow">'+dowOf(d.date)+'</span>'
+    + (d.date===T ? '<span class="todaytag">Today</span>' : '')
+    + '<span class="dnum">'+esc(dayMonth(d.date))+'</span></div>';
+  var items=d.items||[], body="", i, k;
+  if(!items.length){
+    body='<div class="none">'+(d.working?"Nothing booked":"Not a working day")+'</div>';
+  } else {
+    for(i=0;i<items.length;i++){
+      k=kindOf(items[i].kind);
+      body+='<div class="it">'
+        + '<span class="tag" style="background:'+k.bg+';color:'+k.colour
+        + ';border-color:'+softBorder(k.colour)+'">'+esc(k.label)+'</span>'
+        + '<span class="tx"><b>'
+        + (items[i].time ? '<span class="at">'+esc(items[i].time)+'</span>' : '')
+        + esc(items[i].text)+'</b>'
+        + (items[i].sub ? '<span class="sub">'+esc(items[i].sub)+'</span>' : '')
+        + '</span></div>';
+    }
+  }
+  return '<div class="'+cls.join(" ")+'">'+head+'<div class="dlist">'+body+'</div></div>';
+}
+
+function laTally(days){
+  var n=0, w=0, i;
+  for(i=0;i<days.length;i++){ n+=(days[i].items||[]).length; if(days[i].working) w++; }
+  return n===0 ? "Nothing booked"
+    : n+(n===1?" thing":" things")+" across "+w+(w===1?" working day":" working days");
+}
+
+/* Everything booked on a day has to be on the wall, so nothing is rolled into
+   a "+ n more" line and nothing is cut off. When a day has more on it than
+   fits at full size the cell gives up size instead of content, and only the
+   cells that need it do: a quiet day beside a heavy one stays full size. */
+var MIN_SCALE = 0.40;   /* below this nobody reads it from across the office */
+var EASY_SCALE = 0.80;  /* above this, take the loss in size over losing detail */
+
+/* Measured off the last row's own position rather than the cell's scroll
+   height: a row half off the bottom is exactly what this is here to prevent,
+   and scrollHeight does not always report it. */
+function fits(box){
+  var rows=box.children;
+  if(!rows.length) return true;
+  return rows[rows.length-1].getBoundingClientRect().bottom
+      <= box.getBoundingClientRect().bottom + 1;
+}
+function bestScale(box, base){
+  box.style.fontSize="";
+  if(fits(box)) return 1;
+  var lo=MIN_SCALE, hi=1, mid, best=0, i;
+  for(i=0;i<9;i++){
+    mid=(lo+hi)/2;
+    box.style.fontSize=(base*mid).toFixed(2)+"px";
+    if(fits(box)){ best=mid; lo=mid; } else hi=mid;
+  }
+  return best;
+}
+function fitCell(box){
+  var base=parseFloat(getComputedStyle(box).fontSize);
+  var states=["","inline","inline nosub"], i, sc, chosen=null;
+  for(i=0;i<states.length;i++){
+    box.className="dlist"+(states[i]?" "+states[i]:"");
+    sc=bestScale(box, base);
+    if(sc>=EASY_SCALE){ chosen={s:states[i],k:sc}; break; }
+    if(sc>0 && (!chosen || sc>chosen.k+0.02)) chosen={s:states[i],k:sc};
+  }
+  if(!chosen){
+    box.className="dlist inline nosub";
+    box.style.fontSize=(base*MIN_SCALE).toFixed(2)+"px";
+    return;
+  }
+  box.className="dlist"+(chosen.s?" "+chosen.s:"");
+  box.style.fontSize = chosen.k>=1 ? "" : (base*chosen.k).toFixed(2)+"px";
+}
+function fitDays(){
+  var c=document.querySelectorAll(".dlist"), i;
+  for(i=0;i<c.length;i++) fitCell(c[i]);
+}
+
+/* The panels in the top half carry their own cap, but on a short screen the
+   rows that do fit can still end up half cut. Two steps, same idea as the
+   day cells: pack the rows tighter, then drop the qualifier under them. */
+function fitPanels(){
+  ["overview","received","attList","week"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.className = el.className.replace(/ ?tight/,"").replace(/ ?compact/,"");
+    if(el.scrollHeight <= el.clientHeight + 2) return;
+    el.className += " compact";
+    if(el.scrollHeight <= el.clientHeight + 2) return;
+    el.className += " tight";
+  });
+}
+
+function drawLookahead(D, T){
+  KINDS = D.planKinds || {};
+  var la = D.lookahead || [];
+  if(!la.length){ document.getElementById("la").style.display="none"; return; }
+  document.getElementById("la").style.display="";
+
+  setHTML("laRange", esc(dayMonth(la[0].date))+" \u2013 "+esc(dayMonth(la[la.length-1].date)));
+  var wk=[la.slice(0,7), la.slice(7,14)], w, i, html;
+  /* the two weeks split the height by how much they are carrying, so a heavy
+     week is not squeezed into the same band as an empty one */
+  var busiest=function(days){ var m=0,j; days=days||[];
+    for(j=0;j<days.length;j++) m=Math.max(m,(days[j].items||[]).length); return m||1; };
+  var a=busiest(wk[0]), b2=busiest(wk[1]);
+  document.getElementById("la").style.gridTemplateRows = "auto "
+    + Math.max(1, Math.min(1.8, a/b2)) + "fr " + Math.max(1, Math.min(1.8, b2/a)) + "fr";
+  for(w=0;w<2;w++){
+    html="";
+    for(i=0;i<wk[w].length;i++) html+=dayCell(wk[w][i], T);
+    setHTML("week"+w, html);
+    setHTML("tally"+w, esc(laTally(wk[w])));
+  }
+
+  /* the key names every kind actually on the board, and nothing else */
+  var used={}, leg="";
+  for(i=0;i<la.length;i++) (la[i].items||[]).forEach(function(x){ used[x.kind]=1; });
+  Object.keys(used).forEach(function(k){
+    var kk=kindOf(k);
+    leg+='<span class="lg"><span class="sw" style="background:'+kk.colour+'"></span>'
+      + esc(kk.label)+'</span>';
+  });
+  setHTML("legend", leg);
 }
 
 function draw(D){
@@ -719,10 +1026,21 @@ function draw(D){
     + stat(onSite.length, "machines on site",
         (D.tools||[]).filter(function(x){ return x.job===D.job; }).length+" items of equipment"));
 
+  drawLookahead(D, T);
+
   document.getElementById("job").textContent = D.job || "—";
   document.getElementById("state").style.display = "none";
   var board = document.getElementById("board");
   board.style.display = "";
+  /* only once the board is on screen do the cells have a height to measure
+     against, so the fit pass runs here rather than at write time */
+  fitDays();
+  /* one more pass once the browser has finished laying the board out: the
+     first pass measures cells the instant they appear, and on a cold load
+     that can be a frame before the grid has settled */
+  fitPanels();
+  requestAnimationFrame(function(){ fitDays(); fitPanels(); });
+  setTimeout(function(){ fitDays(); fitPanels(); }, 350);
   /* the entrance runs once, on the first snapshot the board ever receives */
   if(!painted){
     board.classList.add("first");
@@ -753,23 +1071,66 @@ function clock(publishedAt){
 }
 
 var lastPublished = 0;
+
+/* The app writes board-data.json into the repository; this board looks beside
+   itself first, then a folder up, then at the site root, because the two files
+   do not always end up in the same place. An address can also be forced:
+   ?data=https://…/board-data.json  Whatever works is remembered. */
+var DATA_CANDIDATES = (function(){
+  var forced = new URLSearchParams(location.search).get("data");
+  if(forced) return [forced];
+  var saved=null;
+  try{ saved = localStorage.getItem("boardDataUrl"); }catch(e){}
+  var list = ["board-data.json","../board-data.json","/board-data.json","docs/board-data.json"];
+  if(saved) list.unshift(saved);
+  return list;
+})();
+var TRIED = [];
+
+function fetchBoard(){
+  var i=0; TRIED=[];
+  function attempt(){
+    if(i >= DATA_CANDIDATES.length) return Promise.reject(new Error("not found"));
+    var url = DATA_CANDIDATES[i++];
+    return fetch(url + (url.indexOf("?")>-1?"&":"?") + "t=" + Date.now(), { cache:"no-store" })
+      .then(function(r){
+        TRIED.push(url + " \u2014 " + r.status);
+        if(!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then(function(d){ try{ localStorage.setItem("boardDataUrl", url); }catch(e){} return d; })
+      .catch(function(){ return attempt(); });
+  }
+  return attempt();
+}
+
 function load(){
-  fetch("board-data.json?t=" + Date.now(), { cache:"no-store" })
-    .then(function(r){ if(!r.ok) throw new Error("no file"); return r.json(); })
+  fetchBoard()
     .then(function(D){
       lastPublished = D.publishedAt || 0;
       draw(D);
       clock(lastPublished);
     })
     .catch(function(){
-      document.getElementById("stateTitle").textContent = "No site data yet";
-      document.getElementById("stateText").innerHTML =
-        "This board reads <code>board-data.json</code> from the same folder.<br>"
-        + "Publish it from the app: Profile \u2192 Update the office board.";
+      /* yesterday's board is worth more than an error message */
+      if(painted) return;
+      var isFile = location.protocol === "file:";
+      document.getElementById("stateTitle").textContent =
+        isFile ? "Put this on a web address" : "Cannot find the board file";
+      document.getElementById("stateText").innerHTML = isFile
+        ? "This page has been opened straight from the file system, and a browser will not "
+          + "let it read <code>board-data.json</code> that way. Put both files on the same "
+          + "web address and open it from there."
+        : "The app is sending the file, but this page cannot reach it. These are the "
+          + "addresses it tried, and what came back:"
+          + '<div class="tried">' + TRIED.map(function(x){
+              return "<span>"+esc(x)+"</span>"; }).join("") + "</div>";
     });
 }
 load();
 setInterval(load, REFRESH_MS);
 setInterval(function(){ clock(lastPublished); }, 20000);
+/* the cells are fitted to their own height, so a resize has to re-fit them */
+window.addEventListener("resize", function(){ if(painted){ fitDays(); fitPanels(); } });
 </script>
 </body></html>
