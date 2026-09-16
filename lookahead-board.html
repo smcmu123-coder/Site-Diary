@@ -143,22 +143,34 @@ body{background:var(--canvas);color:var(--ink);
   border-radius:var(--r-pill);padding:2px 10px;
   box-shadow:inset 0 0 0 1px var(--green-100)}
 
-.dlist{flex:1;min-height:0;overflow:hidden}
+.dlist{flex:1;min-height:0;overflow:hidden;font-size:var(--t-body)}
 /* Rows are hairline-separated, exactly as on the site board. The colour comes
    from the tag and nothing else, so a day with four different things on it
-   still reads as one list rather than four coloured boxes. */
-.it{padding:var(--s2) 0;border-bottom:1px solid var(--line-2)}
+   still reads as one list rather than four coloured boxes.
+
+   Everything inside a cell is sized in em against the cell, not in absolute
+   steps, because a cell has to show everything booked on it and the only way
+   to do that on a busy day is to give up some size. See fitDays(). */
+.it{padding:.42em 0;border-bottom:1px solid var(--line-2)}
 .it:last-child{border-bottom:0}
-.it .tag{margin-bottom:3px}
-.it b{display:block;font-size:var(--t-body);font-weight:var(--w-med);
+.it .tag{margin-bottom:.18em}
+.it b{display:block;font-size:1em;font-weight:var(--w-med);
   letter-spacing:-.01em;color:var(--ink);line-height:1.25}
-.it .sub{display:block;font-size:var(--t-cap);color:var(--ink-2);margin-top:2px;
+.it .sub{display:block;font-size:.8em;color:var(--ink-2);margin-top:.12em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.it .at{font-size:var(--t-cap);font-weight:var(--w-bold);color:var(--ink-3);
-  font-variant-numeric:tabular-nums;margin-right:6px}
-.none{font-size:var(--t-cap);color:var(--ink-3);padding:var(--s2) 0;font-weight:var(--w-med)}
-.more{font-size:var(--t-cap);color:var(--ink-2);font-weight:var(--w-bold);
-  padding:var(--s2) 0}
+.it .at{font-size:.8em;font-weight:var(--w-bold);color:var(--ink-3);
+  font-variant-numeric:tabular-nums;margin-right:.45em}
+.none{font-size:.8em;color:var(--ink-3);padding:.42em 0;font-weight:var(--w-med)}
+.it .tag{font-size:.68em;padding:.15em .7em}
+
+/* Steps down the ladder: the tag moves onto the title's line, then the second
+   line of detail goes. Both buy back a whole line per row on a day that has a
+   lot on it, and both cost less than making the wording smaller. */
+.dlist.inline .it{display:flex;align-items:baseline;gap:.5em}
+.dlist.inline .it .tag{flex:none;margin:0}
+.dlist.inline .it .tx{flex:1;min-width:0}
+.dlist.nosub .it .sub{display:none}
+.dlist.nosub .it{padding:.3em 0}
 
 /* --- tags (the site board's shape; the colours come from the app) --------- */
 .tag{display:inline-block;padding:2px 10px;border-radius:var(--r-pill);
@@ -322,14 +334,6 @@ function kindOf(k){
                        colour:"#48534D", bg:"#EEF1EF" };
 }
 
-/* how many rows fit in a cell before the rest roll into "+ n more". Fewer
-   rows, never smaller words. */
-function capacity(){
-  if(window.innerWidth < 820) return 6;
-  if(window.innerHeight < 700) return 3;
-  return 4;
-}
-
 function dayCell(d, todayISO){
   var cls = ["day"];
   if(d.date === todayISO) cls.push("today");
@@ -344,49 +348,100 @@ function dayCell(d, todayISO){
   if(!items.length){
     body = '<div class="none">'+(d.working ? "Nothing booked" : "Not a working day")+'</div>';
   } else {
-    var cap = capacity(), show = items.slice(0, cap), i, k;
+    var show = items, i, k;
     for(i=0;i<show.length;i++){
       k = kindOf(show[i].kind);
       body += '<div class="it">'
         + '<span class="tag" style="background:'+k.bg+';color:'+k.colour
         + ';border-color:'+softBorder(k.colour)+'">'+esc(k.label)+'</span>'
-        + '<b>'+(show[i].time ? '<span class="at">'+esc(show[i].time)+'</span>' : '')
+        + '<span class="tx"><b>'
+        + (show[i].time ? '<span class="at">'+esc(show[i].time)+'</span>' : '')
         + esc(show[i].text)+'</b>'
         + (show[i].sub ? '<span class="sub">'+esc(show[i].sub)+'</span>' : '')
-        + '</div>';
+        + '</span></div>';
     }
-    if(items.length > cap)
-      body += '<div class="more">+ '+(items.length-cap)+' more</div>';
   }
   return '<div class="'+cls.join(" ")+'">'+head
-    + '<div class="dlist" data-total="'+items.length+'">'+body+'</div></div>';
+    + '<div class="dlist">'+body+'</div></div>';
 }
 
-/* A cell holds what it holds. Guessing a row count from the window gets close
-   but not exact — two lines of wording in a title is enough to push the last
-   row half off the bottom, and half a row showing looks like a fault. So after
-   the board is written, each cell drops rows until its contents actually fit
-   and says how many it dropped. Nothing is ever cut mid-line. */
+/* Everything booked on a day has to be on the wall. Nothing is rolled into a
+   "+ n more" line and nothing is cut off, so when a day has more on it than
+   fits at full size the cell gives up size instead of content:
+
+     1. the tag moves onto the title's line, buying back a line per row
+     2. the cell's type steps down, and every measurement inside it follows,
+        because the rows are sized in em against the cell
+
+   Type only shrinks in the cells that need it. A quiet day next to a heavy one
+   stays at full size rather than being dragged down with it. */
+var MIN_SCALE = 0.40;   /* below this nobody reads it from across the office */
+var EASY_SCALE = 0.80;  /* above this, take the loss in size over losing detail */
+
+/* Measured off the last row's own position rather than the cell's scroll
+   height: a floated tag inside a clipped row does not always show up in
+   scrollHeight, and a row half off the bottom is exactly what this is here to
+   prevent. */
+function fits(box){
+  var rows = box.children;
+  if(!rows.length) return true;
+  return rows[rows.length-1].getBoundingClientRect().bottom
+       <= box.getBoundingClientRect().bottom + 1;
+}
+
+/* Largest scale at which the cell's contents fit, in its current state. */
+function bestScale(box, base){
+  box.style.fontSize = "";
+  if(fits(box)) return 1;
+  var lo = MIN_SCALE, hi = 1, mid, best = 0, i;
+  for(i=0;i<9;i++){
+    mid = (lo + hi) / 2;
+    box.style.fontSize = (base * mid).toFixed(2) + "px";
+    if(fits(box)){ best = mid; lo = mid; } else hi = mid;
+  }
+  return best;
+}
+
+function fitCell(box){
+  var base = parseFloat(getComputedStyle(box).fontSize);
+  var states = ["", "inline", "inline nosub"], i, sc, chosen = null;
+
+  for(i=0;i<states.length;i++){
+    box.className = "dlist" + (states[i] ? " " + states[i] : "");
+    sc = bestScale(box, base);
+    if(sc >= EASY_SCALE){ chosen = { s:states[i], k:sc }; break; }
+    if(sc > 0 && (!chosen || sc > chosen.k + 0.02)) chosen = { s:states[i], k:sc };
+  }
+
+  if(!chosen){
+    /* a day with an extraordinary amount on it: take it as small as it needs
+       to be rather than hide any of it */
+    box.className = "dlist inline nosub";
+    box.style.fontSize = (base * MIN_SCALE).toFixed(2) + "px";
+    return;
+  }
+  box.className = "dlist" + (chosen.s ? " " + chosen.s : "");
+  box.style.fontSize = chosen.k >= 1 ? "" : (base * chosen.k).toFixed(2) + "px";
+}
+
+/* The two weeks split the height between them by how much they are carrying,
+   so a heavy week is not squeezed into the same band as an empty one. */
+function shareHeight(wk){
+  var a = busiest(wk[0]), b = busiest(wk[1]);
+  if(!a && !b) return;
+  var ra = Math.max(1, Math.min(2, (a||1) / Math.max(1,(b||1)) ));
+  var rb = Math.max(1, Math.min(2, (b||1) / Math.max(1,(a||1)) ));
+  document.getElementById("weeks").style.gridTemplateRows = ra + "fr " + rb + "fr";
+}
+function busiest(days){
+  var m = 0, i; days = days || [];
+  for(i=0;i<days.length;i++) m = Math.max(m, (days[i].items||[]).length);
+  return m;
+}
+
 function fitDays(){
   var cells = document.querySelectorAll(".dlist"), i;
-  for(i=0;i<cells.length;i++){
-    var box = cells[i], total = +box.getAttribute("data-total") || 0;
-    if(!total) continue;
-    var more = box.querySelector(".more");
-    var guard = 0;
-    while(box.scrollHeight > box.clientHeight + 1 && guard++ < 20){
-      var rows = box.querySelectorAll(".it");
-      if(rows.length <= 1) break;
-      rows[rows.length-1].remove();
-      if(!more){
-        more = document.createElement("div");
-        more.className = "more";
-        box.appendChild(more);
-      }
-      more.textContent = "+ " + (total - box.querySelectorAll(".it").length) + " more";
-    }
-    if(more && box.querySelectorAll(".it").length === total) more.remove();
-  }
+  for(i=0;i<cells.length;i++) fitCell(cells[i]);
 }
 
 function tally(days){
@@ -423,6 +478,7 @@ function draw(data){
     html += '</div></div>';
   }
   setHTML("weeks", html);
+  shareHeight(wk);
 
   /* the legend names every kind actually on the board, and nothing else */
   var used = {}, leg = "";
