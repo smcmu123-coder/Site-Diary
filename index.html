@@ -6066,19 +6066,22 @@ function ramsCaptureAndSign(rev, add, target, person){
    statement — so both go where an addendum's single document would. */
 async function ramsBuildFiles(target, what){
   const files = [];
-  const addFile = async (src, suffix) => {
-    if(!src) return;
+  const addFile = async (doc, suffix) => {
+    if(!doc || !doc.src) return;
     try{
-      const blob = await (await fetch(src)).blob();
-      files.push(new File([blob], (what + (suffix?" - "+suffix:"")).replace(/[^\w\- ]+/g,"") + ".jpg",
-        { type: blob.type || "image/jpeg" }));
+      const blob = await (await fetch(doc.src)).blob();
+      const isPdf = doc.pdf || blob.type === "application/pdf";
+      const ext = isPdf ? ".pdf" : ".jpg";
+      const type = blob.type || (isPdf ? "application/pdf" : "image/jpeg");
+      files.push(new File([blob], (what + (suffix?" - "+suffix:"")).replace(/[^\w\- ]+/g,"") + ext,
+        { type }));
     }catch(e){ /* skip — the rest can still go */ }
   };
   if(target.raDoc || target.msDoc){
-    await addFile(target.raDoc && target.raDoc.src, "Risk assessment");
-    await addFile(target.msDoc && target.msDoc.src, "Method statement");
+    await addFile(target.raDoc, "Risk assessment");
+    await addFile(target.msDoc, "Method statement");
   } else {
-    await addFile(target.doc && target.doc.src, "");
+    await addFile(target.doc, "");
   }
   return files;
 }
@@ -6183,6 +6186,26 @@ function ramsSignedPage(sigs, label){
       : `<p style="font-size:10.5px;color:#555">Nobody has signed this yet.</p>`));
 }
 
+/* The document's body for a pack page — an image sits inline; a PDF can't
+   be flattened into the printed pack, so this names it and links to it
+   for anyone reading on screen, and it still goes across whole when the
+   pack is shared as a file. */
+function ramsDocBody(doc){
+  if(!doc) return `<p style="font-size:10.5px;color:#555">No document has been added.</p>`;
+  if(doc.pdf){
+    return `<div style="border:1.5px dashed #CBD3CD;border-radius:10px;padding:22px;text-align:center">
+        <div style="font-size:28px">📄</div>
+        <p style="font-size:11px;color:#333;margin:8px 0 2px;font-weight:650">
+          ${esc(doc.name||"Document.pdf")}</p>
+        <p style="font-size:10px;color:#777;margin:0 0 12px">Attached as a PDF — it isn't shown
+          page by page here, but it is included whenever this is shared or printed as a file.</p>
+        <a href="${doc.src}" target="_blank" rel="noopener"
+          style="font-size:11px;font-weight:650;color:#1F5A2D">Open the PDF</a>
+      </div>`;
+  }
+  return `<img src="${doc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`;
+}
+
 function ramsDocSheet(target, titleLine, subLine){
   /* a single addendum, viewed on its own: its own divider, then who has
      signed it, then the document itself */
@@ -6195,10 +6218,7 @@ function ramsDocSheet(target, titleLine, subLine){
       </div>`);
     const docPage = regPage(
       `<div class="pk-h">${esc(titleLine)}</div>
-       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(subLine)}</p>` +
-      (target.doc && target.doc.src
-        ? `<img src="${target.doc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`
-        : `<p style="font-size:10.5px;color:#555">No document has been added.</p>`));
+       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(subLine)}</p>` + ramsDocBody(target.doc));
     return divider + ramsSignedPage(target.sigs, subLine) + docPage;
   }
 
@@ -6237,19 +6257,16 @@ function ramsDocSheet(target, titleLine, subLine){
   /* the risk assessment and the method statement are usually separate
      documents on site, so each gets its own page rather than being forced
      together onto one */
-  const raPage = target.raDoc && target.raDoc.src ? regPage(
+  const raPage = target.raDoc ? regPage(
     `<div class="pk-h">Risk Assessment — ${esc(target.title||"RAMS")}</div>
-     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>
-     <img src="${target.raDoc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`)
-    : "";
-  const msPage = target.msDoc && target.msDoc.src ? regPage(
+     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>`
+     + ramsDocBody(target.raDoc)) : "";
+  const msPage = target.msDoc ? regPage(
     `<div class="pk-h">Method Statement — ${esc(target.title||"RAMS")}</div>
-     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>
-     <img src="${target.msDoc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`)
-    : "";
+     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>`
+     + ramsDocBody(target.msDoc)) : "";
   const docPages = (raPage + msPage) || regPage(
-    `<div class="pk-h">${esc(target.title||"RAMS")}</div>
-     <p style="font-size:10.5px;color:#555">No document has been added.</p>`);
+    `<div class="pk-h">${esc(target.title||"RAMS")}</div>` + ramsDocBody(null));
 
   let html = cover + ramsSignedPage(target.sigs, DB.job + " · Rev " + target.revNo) + toc + docPages;
 
@@ -6264,10 +6281,7 @@ function ramsDocSheet(target, titleLine, subLine){
     html += ramsSignedPage(a.sigs, DB.job + " · Addendum " + (i+1) + " — " + (a.title||"Addendum"));
     html += regPage(
       `<div class="pk-h">Addendum ${i+1} — ${esc(a.title||"Addendum")}</div>
-       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)}</p>` +
-      (a.doc && a.doc.src
-        ? `<img src="${a.doc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`
-        : `<p style="font-size:10.5px;color:#555">No document has been added.</p>`));
+       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)}</p>` + ramsDocBody(a.doc));
   });
 
   return html;
@@ -6323,6 +6337,17 @@ function askDocType(onPick){
 
 /* An uploaded document, sized down but kept readable. */
 function compressDoc(file){
+  /* a PDF can't be decoded as an image — keep it as-is rather than trying
+     to run it through the canvas and quietly failing */
+  if(file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name||""))){
+    return new Promise((res,rej)=>{
+      const fr = new FileReader();
+      fr.onerror = ()=>rej();
+      fr.onload = () => res({ src: fr.result, name: file.name || "Document.pdf",
+        pdf:true, scannedAt: Date.now() });
+      fr.readAsDataURL(file);
+    });
+  }
   return new Promise((res,rej)=>{
     const fr = new FileReader();
     fr.onerror = ()=>rej();
@@ -9817,17 +9842,34 @@ function ramsRevCard(rev, people){
   }).join("")}`;
 }
 
+/* A thumbnail for an image, or a plain card naming the file for a PDF —
+   a PDF can't be shown as a picture, so say what it is instead. */
+function ramsDocPreview(doc, label, rmKey){
+  if(!doc) return "";
+  if(doc.pdf){
+    return `<div class="card" style="background:var(--canvas);box-shadow:none;
+        display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:12px 14px">
+      <span style="font-size:20px">📄</span>
+      <span style="flex:1;min-width:0;font-size:13.5px;font-weight:640;overflow-wrap:anywhere">
+        ${esc(doc.name || "Document.pdf")}</span>
+      <button type="button" data-${rmKey}="1" aria-label="Remove"
+        style="color:var(--bad);font-weight:650;font-size:13px;flex:none">Remove</button>
+    </div>`;
+  }
+  return `<div class="ph" style="aspect-ratio:auto;max-height:190px;margin-bottom:10px">
+      <img src="${doc.src}" alt="${esc(label)}" style="height:auto;max-height:190px;object-fit:contain">
+      <button type="button" data-${rmKey}="1" aria-label="Remove">&times;</button>
+    </div>`;
+}
+
 function ramsDocFields(d, attr){
   return `
     <div class="f"><label>Title</label>
       <input class="in" ${attr}="title" value="${esc(d.title||"")}"
         placeholder="e.g. Excavation and drainage RAMS"></div>
     <div class="f" style="margin:0"><label>Document</label>
-      <div class="hint">Scan it now, or add it later.</div>
-      ${d.doc ? `<div class="ph" style="aspect-ratio:auto;max-height:190px;margin-bottom:10px">
-          <img src="${d.doc.src}" alt="Document" style="height:auto;max-height:190px;object-fit:contain">
-          <button type="button" data-ramsdrm="1" aria-label="Remove">&times;</button>
-        </div>` : ""}
+      <div class="hint">Scan it, upload an image, or upload a PDF.</div>
+      ${ramsDocPreview(d.doc, "Document", "ramsdrm")}
       <div class="g2">
         <button type="button" class="btn line" style="margin:0" data-ramsscan="1">${d.doc?"Rescan":"Scan document"}</button>
         <button type="button" class="btn line" style="margin:0" data-ramsup="1">Upload</button>
@@ -9840,10 +9882,7 @@ function ramsDocFields(d, attr){
 function ramsDocSlot(doc, label, hint, scanKey, upKey, rmKey){
   return `<div class="f" style="margin:0 0 16px"><label>${esc(label)}</label>
     <div class="hint">${esc(hint)}</div>
-    ${doc ? `<div class="ph" style="aspect-ratio:auto;max-height:190px;margin-bottom:10px">
-        <img src="${doc.src}" alt="${esc(label)}" style="height:auto;max-height:190px;object-fit:contain">
-        <button type="button" data-${rmKey}="1" aria-label="Remove">&times;</button>
-      </div>` : ""}
+    ${ramsDocPreview(doc, label, rmKey)}
     <div class="g2">
       <button type="button" class="btn line" style="margin:0" data-${scanKey}="1">${doc?"Rescan":"Scan"}</button>
       <button type="button" class="btn line" style="margin:0" data-${upKey}="1">Upload</button>
@@ -11968,13 +12007,13 @@ function bind(){
     el.onchange = el.oninput;
   });
   /* certificate on a new item, before it exists */
-  const draftDoc = (getDraft, scanKey, upKey, rmKey) => {
+  const draftDoc = (getDraft, scanKey, upKey, rmKey, accept) => {
     const sc = app.querySelector("[data-"+scanKey+"]");
     if(sc) sc.onclick = ()=>openScanner(doc=>{ const d=getDraft(); if(d){ d.doc = doc; render(); } });
     const up = app.querySelector("[data-"+upKey+"]");
     if(up) up.onclick = ()=>{
       const inp = document.createElement("input");
-      inp.type="file"; inp.accept="image/*";
+      inp.type="file"; inp.accept = accept || "image/*";
       inp.onchange = async () => {
         try{ const doc = await compressDoc(inp.files[0]); const d=getDraft(); if(d){ d.doc = doc; render(); } }
         catch(e){ toast("That file could not be read."); }
@@ -11986,16 +12025,16 @@ function bind(){
   };
   draftDoc(()=>plantDraft, "ndscan", "ndup", "ndrm");
   draftDoc(()=>liftDraft, "lfndscan", "lfndup", "lfndrm");
-  draftDoc(()=>ramsAddendumDraft, "ramsscan", "ramsup", "ramsdrm");
+  draftDoc(()=>ramsAddendumDraft, "ramsscan", "ramsup", "ramsdrm", "image/*,application/pdf");
   /* the revision draft holds two documents, not one, so each gets its own
      scan/upload/remove trio against its own field */
-  const draftDocField = (getDraft, field, scanKey, upKey, rmKey) => {
+  const draftDocField = (getDraft, field, scanKey, upKey, rmKey, accept) => {
     const sc = app.querySelector("[data-"+scanKey+"]");
     if(sc) sc.onclick = ()=>openScanner(doc=>{ const d=getDraft(); if(d){ d[field] = doc; render(); } });
     const up = app.querySelector("[data-"+upKey+"]");
     if(up) up.onclick = ()=>{
       const inp = document.createElement("input");
-      inp.type="file"; inp.accept="image/*";
+      inp.type="file"; inp.accept = accept || "image/*";
       inp.onchange = async () => {
         try{ const doc = await compressDoc(inp.files[0]); const d=getDraft(); if(d){ d[field] = doc; render(); } }
         catch(e){ toast("That file could not be read."); }
@@ -12005,8 +12044,8 @@ function bind(){
     const rm = app.querySelector("[data-"+rmKey+"]");
     if(rm) rm.onclick = ()=>{ const d=getDraft(); if(d){ d[field] = null; render(); } };
   };
-  draftDocField(()=>ramsDraft, "raDoc", "ramsrascan", "ramsraup", "ramsradrm");
-  draftDocField(()=>ramsDraft, "msDoc", "ramsmsscan", "ramsmsup", "ramsmsdrm");
+  draftDocField(()=>ramsDraft, "raDoc", "ramsrascan", "ramsraup", "ramsradrm", "image/*,application/pdf");
+  draftDocField(()=>ramsDraft, "msDoc", "ramsmsscan", "ramsmsup", "ramsmsdrm", "image/*,application/pdf");
 
   /* ---------------------------------------------------------------- RAMS -- */
   const rup = app.querySelector("[data-ramsupload]");
