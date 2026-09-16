@@ -2111,7 +2111,7 @@ function idbSet(key, value){
 function blankDB(){
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
     job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], tools:[], leave:[], vos:[], packs:[],
-    deliveries:[], events:[] };
+    deliveries:[], events:[], rams:[] };
 }
 
 /* Read what is there: IndexedDB first, then anything left in localStorage from
@@ -5230,6 +5230,38 @@ function currentLabour(){
   return (DB.labour||[]).filter(l => l.job===DB.job && (!l.offDate || l.offDate>t));
 }
 
+/* ------------------------------------------------------------------ RAMS --
+   Risk assessments and method statements. Only one revision is "current"
+   per job at a time — uploading a new one supersedes the last (and any
+   addendums under it) and everyone has to sign again from nothing. Old
+   revisions keep their own signatures for good, even once superseded.
+   Addendums hang off the current revision and need their own signatures. */
+function ramsForJob(){
+  return (DB.rams||[]).filter(r=>r.job===DB.job).sort((a,b)=>b.revNo-a.revNo);
+}
+function currentRams(){ return ramsForJob().find(r=>r.status==="current") || null; }
+function ramsHistory(){ return ramsForJob().filter(r=>r.status!=="current"); }
+function nextRamsRevNo(){
+  const all = ramsForJob();
+  return all.length ? Math.max(...all.map(r=>r.revNo))+1 : 1;
+}
+function ramsOutstanding(rev){
+  if(!rev) return [];
+  const signed = (rev.sigs||[]).map(s=>s.personId);
+  return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
+}
+function ramsAddendumOutstanding(add){
+  if(!add) return [];
+  const signed = (add.sigs||[]).map(s=>s.personId);
+  return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
+}
+function ramsOutstandingTotal(rev){
+  if(!rev) return 0;
+  let n = ramsOutstanding(rev).length;
+  (rev.addendums||[]).forEach(a=>{ n += ramsAddendumOutstanding(a).length; });
+  return n;
+}
+
 /* ------------------------------------------------------- dayworks / VOs -- */
 /* Every diary with dayworks on it raises a numbered variation sheet — VO1,
    VO2 and so on, in the order they happen — for the Principal Contractor to
@@ -5448,6 +5480,7 @@ function go(name, opts){
   if(name!=="plant"){ plantEditId = null; plantDraft = null; }
   if(name!=="labour"){ labourEditId = null; labourDraft = null; }
   if(name!=="lifting"){ liftEditId = null; liftDraft = null; }
+  if(name!=="rams"){ ramsDraft = null; ramsAddendumDraft = null; }
   if(name!=="tools"){ toolDraft = null; }
   if(name!=="deliveries"){ delDraft = null; }
   if(name!=="delivery"){ dropDraft = null; }
@@ -5968,6 +6001,290 @@ function openPhoto(src, takenAt){
   document.body.appendChild(wrap);
 }
 
+/* ------------------------------------------------------------------ RAMS --
+   Finding a rev/addendum from the compact key used in every data- attribute:
+   "rev:<revId>" or "add:<revId>:<addId>", optionally with a trailing
+   ":<personId>" for the signing and sending actions. */
+function ramsParseKey(raw){
+  const p = raw.split(":");
+  const rev = (DB.rams||[]).find(r=>r.id===p[1]);
+  if(p[0]==="add"){
+    const add = rev && (rev.addendums||[]).find(a=>a.id===p[2]);
+    return { rev, add, target: add, personId: p[3] };
+  }
+  return { rev, add:null, target: rev, personId: p[2] };
+}
+
+function ramsPromptContact(person, onDone){
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg" style="text-align:left">
+      <h3>How can we reach ${esc((person.name||"them").split(" ")[0])}?</h3>
+      <p>Needed once, so a signed copy can be sent through — it's saved to the labour
+      register for next time.</p>
+      <div class="f"><label>Email</label>
+        <input class="in" id="ramsCtEmail" type="email" placeholder="name@example.com"></div>
+      <div class="f" style="margin:0"><label>Or mobile number</label>
+        <input class="in" id="ramsCtPhone" type="tel" placeholder="07…"></div>
+      <button class="btn" style="margin:16px 0 8px" data-ramsctsave="1">Save and sign</button>
+      <button class="btn ghost" style="margin:0" data-x>Skip for now</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.querySelector("[data-x]").onclick = () => { close(); onDone(); };
+  wrap.onclick = e => { if(e.target===wrap){ close(); onDone(); } };
+  wrap.querySelector("[data-ramsctsave]").onclick = () => {
+    const email = wrap.querySelector("#ramsCtEmail").value.trim();
+    const phone = wrap.querySelector("#ramsCtPhone").value.trim();
+    if(email) person.email = email;
+    if(phone) person.phone = phone;
+    save();
+    close();
+    onDone();
+  };
+}
+
+function ramsCaptureAndSign(rev, add, target, person){
+  const proceed = () => {
+    openSignaturePad(null, src => {
+      target.sigs = target.sigs || [];
+      const existing = target.sigs.find(s=>s.personId===person.id);
+      const entry = { personId: person.id, name: person.name, sigSrc: src, signedAt: Date.now() };
+      if(existing) Object.assign(existing, entry); else target.sigs.push(entry);
+      save(); render();
+      toast("Signed — " + person.name);
+      ramsSendCopy(rev, add, person, "receipt");
+    });
+  };
+  if(!person.email && !person.phone) ramsPromptContact(person, proceed);
+  else proceed();
+}
+
+/* Attach the document(s) as files where sharing supports it; otherwise
+   fall back to a plain mailto/sms so nothing is left unsent. The revision
+   itself can hold two documents — the risk assessment and the method
+   statement — so both go where an addendum's single document would. */
+async function ramsBuildFiles(target, what){
+  const files = [];
+  const addFile = async (src, suffix) => {
+    if(!src) return;
+    try{
+      const blob = await (await fetch(src)).blob();
+      files.push(new File([blob], (what + (suffix?" - "+suffix:"")).replace(/[^\w\- ]+/g,"") + ".jpg",
+        { type: blob.type || "image/jpeg" }));
+    }catch(e){ /* skip — the rest can still go */ }
+  };
+  if(target.raDoc || target.msDoc){
+    await addFile(target.raDoc && target.raDoc.src, "Risk assessment");
+    await addFile(target.msDoc && target.msDoc.src, "Method statement");
+  } else {
+    await addFile(target.doc && target.doc.src, "");
+  }
+  return files;
+}
+
+async function ramsSendCopy(rev, add, person, kind){
+  if(!person.email && !person.phone) return;
+  const target = add || rev;
+  const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + rev.revNo);
+  const subject = "Signed copy — " + what + " — " + DB.job;
+  const body = "Hi " + (person.name||"").split(" ")[0] + ",\n\nAttached is your signed copy of "
+    + what + " for " + DB.job + ".\n\n" + cfg().company;
+  const files = await ramsBuildFiles(target, what);
+  let channel = "share";
+
+  if(navigator.share && files.length && navigator.canShare && navigator.canShare({ files })){
+    try{ await navigator.share({ files, title:subject, text:body }); }
+    catch(e){ channel = "cancelled"; }
+  } else if(person.email){
+    channel = "email";
+    const a = document.createElement("a");
+    a.href = "mailto:" + encodeURIComponent(person.email) + "?subject=" + encodeURIComponent(subject)
+      + "&body=" + encodeURIComponent(body);
+    a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+  } else if(person.phone){
+    channel = "sms";
+    const a = document.createElement("a");
+    a.href = "sms:" + encodeURIComponent(person.phone) + "?body=" + encodeURIComponent(body);
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  target.distribution = target.distribution || [];
+  target.distribution.push({ id:"dist_"+Date.now(), at:Date.now(), kind, channel, to:person.name });
+  save(); render();
+}
+
+async function ramsNotifyAll(rev, add){
+  const target = add || rev;
+  const people = onSiteLabour(todayISO());
+  const reachable = people.filter(p=>p.email || p.phone);
+  if(!reachable.length){ toast("Nobody on the register has an email or number yet."); return; }
+  const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + rev.revNo);
+  const subject = "Please sign — " + what + " — " + DB.job;
+  const body = "The " + what + " for " + DB.job + " needs signing on site as soon as you can.";
+  const emails = reachable.filter(p=>p.email).map(p=>p.email);
+  const files = await ramsBuildFiles(target, what);
+  let channel = "email";
+
+  if(navigator.share && files.length && navigator.canShare && navigator.canShare({ files })){
+    try{ await navigator.share({ files, title:subject, text:body }); channel = "share"; }
+    catch(e){ /* cancelled — still logged as attempted below */ }
+  } else if(emails.length){
+    const a = document.createElement("a");
+    a.href = "mailto:?bcc=" + encodeURIComponent(emails.join(",")) + "&subject="
+      + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+    a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  target.distribution = target.distribution || [];
+  target.distribution.push({ id:"dist_"+Date.now(), at:Date.now(), kind:"nudge", channel,
+    to: reachable.map(p=>p.name).join(", ") });
+  save(); render();
+  toast("Sent to " + reachable.length + " on site"
+    + (people.length>reachable.length ? " — "+(people.length-reachable.length)+" have no contact on file" : ""));
+}
+
+function openRamsLog(list){
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  const rows = (list||[]).slice().sort((a,b)=>b.at-a.at).map(d=>
+    `<div class="trow"><div class="main"><span class="c1"><b>${esc(d.to||"—")}</b>
+      <span>${d.kind==="nudge"?"Sign reminder":"Signed copy"} · ${esc(d.channel||"")}</span></span>
+      <span style="font-size:12px;color:var(--ink-3)">${stamp(d.at)}</span></div></div>`).join("");
+  wrap.innerHTML = `<div class="dlg" style="text-align:left">
+      <h3>Sent so far</h3>
+      <div class="ttable">${rows || '<div class="tempty">Nothing sent yet.</div>'}</div>
+      <button class="btn ghost" style="margin:14px 0 0" data-x>Close</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.querySelector("[data-x]").onclick = close;
+  wrap.onclick = e => { if(e.target===wrap) close(); };
+}
+
+/* The pack starts with a cover page and a contents list, then the RAMS
+   itself, then each addendum behind its own divider naming it — the same
+   shape the weekly Health and Safety pack uses, so it prints and reads the
+   same way. A final page on each part lists who has signed it and when —
+   name and date only, nothing that identifies how to reach them. */
+function ramsSignedPage(sigs, label){
+  const rows = (sigs||[]).slice().sort((a,b)=>a.signedAt-b.signedAt);
+  return regPage(
+    `<div class="pk-h">Signed by</div>
+     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(label)}</p>` +
+    (rows.length
+      ? regTbl(["", "Name", "Signature", "Date signed"],
+          rows.map((s,i)=>[String(i+1), s.name||"—",
+            s.sigSrc ? `<img src="${s.sigSrc}" alt="Signature" style="height:32px;display:block">` : "—",
+            shortDate(iso(new Date(s.signedAt)))]),
+          { widths:[.06,.30,.40,.24], raw:[2] })
+      : `<p style="font-size:10.5px;color:#555">Nobody has signed this yet.</p>`));
+}
+
+function ramsDocSheet(target, titleLine, subLine){
+  /* a single addendum, viewed on its own: its own divider, then who has
+     signed it, then the document itself */
+  if(target.__isAddendum){
+    const divider = regPage(`<div class="pk-div">
+        <img class="mark" src="${LOGO}" alt="${esc(cfg().company)}">
+        <div class="num">${esc(target.__label||"Addendum")}</div>
+        <h1><span>${esc(titleLine)}</span></h1>
+        <div class="meta"><div>Site <b>${esc(DB.job)}</b></div></div>
+      </div>`);
+    const docPage = regPage(
+      `<div class="pk-h">${esc(titleLine)}</div>
+       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(subLine)}</p>` +
+      (target.doc && target.doc.src
+        ? `<img src="${target.doc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`
+        : `<p style="font-size:10.5px;color:#555">No document has been added.</p>`));
+    return divider + ramsSignedPage(target.sigs, subLine) + docPage;
+  }
+
+  /* the current revision, viewed as the whole pack: cover, who has signed
+     it, contents, the RAMS itself, then every addendum behind its own
+     divider */
+  const c = cfg();
+  const pc = jobInfo().pc || "";
+  const addendums = target.addendums || [];
+
+  const cover = regPage(`<div class="pk-cover">
+      <img src="${LOGO}" alt="${esc(c.company)}" style="width:190px">
+      <div class="over">${esc(c.company)}</div>
+      <h1 style="font-size:23px">Risk Assessment and Method Statement</h1>
+      <div class="wc">${esc(DB.job)}</div>
+      ${pc ? `<div class="wc">Principal Contractor: ${esc(pc)}</div>` : ""}
+      <div class="rule"></div>
+    </div>
+    ${regTbl(null, [
+      ["Revision", "Rev " + target.revNo, "Uploaded", shortDate(iso(new Date(target.uploadedAt)))],
+      ["Title", target.title || "RAMS", "Produced", stamp(Date.now())]
+    ], { cols:["19%","31%","19%","31%"] })}`);
+
+  const toc = regPage(`<div class="pk-h">Contents</div>
+    <div class="pk-toc">
+      <div class="r"><div class="n">1</div>
+        <div class="nm">Risk Assessment and Method Statement — ${esc(target.title||"RAMS")}</div>
+        <div class="ct">Rev ${target.revNo}</div></div>
+      ${addendums.map((a,i)=>`<div class="r">
+        <div class="n">${i+2}</div>
+        <div class="nm">Addendum ${i+1} — ${esc(a.title||"Addendum")}</div>
+        <div class="ct">Added ${shortDate(iso(new Date(a.uploadedAt)))}</div>
+      </div>`).join("")}
+    </div>`);
+
+  /* the risk assessment and the method statement are usually separate
+     documents on site, so each gets its own page rather than being forced
+     together onto one */
+  const raPage = target.raDoc && target.raDoc.src ? regPage(
+    `<div class="pk-h">Risk Assessment — ${esc(target.title||"RAMS")}</div>
+     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>
+     <img src="${target.raDoc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`)
+    : "";
+  const msPage = target.msDoc && target.msDoc.src ? regPage(
+    `<div class="pk-h">Method Statement — ${esc(target.title||"RAMS")}</div>
+     <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)} · Rev ${target.revNo}</p>
+     <img src="${target.msDoc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`)
+    : "";
+  const docPages = (raPage + msPage) || regPage(
+    `<div class="pk-h">${esc(target.title||"RAMS")}</div>
+     <p style="font-size:10.5px;color:#555">No document has been added.</p>`);
+
+  let html = cover + ramsSignedPage(target.sigs, DB.job + " · Rev " + target.revNo) + toc + docPages;
+
+  addendums.forEach((a,i)=>{
+    html += regPage(`<div class="pk-div">
+        <img class="mark" src="${LOGO}" alt="${esc(c.company)}">
+        <div class="num">Addendum ${i+1} of ${addendums.length}</div>
+        <h1><span>${esc(a.title||"Addendum")}</span></h1>
+        <div class="meta"><div>Site <b>${esc(DB.job)}</b></div>
+          <div>Added <b>${shortDate(iso(new Date(a.uploadedAt)))}</b></div></div>
+      </div>`);
+    html += ramsSignedPage(a.sigs, DB.job + " · Addendum " + (i+1) + " — " + (a.title||"Addendum"));
+    html += regPage(
+      `<div class="pk-h">Addendum ${i+1} — ${esc(a.title||"Addendum")}</div>
+       <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(DB.job)}</p>` +
+      (a.doc && a.doc.src
+        ? `<img src="${a.doc.src}" style="width:100%;height:auto;display:block;border-radius:4px">`
+        : `<p style="font-size:10.5px;color:#555">No document has been added.</p>`));
+  });
+
+  return html;
+}
+
+function printRamsDoc(key){
+  const { rev, add, target } = ramsParseKey(key);
+  if(!rev || !target){ toast("That document could not be found."); return; }
+  const titleLine = add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + rev.revNo;
+  const subLine = DB.job + (add ? " · Addendum to Rev " + rev.revNo : "");
+  const built = add ? Object.assign({}, target, { __isAddendum:true, __label:"Addendum" }) : target;
+  document.getElementById("sheet").innerHTML = ramsDocSheet(built, titleLine, subLine);
+  document.getElementById("sheetTitle").textContent = titleLine;
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
+}
+
 function askDocExpiry(type, onDone){
   /* certificates run out; manuals and hire agreements do not */
   if(!/certificate|examination/i.test(type)){ onDone(""); return; }
@@ -6109,6 +6426,7 @@ function render(){
   else if(view.name==="pack") app.innerHTML = packView();
   else if(view.name==="scans") app.innerHTML = scansView();
   else if(view.name==="lifting") app.innerHTML = liftingView();
+  else if(view.name==="rams") app.innerHTML = ramsView();
   else if(view.name==="tools") app.innerHTML = toolsView();
   else if(view.name==="plan") app.innerHTML = planView();
   else if(view.name==="deliveries") app.innerHTML = deliveriesView();
@@ -8653,6 +8971,8 @@ function toolsView(){
 
 let liftDraft = null;
 let liftEditId = null;
+let ramsDraft = null;         /* { title, doc } — a new revision being uploaded */
+let ramsAddendumDraft = null; /* { revId, title, doc } — a new addendum being added */
 
 function blankLifting(){
   return { item:"", idNo:"", type:"Single leg chain", swl:"", owner:"Hired", hireCompany:"",
@@ -8731,7 +9051,11 @@ const TILE_ICONS = {
     stroke-width="1.9" stroke-linejoin="round"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5z"/>
     <path d="M4 7.5 12 11l8-3.5M12 11v9"/></svg>`,
   list: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    stroke-width="1.9" stroke-linecap="round"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>`
+    stroke-width="1.9" stroke-linecap="round"><path d="M4 6.5h16M4 12h16M4 17.5h10"/></svg>`,
+  rams: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>
+    <path d="m9 13.3 2 2 4-4.2"/></svg>`
 };
 
 let scanDraft = null;
@@ -9272,6 +9596,15 @@ function projectView(){
           done ? "Published" : g ? g+" to complete" : "Ready to publish",
           done ? "" : g ? "amber" : "", done ? "" : (g||""));
       })()}
+      ${(function(){
+        const cur = currentRams();
+        const out = cur ? ramsOutstandingTotal(cur) : 0;
+        return tile("rams", TILE_ICONS.rams, "RAMS",
+          !cur ? "None uploaded yet"
+            : out ? out+" still to sign"
+            : "Rev "+cur.revNo+" — all signed",
+          !cur ? "" : out ? "amber" : "", out || "");
+      })()}
       ${tile("timesheet", TILE_ICONS.timesheet, "Timesheet",
         weekHours ? weekHours+" hours this week" : "Built from the diaries", "", "")}
       ${tile("list", TILE_ICONS.list, "All records",
@@ -9382,6 +9715,212 @@ function liftingView(){
       <button class="btn line" style="margin:14px 0 0" data-regview="lifting">Preview register</button>
       <button class="btn ghost" style="margin:8px 0 0" data-regpdf="lifting">Share as a file</button>
     </div>`;
+}
+
+/* ====================================================================== ==
+   RAMS — risk assessments and method statements
+   ====================================================================== */
+function blankRamsDraft(){ return { title:"", raDoc:null, msDoc:null }; }
+function blankRamsAddendumDraft(revId){ return { revId, title:"", doc:null }; }
+
+function ramsSignRow(person, sigs, signKey){
+  const s = (sigs||[]).find(x=>x.personId===person.id);
+  const noContact = !person.email && !person.phone;
+  const contactBtn = noContact
+    ? `<button type="button" class="btn line sm" style="margin:${s?"8px 0 0":"8px 0 0"}"
+        data-ramscontact="${signKey}:${person.id}">Add contact information</button>`
+    : "";
+  return `<div class="trow">
+    <div class="main">
+      <span class="c1"><b>${esc(person.name)}</b><span>${esc(person.trade||"")}</span></span>
+      ${s ? `<span class="pill ok">Signed</span>` : `<span class="pill amber">Not yet</span>`}
+    </div>
+    <div class="more">
+      ${s
+        ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <img src="${s.sigSrc}" alt="Signature" style="height:40px;background:#fff;
+              border-radius:8px;padding:3px 8px;border:1px solid var(--line-2)">
+            <span style="font-size:12px;color:var(--ink-3)">${stamp(s.signedAt)}</span>
+            <button type="button" data-ramssend="${signKey}:${person.id}"
+              style="margin-left:auto;font-size:13px;font-weight:650;color:var(--green-700)">
+              Send copy</button>
+          </div>`
+        : `<button type="button" class="btn line sm" style="margin:0"
+            data-ramssign="${signKey}:${person.id}">Sign for ${esc(person.name.split(" ")[0])}</button>`}
+      ${contactBtn}
+    </div>
+  </div>`;
+}
+
+function ramsSignTable(people, sigs, signKey){
+  const signedCount = (sigs||[]).length;
+  if(!people.length){
+    return `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
+      Nobody on the labour register yet. Add the gang under Project, Labour.</div>`;
+  }
+  return `<div class="ttable">
+    <div class="thead"><span class="c1">Name</span><span class="c3">Signed</span></div>
+    ${people.map(p=>ramsSignRow(p, sigs, signKey)).join("")}
+    <div class="tfoot"><span>${signedCount} of ${people.length} signed</span></div>
+  </div>`;
+}
+
+function ramsDistLine(dist){
+  if(!dist || !dist.length) return `<p class="hint" style="margin:10px 0 0">Nothing sent out yet.</p>`;
+  const last = dist.slice().sort((a,b)=>b.at-a.at)[0];
+  return `<button type="button" data-ramslog="1" style="margin-top:10px;font-size:12.5px;
+    color:var(--ink-3);text-align:left;text-decoration:underline;text-underline-offset:2px">
+    Sent ${dist.length} time${dist.length===1?"":"s"} — last ${shortDate(iso(new Date(last.at)))}
+    to ${esc(last.to||"")}</button>`;
+}
+
+function ramsRevCard(rev, people){
+  const out = ramsOutstanding(rev);
+  const allSigned = !out.length;
+  const addendums = rev.addendums||[];
+  return `<div class="card">
+    <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div style="flex:1 1 170px;min-width:0">
+        <b style="font-size:16.5px;font-weight:650;display:block">${esc(rev.title||"RAMS")} — Rev ${rev.revNo}</b>
+        <span style="font-size:13px;color:var(--ink-2)">Uploaded ${shortDate(iso(new Date(rev.uploadedAt)))}</span>
+      </div>
+      <span class="pill ${allSigned?"ok":"amber"}">${allSigned?"All signed":out.length+" to sign"}</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn line sm" style="margin:0" data-ramsdoc="rev:${rev.id}">View document</button>
+      <button class="btn line sm" style="margin:0" data-ramsnotify="rev:${rev.id}">Notify everyone</button>
+    </div>
+    <div style="margin-top:14px">${ramsSignTable(people, rev.sigs, "rev:"+rev.id)}</div>
+    <div data-ramsdistfor="rev:${rev.id}">${ramsDistLine(rev.distribution)}</div>
+  </div>
+  ${addendums.map(add=>{
+    const aout = ramsAddendumOutstanding(add);
+    const asigned = !aout.length;
+    return `<div class="card" style="background:var(--canvas);box-shadow:none;
+        box-shadow:inset 0 0 0 1.5px var(--line)">
+      <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1 1 170px;min-width:0">
+          <span style="font-size:12px;color:var(--ink-3);text-transform:uppercase;
+            letter-spacing:.03em">Addendum</span>
+          <b style="font-size:15.5px;font-weight:650;display:block">${esc(add.title||"Addendum")}</b>
+          <span style="font-size:13px;color:var(--ink-2)">Added ${shortDate(iso(new Date(add.uploadedAt)))}</span>
+        </div>
+        <span class="pill ${asigned?"ok":"amber"}">${asigned?"All signed":aout.length+" to sign"}</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button class="btn line sm" style="margin:0" data-ramsdoc="add:${rev.id}:${add.id}">View document</button>
+        <button class="btn line sm" style="margin:0" data-ramsnotify="add:${rev.id}:${add.id}">Notify everyone</button>
+      </div>
+      <div style="margin-top:14px">${ramsSignTable(people, add.sigs, "add:"+rev.id+":"+add.id)}</div>
+      <div data-ramsdistfor="add:${rev.id}:${add.id}">${ramsDistLine(add.distribution)}</div>
+    </div>`;
+  }).join("")}`;
+}
+
+function ramsDocFields(d, attr){
+  return `
+    <div class="f"><label>Title</label>
+      <input class="in" ${attr}="title" value="${esc(d.title||"")}"
+        placeholder="e.g. Excavation and drainage RAMS"></div>
+    <div class="f" style="margin:0"><label>Document</label>
+      <div class="hint">Scan it now, or add it later.</div>
+      ${d.doc ? `<div class="ph" style="aspect-ratio:auto;max-height:190px;margin-bottom:10px">
+          <img src="${d.doc.src}" alt="Document" style="height:auto;max-height:190px;object-fit:contain">
+          <button type="button" data-ramsdrm="1" aria-label="Remove">&times;</button>
+        </div>` : ""}
+      <div class="g2">
+        <button type="button" class="btn line" style="margin:0" data-ramsscan="1">${d.doc?"Rescan":"Scan document"}</button>
+        <button type="button" class="btn line" style="margin:0" data-ramsup="1">Upload</button>
+      </div></div>`;
+}
+
+/* One slot for a document, reused for the risk assessment and the method
+   statement — they are almost always separate documents on site, so the
+   revision holds two, not one. */
+function ramsDocSlot(doc, label, hint, scanKey, upKey, rmKey){
+  return `<div class="f" style="margin:0 0 16px"><label>${esc(label)}</label>
+    <div class="hint">${esc(hint)}</div>
+    ${doc ? `<div class="ph" style="aspect-ratio:auto;max-height:190px;margin-bottom:10px">
+        <img src="${doc.src}" alt="${esc(label)}" style="height:auto;max-height:190px;object-fit:contain">
+        <button type="button" data-${rmKey}="1" aria-label="Remove">&times;</button>
+      </div>` : ""}
+    <div class="g2">
+      <button type="button" class="btn line" style="margin:0" data-${scanKey}="1">${doc?"Rescan":"Scan"}</button>
+      <button type="button" class="btn line" style="margin:0" data-${upKey}="1">Upload</button>
+    </div></div>`;
+}
+
+function ramsRevDocFields(d){
+  return `
+    <div class="f"><label>Title</label>
+      <input class="in" data-ramsnd="title" value="${esc(d.title||"")}"
+        placeholder="e.g. Excavation and drainage RAMS"></div>
+    ${ramsDocSlot(d.raDoc, "Risk assessment", "Usually a separate document to the method statement.",
+      "ramsrascan", "ramsraup", "ramsradrm")}
+    ${ramsDocSlot(d.msDoc, "Method statement", "Add it now, or come back and add it once it's ready.",
+      "ramsmsscan", "ramsmsup", "ramsmsdrm")}`;
+}
+
+function ramsView(){
+  const people = onSiteLabour(todayISO());
+  const cur = currentRams();
+  const hist = ramsHistory();
+
+  const uploadBlock = ramsDraft
+    ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+        <h3 style="margin-bottom:14px">${cur?"New revision":"Upload the RAMS"}</h3>
+        ${cur ? `<p class="hint" style="margin:-8px 0 14px">This supersedes Rev ${cur.revNo} —
+          everyone signs again from scratch.</p>` : ""}
+        ${ramsRevDocFields(ramsDraft)}
+        <button class="btn" style="margin:16px 0 8px" data-ramsupsave="1">
+          ${cur?"Supersede and start signing":"Add to the job"}</button>
+        <button class="btn ghost" style="margin:0" data-ramsupcancel="1">Cancel</button></div>`
+    : `<button class="btn add" data-ramsupload="1">
+        ${cur?"+ Upload a new revision":"+ Upload the RAMS"}</button>`;
+
+  const addendumBlock = cur ? (ramsAddendumDraft
+    ? `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
+        <h3 style="margin-bottom:14px">New addendum</h3>
+        ${ramsDocFields(ramsAddendumDraft, "data-ramsnd")}
+        <button class="btn" style="margin:16px 0 8px" data-ramsaddsave="1">Add — everyone signs it</button>
+        <button class="btn ghost" style="margin:0" data-ramsaddcancel="1">Cancel</button></div>`
+    : `<button class="btn add" data-ramsaddendum="1">+ Add an addendum</button>`) : "";
+
+  const histBlock = hist.length ? `<div class="sect">Previous revisions (${hist.length})</div>` +
+    hist.map(rev=>{
+      const signedCount = (rev.sigs||[]).length;
+      return `<div class="card" style="background:var(--canvas);box-shadow:none;opacity:.8">
+        <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div style="flex:1 1 170px;min-width:0">
+            <b style="font-size:15px;font-weight:640;display:block;color:var(--ink-2)">
+              ${esc(rev.title||"RAMS")} — Rev ${rev.revNo}</b>
+            <span style="font-size:13px;color:var(--ink-3)">Superseded ${
+              rev.supersededAt?shortDate(iso(new Date(rev.supersededAt))):"—"}</span>
+          </div>
+          <span class="pill grey">Superseded</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn line sm" style="flex:1;margin:0" data-ramsdoc="rev:${rev.id}">View document</button>
+        </div>
+        <p class="hint" style="margin:10px 0 0">${signedCount} signature${signedCount===1?"":"s"}
+          kept on record${(rev.addendums||[]).length?" · "+(rev.addendums||[]).length+" addendum"+
+          ((rev.addendums||[]).length===1?"":"s"):""}.</p>
+      </div>`;
+    }).join("") : "";
+
+  return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
+    <h1 class="greet" style="font-size:22px;margin-top:12px">RAMS</h1>
+    <p class="sub">${esc(DB.job)}</p>
+    <div class="card" style="background:var(--green-50);box-shadow:none">
+      <p>The latest revision, signed by everyone on site. Upload a new one and it supersedes
+      the last — signatures start again, but nothing already signed is ever lost.</p>
+    </div>
+    ${cur ? ramsRevCard(cur, people)
+      : `<div class="card"><h3>Nothing uploaded yet</h3>
+          <p>Add the current RAMS so the gang can sign it on site.</p></div>`}
+    ${uploadBlock}
+    ${addendumBlock}
+    ${histBlock}`;
 }
 
 let labourDraft = null;
@@ -11420,6 +11959,14 @@ function bind(){
     };
     el.onchange = el.oninput;
   });
+  app.querySelectorAll("[data-ramsnd]").forEach(el=>{
+    el.oninput = () => {
+      const d = ramsDraft || ramsAddendumDraft;
+      if(!d) return;
+      d[el.dataset.ramsnd] = el.value;
+    };
+    el.onchange = el.oninput;
+  });
   /* certificate on a new item, before it exists */
   const draftDoc = (getDraft, scanKey, upKey, rmKey) => {
     const sc = app.querySelector("[data-"+scanKey+"]");
@@ -11439,6 +11986,116 @@ function bind(){
   };
   draftDoc(()=>plantDraft, "ndscan", "ndup", "ndrm");
   draftDoc(()=>liftDraft, "lfndscan", "lfndup", "lfndrm");
+  draftDoc(()=>ramsAddendumDraft, "ramsscan", "ramsup", "ramsdrm");
+  /* the revision draft holds two documents, not one, so each gets its own
+     scan/upload/remove trio against its own field */
+  const draftDocField = (getDraft, field, scanKey, upKey, rmKey) => {
+    const sc = app.querySelector("[data-"+scanKey+"]");
+    if(sc) sc.onclick = ()=>openScanner(doc=>{ const d=getDraft(); if(d){ d[field] = doc; render(); } });
+    const up = app.querySelector("[data-"+upKey+"]");
+    if(up) up.onclick = ()=>{
+      const inp = document.createElement("input");
+      inp.type="file"; inp.accept="image/*";
+      inp.onchange = async () => {
+        try{ const doc = await compressDoc(inp.files[0]); const d=getDraft(); if(d){ d[field] = doc; render(); } }
+        catch(e){ toast("That file could not be read."); }
+      };
+      inp.click();
+    };
+    const rm = app.querySelector("[data-"+rmKey+"]");
+    if(rm) rm.onclick = ()=>{ const d=getDraft(); if(d){ d[field] = null; render(); } };
+  };
+  draftDocField(()=>ramsDraft, "raDoc", "ramsrascan", "ramsraup", "ramsradrm");
+  draftDocField(()=>ramsDraft, "msDoc", "ramsmsscan", "ramsmsup", "ramsmsdrm");
+
+  /* ---------------------------------------------------------------- RAMS -- */
+  const rup = app.querySelector("[data-ramsupload]");
+  if(rup) rup.onclick = ()=>{ ramsDraft = blankRamsDraft(); render(); };
+  const rupc = app.querySelector("[data-ramsupcancel]");
+  if(rupc) rupc.onclick = ()=>{ ramsDraft = null; render(); };
+  const rups = app.querySelector("[data-ramsupsave]");
+  if(rups) rups.onclick = ()=>{
+    if(!ramsDraft.raDoc && !ramsDraft.msDoc){
+      toast("Add the risk assessment or the method statement first."); return;
+    }
+    DB.rams = DB.rams || [];
+    const cur = currentRams();
+    if(cur){
+      cur.status = "superseded";
+      cur.supersededAt = Date.now();
+    }
+    DB.rams.push({ id:"rams_"+Date.now(), job:DB.job, revNo:nextRamsRevNo(),
+      title: ramsDraft.title.trim() || "RAMS", raDoc: ramsDraft.raDoc, msDoc: ramsDraft.msDoc,
+      uploadedAt: Date.now(), status:"current", addendums:[], sigs:[], distribution:[] });
+    ramsDraft = null;
+    save();
+    go("rams");
+    toast(cur ? "New revision uploaded — signatures reset" : "RAMS added — ready to sign");
+  };
+
+  const radd = app.querySelector("[data-ramsaddendum]");
+  if(radd) radd.onclick = ()=>{
+    const cur = currentRams();
+    if(!cur){ toast("Upload the RAMS first."); return; }
+    ramsAddendumDraft = blankRamsAddendumDraft(cur.id);
+    render();
+  };
+  const raddc = app.querySelector("[data-ramsaddcancel]");
+  if(raddc) raddc.onclick = ()=>{ ramsAddendumDraft = null; render(); };
+  const radds = app.querySelector("[data-ramsaddsave]");
+  if(radds) radds.onclick = ()=>{
+    if(!ramsAddendumDraft.doc){ toast("Add the document first — scan it or upload it."); return; }
+    const cur = (DB.rams||[]).find(r=>r.id===ramsAddendumDraft.revId);
+    if(!cur){ ramsAddendumDraft = null; render(); return; }
+    cur.addendums = cur.addendums || [];
+    cur.addendums.push({ id:"add_"+Date.now(), title: ramsAddendumDraft.title.trim() || "Addendum",
+      doc: ramsAddendumDraft.doc, uploadedAt: Date.now(), sigs:[], distribution:[] });
+    ramsAddendumDraft = null;
+    save();
+    go("rams");
+    toast("Addendum added — everyone needs to sign it");
+  };
+
+  app.querySelectorAll("[data-ramsdoc]").forEach(el=>el.onclick=()=>{
+    printRamsDoc(el.getAttribute("data-ramsdoc"));
+  });
+
+  app.querySelectorAll("[data-ramssign]").forEach(el=>el.onclick=()=>{
+    const { rev, add, target, personId } = ramsParseKey(el.getAttribute("data-ramssign"));
+    const person = onSiteLabour(todayISO()).find(p=>p.id===personId);
+    if(!rev || !target || !person) return;
+    ramsCaptureAndSign(rev, add, target, person);
+  });
+
+  app.querySelectorAll("[data-ramscontact]").forEach(el=>el.onclick=()=>{
+    const { personId } = ramsParseKey(el.getAttribute("data-ramscontact"));
+    const person = onSiteLabour(todayISO()).find(p=>p.id===personId)
+      || (DB.labour||[]).find(p=>p.id===personId);
+    if(!person) return;
+    ramsPromptContact(person, ()=>render());
+  });
+
+  app.querySelectorAll("[data-ramssend]").forEach(el=>el.onclick=()=>{
+    const { rev, add, target, personId } = ramsParseKey(el.getAttribute("data-ramssend"));
+    const sig = target && (target.sigs||[]).find(s=>s.personId===personId);
+    if(!rev || !sig) return;
+    const person = onSiteLabour(todayISO()).find(p=>p.id===personId)
+      || (DB.labour||[]).find(p=>p.id===personId) || { id:personId, name:sig.name };
+    if(!person.email && !person.phone) ramsPromptContact(person, ()=>ramsSendCopy(rev, add, person, "receipt"));
+    else ramsSendCopy(rev, add, person, "receipt");
+  });
+
+  app.querySelectorAll("[data-ramsnotify]").forEach(el=>el.onclick=()=>{
+    const { rev, add } = ramsParseKey(el.getAttribute("data-ramsnotify"));
+    if(!rev) return;
+    ramsNotifyAll(rev, add);
+  });
+
+  app.querySelectorAll("[data-ramsdistfor]").forEach(el=>el.onclick=(e)=>{
+    if(!e.target.closest("[data-ramslog]")) return;
+    const { target } = ramsParseKey(el.getAttribute("data-ramsdistfor"));
+    openRamsLog(target && target.distribution);
+  });
 
   const pa = app.querySelector("[data-pladd]");
   if(pa) pa.onclick = ()=>{ plantDraft = blankPlant(); render(); };
@@ -13262,6 +13919,7 @@ if(!DB.events) DB.events = [];
   if(!DB.vos) DB.vos = [];
   syncCfg();
   if(!DB.packs) DB.packs = [];
+  if(!DB.rams) DB.rams = [];
   (DB.records||[]).forEach(r=>{ if(r.form==="excavator") r.form = "plantcheck"; });
   (DB.plant||[]).forEach(p=>{ if(!p.type) p.type = "Excavator"; });
   if(!DB.defects) DB.defects = [];
