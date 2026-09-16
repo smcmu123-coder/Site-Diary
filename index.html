@@ -2371,6 +2371,15 @@ function dayTasks(date){
       { kind:"pickexc", date }, e);
   });
 
+  /* HAVs is only needed on a day vibrating tools were actually used, so it
+     is never required by default — but once someone starts one for the
+     day, it belongs on the list the same as anything else, done or not */
+  const havsRec = dailyRecordFor("havs", date);
+  if(havsRec){
+    add("havs", "HAVs Record", "Hand-arm vibration exposure", isDone(havsRec),
+      { kind:"form", form:"havs", date }, havsRec);
+  }
+
   const briefFrom = firstUsed("briefing");
   if(briefFrom && date >= briefFrom){
     const r = dailyRecordFor("briefing", date);
