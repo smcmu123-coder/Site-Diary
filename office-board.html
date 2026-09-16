@@ -703,7 +703,13 @@ function bestScale(box, base){
   return best;
 }
 function fitCell(box){
-  var base=parseFloat(getComputedStyle(box).fontSize);
+  /* The cell's natural size, never the size the last pass left it at. This has
+     to clear the inline size before measuring: the fit pass runs again on a
+     resize, on the minute tick and after layout settles, and reading the
+     already-shrunk size as the starting point makes every pass shrink it
+     again until the wording disappears. */
+  box.style.fontSize = "";
+  var base = parseFloat(getComputedStyle(box).fontSize);
   var states=["","inline","inline nosub"], i, sc, chosen=null;
   for(i=0;i<states.length;i++){
     box.className="dlist"+(states[i]?" "+states[i]:"");
