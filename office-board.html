@@ -2,14 +2,14 @@
 <html lang="en-GB"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CGC siteHUB — Site Board</title>
+<title>CGC siteHUB — Office Board</title>
 <style>
 /* ==========================================================================
    CGC siteHUB — office board, portrait
-   The site board and the two week look ahead on one screen, stacked the way
-   they are asked about: where are we today at the top, what is coming at the
-   bottom. Same file, same tokens, same data — the fortnight is simply another
-   region of the same board rather than a second page to keep in step.
+   Where the job stands today: what paperwork is in, what needs attention, who
+   and what is on site. The two week look ahead is its own board, in
+   lookahead-board.html, so the two can go on separate screens. Both read the
+   same board-data.json, so they can never disagree.
    Same design language as the app: the palette is sampled from the logo, the
    spacing scale is the app's, and no status is ever told by colour alone.
    What differs is distance. This is read from three or four metres across an
@@ -90,7 +90,7 @@ body{background:var(--canvas);color:var(--ink);
 /* Grid, not floats. Rows size themselves and the panels take what is left,
    so nothing is clipped when the board goes on a different screen. */
 .wrap{position:relative;height:100vh;padding:var(--s6) var(--s7) var(--s5);
-  display:grid;grid-template-rows:auto auto auto minmax(0,1fr) minmax(0,1.15fr) auto;
+  display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto;
   gap:var(--s5)}
 
 /* --- header -------------------------------------------------------------- */
@@ -391,7 +391,7 @@ body{background:var(--canvas);color:var(--ink);
 @media (max-width:1180px){
   .rings{grid-template-columns:repeat(2,1fr)}
   .attgrid{grid-template-columns:repeat(2,1fr)}
-  .cols{grid-template-columns:1fr 1fr}
+  .cols{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr) auto}
   .panel.dark{grid-column:1 / -1}
   .list.two{grid-template-columns:1fr}
 }
@@ -411,7 +411,7 @@ body{background:var(--canvas);color:var(--ink);
   .wrap{gap:var(--s3)}
   .ring{padding:var(--s3) var(--s2)}
   .ring h3{font-size:var(--t-lead)}
-  .attgrid{max-height:20vh}
+  .attgrid{max-height:34vh}
 }
 @media (max-height:620px){
   /* Tight enough that the dials stop earning their space. The arc goes, but
@@ -435,7 +435,7 @@ body{background:var(--canvas);color:var(--ink);
    rings go back to one row across the top and the space that frees up goes to
    the fortnight, which is the half of the board with the most to say. */
 @media (orientation:portrait) and (min-height:1000px){
-  .wrap{grid-template-rows:auto auto auto minmax(0,.85fr) minmax(0,1.7fr) auto}
+  .wrap{grid-template-rows:auto auto auto minmax(0,1fr) auto}
   .rings{grid-template-columns:repeat(4,1fr)}
   .ring{padding:var(--s4) var(--s2);gap:var(--s2)}
   .ring h3{font-size:var(--t-cap)}
@@ -443,9 +443,9 @@ body{background:var(--canvas);color:var(--ink);
      against the dial this screen actually gets */
   :root{--dial:clamp(70px, 8vh, 120px)}
   .ring .note{font-size:var(--t-cap);max-width:20ch}
-  .cols{grid-template-columns:1fr 1fr}
+  .cols{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr) auto}
   .panel.dark{grid-column:1 / -1}
-  .attgrid{grid-template-columns:repeat(2,1fr);max-height:18vh}
+  .attgrid{grid-template-columns:repeat(2,1fr);max-height:36vh}
   /* the week's four figures go two abreast rather than in one tall column,
      which is what was pushing the last two off the bottom of the panel */
   /* the week's four figures go across the panel in one row rather than down
@@ -465,8 +465,7 @@ body{background:var(--canvas);color:var(--ink);
    the state in words carried the meaning anyway, and the height they free is
    worth more to the fortnight underneath. */
 @media (orientation:landscape) and (max-height:1200px){
-  .wrap{grid-template-rows:auto auto auto minmax(0,.7fr) minmax(0,1.5fr) auto;
-    gap:var(--s3)}
+  .wrap{grid-template-rows:auto auto auto minmax(0,1fr) auto;gap:var(--s3)}
   .dial{width:auto;height:auto}
   .dial svg{display:none}
   .big{font-size:var(--t-title)}
@@ -476,7 +475,7 @@ body{background:var(--canvas);color:var(--ink);
     padding:var(--s3) var(--s4);gap:var(--s3)}
   .ring h3{flex:1;min-width:0}
   .ring .note{display:none}
-  .attgrid{max-height:14vh}
+  .attgrid{max-height:30vh}
   .panel.dark #week{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s6);
     align-content:start}
   .stat{padding:var(--s1) 0;border-bottom:0}
@@ -524,21 +523,10 @@ body{background:var(--canvas);color:var(--ink);
     <div class="panel dark"><h2>This week</h2><div id="week"></div></div>
   </div>
 
-  <div class="la" id="la">
-    <h2>Two week look ahead<span class="rng" id="laRange">&mdash;</span></h2>
-    <div class="laweek"><div class="lahead"><span>This week</span>
-      <span class="tally" id="tally0"></span></div>
-      <div class="ladays" id="week0"></div></div>
-    <div class="laweek"><div class="lahead"><span>Next week</span>
-      <span class="tally" id="tally1"></span></div>
-      <div class="ladays" id="week1"></div></div>
-  </div>
-
   <div class="foot">
     <span class="dot" id="dot"></span>
     <span id="stamp">&mdash;</span>
-    <span class="legend" id="legend"></span>
-    <span class="right">CGC siteHUB &middot; site board</span>
+    <span class="right">CGC siteHUB &middot; office board</span>
   </div>
 </div>
 
@@ -554,10 +542,20 @@ var REFRESH_MS = 30000;
    with no new information in it trains people to stop looking. So each region
    is only written when its markup has actually changed. */
 var lastHTML = {};
+
+/* The office board and the look ahead are two files off one snapshot, and
+   each carries only the regions it shows. Anything written to a region this
+   board has not got is dropped rather than thrown. */
+function byId(id){
+  return document.getElementById(id)
+    || { style:{}, className:"", innerHTML:"", textContent:"" };
+}
+
 function setHTML(id, html){
+  var el = document.getElementById(id);
+  if(!el) return;
   if(lastHTML[id] === html) return;
   lastHTML[id] = html;
-  var el = document.getElementById(id);
   el.innerHTML = html;
   /* a region that changed after the first paint gets a single short settle, so
      the eye is drawn to what moved rather than to the whole board */
@@ -799,8 +797,8 @@ function fitPanels(){
 function drawLookahead(D, T){
   KINDS = D.planKinds || {};
   var la = D.lookahead || [];
-  if(!la.length){ document.getElementById("la").style.display="none"; return; }
-  document.getElementById("la").style.display="";
+  if(!la.length){ byId("la").style.display="none"; return; }
+  byId("la").style.display="";
 
   setHTML("laRange", esc(dayMonth(la[0].date))+" \u2013 "+esc(dayMonth(la[la.length-1].date)));
   var wk=[la.slice(0,7), la.slice(7,14)], w, i, html;
@@ -809,7 +807,7 @@ function drawLookahead(D, T){
   var busiest=function(days){ var m=0,j; days=days||[];
     for(j=0;j<days.length;j++) m=Math.max(m,(days[j].items||[]).length); return m||1; };
   var a=busiest(wk[0]), b2=busiest(wk[1]);
-  document.getElementById("la").style.gridTemplateRows = "auto "
+  byId("la").style.gridTemplateRows = "auto "
     + Math.max(1, Math.min(1.8, a/b2)) + "fr " + Math.max(1, Math.min(1.8, b2/a)) + "fr";
   for(w=0;w<2;w++){
     html="";
@@ -963,7 +961,7 @@ function draw(D){
     ov.push({k:"hol",label:"Off",b:p.name,s:l.type==="HOL"?"Holiday":l.type,
       when:"back "+shortDate(addDays(l.to,1))});
   });
-  var ovList = document.getElementById("overview");
+  var ovList = byId("overview");
   /* the more there is on, the tighter it packs — nothing gets cut off */
   ovList.className = "list two" + (ov.length>8 ? " compact" : "");
   var OV_CAP = 14;
@@ -983,10 +981,12 @@ function draw(D){
     if(x.status!=="open") return;
     var m=(D.plant||[]).filter(function(p){ return p.id===x.plantId; })[0]||{};
     if(m.job && m.job!==D.job) return;
-    var days=Math.max(0, Math.round((Date.now()-x.reportedAt)/86400000));
+    /* an older record may not carry a reported date; better to say nothing
+       than to put NaN on a wall */
+    var days = x.reportedAt ? Math.max(0, Math.round((Date.now()-x.reportedAt)/86400000)) : null;
     att.push({cls:"alert",b:(m.item||"Machine")+(m.fleetNo?" ("+m.fleetNo+")":""),
       s:x.item+(x.description?" — "+x.description:""),
-      when:days===0?"today":days+(days===1?" day":" days")});
+      when:days===null?"":days===0?"today":days+(days===1?" day":" days")});
   });
   onSite.forEach(function(p){
     if(!p.examDate) return;
@@ -998,8 +998,11 @@ function draw(D){
   var missing=[], underway=[];
   if(!done("briefing",T)) (started("briefing",T)?underway:missing).push("daily briefing");
   if(!done("diary",T)) (started("diary",T)?underway:missing).push("site diary");
-  if(onSite.length-checksToday>0) missing.push((onSite.length-checksToday)+" plant checks");
-  if(excOpen-excDone>0) missing.push((excOpen-excDone)+" excavation inspections");
+  var plural = function(n, one, many){ return n + " " + (n===1 ? one : many); };
+  if(onSite.length-checksToday>0)
+    missing.push(plural(onSite.length-checksToday, "plant check", "plant checks"));
+  if(excOpen-excDone>0)
+    missing.push(plural(excOpen-excDone, "excavation inspection", "excavation inspections"));
   if(missing.length) att.push({cls:"warnbg",b:"Still to do today",
     s:missing.join(", ").replace(/,([^,]*)$/," and$1"),when:""});
   if(underway.length) att.push({cls:"warnbg",b:"Started, not signed off",
@@ -1027,7 +1030,7 @@ function draw(D){
       note: w.full ? (size ? "all " + Math.ceil(w.want/size) + " loads in" : "complete")
         : w.progress + " so far" });
   });
-  var recList = document.getElementById("received");
+  var recList = byId("received");
   /* same steps as the other side, so both panels hold what they are given */
   var REC_CAP = 14;
   recList.className = "list two" + (inToday.length>8 ? " compact" : "");
@@ -1047,11 +1050,11 @@ function draw(D){
   /* This list used to be built and thrown away — it was never on the wall.
      It is the first thing the office needs, so it sits under the rings.
      Nine rows at full size beats fourteen nobody can read from a desk. */
-  var attWrap = document.getElementById("attention");
-  var attList = document.getElementById("attList");
+  var attWrap = byId("attention");
+  var attList = byId("attList");
   var CAP = 9;
   attWrap.className = "attention" + (att.length ? "" : " clear");
-  document.getElementById("attHead").textContent = att.length
+  byId("attHead").textContent = att.length
     ? "Needs attention \u2014 " + att.length : "Nothing outstanding";
   attList.className = "attgrid" + (att.length <= 4 ? " two" : "");
   setHTML("attList", att.length
@@ -1083,7 +1086,7 @@ function draw(D){
     + stat(onSite.length, "machines on site",
         (D.tools||[]).filter(function(x){ return x.job===D.job; }).length+" items of equipment"));
 
-  drawLookahead(D, T);
+  /* the fortnight is its own board — lookahead-board.html */
 
   document.getElementById("job").textContent = D.job || "—";
   document.getElementById("state").style.display = "none";
