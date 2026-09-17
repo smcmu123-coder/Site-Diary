@@ -1471,7 +1471,7 @@ html,body{ overscroll-behavior-y:none }
   <div class="sp-fill" id="spFill"></div>
   <div class="sp-num" id="spNum">0%</div>
   <div class="sp-cap" id="spCap">Starting up</div>
-  <svg class="sp-line" id="spLine" viewBox="0 0 100 100" aria-hidden="true"><path id="spM0"></path><path id="spM1"></path><path id="spM2"></path><path id="spT0"></path><path id="spT1"></path><path id="spT2"></path><path class="cgc" id="spMk"></path><path class="cgc" id="spK1"></path><path class="cgc" id="spK2"></path></svg>
+  <svg class="sp-line" id="spLine" viewBox="0 0 100 100" aria-hidden="true"><path id="spM0"></path><path id="spM1"></path><path id="spM2"></path><path id="spR0"></path><path id="spR1"></path><path id="spR2"></path><path id="spT0"></path><path id="spT1"></path><path id="spT2"></path><path id="spU0"></path><path id="spU1"></path><path id="spU2"></path><path class="cgc" id="spMk"></path><path class="cgc" id="spK1"></path><path class="cgc" id="spK2"></path></svg>
   <div class="sp-done" id="spDone">
     <img id="splashLogo" alt="">
     <div class="nm" id="spName" aria-label="siteHUB"></div>
@@ -15053,103 +15053,155 @@ function spFrame(){
   return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 }
 
-/* One shape at a time -- and the pen travels between them.
-   Two shapes on screen together reads as mush; taking one away before the next
-   arrives reads as a jump, because nothing carries the eye across the gap. So
-   each shape shrinks onto the point where its own stroke ends, a short stroke
-   then travels from there to where the next one begins, and the next grows out
-   of that point. Nothing overlaps and the pen is never in two places.
+/* One shape at a time, and the pen travels between them.
+   A shape is gathered up from its start while the travel is drawn out of its
+   end, and the travel is gathered up while the next shape is drawn out of ITS
+   end. Each travel begins exactly where the shape before it stopped, so the ink
+   on screen is always one connected line, at every stage.
 
-   Each shape owns its own <path> with its d set once at start-up. Nothing
-   rewrites d mid-sequence: changing an attribute and starting an animation on
-   the same element in the same frame is exactly the case Safari is entitled to
-   collapse, which is how shapes end up appearing instead of being drawn. */
+   Two rules run through the implementation, both of them about Safari:
+
+   1. stroke-dashoffset is never negative. Running a line off its far end is the
+      obvious way to do it -- offset from 0 down past minus its own length -- but
+      SVG 1.1 calls a negative dashoffset an error, and a renderer is within its
+      rights to drop the declaration. Where that happens the erase never runs and
+      the handover snaps. So every shape carries a second copy of itself with its
+      geometry reversed, and the erase is a normal positive draw on that copy:
+      identical ink at the moment of the swap, and the same line retreating.
+
+   2. Two transitions are never started with a forced style recalculation between
+      them. Starting a transition needs the value before the change and the value
+      after it, worked out at the end of the task. Reading a computed style in the
+      middle forces that early, and a transition armed before the read can be
+      resolved against a style that has already moved -- so it never runs, and
+      the value simply lands. Everything is armed first, the style is flushed
+      once, and then every transition starts together. */
 const SP_DRAW = "cubic-bezier(.2,.5,.3,1)";   /* leads out, holds its pace */
-const SP_OFF  = "cubic-bezier(.4,0,.55,1)";   /* the tail gathers it up at
-                                                 a steady rate: a curve that
-                                                 holds then whips leaves the
-                                                 shape sitting there, then
-                                                 snatches it */
+const SP_OFF  = "cubic-bezier(.4,0,.55,1)";   /* the tail gathers it up steadily */
 const SP_TRAV = "cubic-bezier(.45,0,.55,1)";  /* a travel: away, and back down */
 
+/* Reverse a path so it runs end to start. Only M, L, C and Z appear here; a
+   cubic reverses by swapping its two control points. */
+function spReverse(d){
+  const toks = String(d).match(/[MLCZmlcz][^MLCZmlcz]*/g);
+  if(!toks) return "";
+  const N = /-?\d*\.?\d+(?:e[-+]?\d+)?/gi;
+  let first = null;
+  const seg = [], pts = [];
+  for(let i=0; i<toks.length; i++){
+    const c = toks[i][0].toUpperCase();
+    const n = (toks[i].slice(1).match(N) || []).map(Number);
+    if(c === "M"){
+      if(first) return "";               /* more than one subpath: not ours */
+      first = { x:n[0], y:n[1] };
+      pts.push(first);
+      for(let k=2; k+1<n.length; k+=2){  /* extra pairs after an M are lines */
+        seg.push({ t:"L" }); pts.push({ x:n[k], y:n[k+1] });
+      }
+    } else if(c === "L"){
+      for(let k=0; k+1<n.length; k+=2){
+        seg.push({ t:"L" }); pts.push({ x:n[k], y:n[k+1] });
+      }
+    } else if(c === "C"){
+      for(let k=0; k+5<n.length; k+=6){
+        seg.push({ t:"C", a:{x:n[k],y:n[k+1]}, b:{x:n[k+2],y:n[k+3]} });
+        pts.push({ x:n[k+4], y:n[k+5] });
+      }
+    } else if(c === "Z"){
+      seg.push({ t:"L" }); pts.push(first);
+    }
+  }
+  if(!seg.length) return "";
+  const f = function(v){ return (Math.round(v*100)/100); };
+  const last = pts[pts.length-1];
+  let out = "M" + f(last.x) + "," + f(last.y);
+  for(let i=seg.length-1; i>=0; i--){
+    const to = pts[i];
+    if(seg[i].t === "C"){
+      out += "C" + f(seg[i].b.x) + "," + f(seg[i].b.y) +
+             " "  + f(seg[i].a.x) + "," + f(seg[i].a.y) +
+             " "  + f(to.x) + "," + f(to.y);
+    } else {
+      out += "L" + f(to.x) + "," + f(to.y);
+    }
+  }
+  return out;
+}
+
+/* A dash as long as the path, so an offset between zero and that length shows
+   the run from the start -- all positive, never running off the far end. Two
+   units of slack because getTotalLength and the renderer's own idea of how long
+   a path is need not agree to the last decimal, and a dash a hair short leaves
+   the shape not quite hidden, so it pops instead of being drawn. */
+function spFit(path, d){
+  path.setAttribute("d", d);
+  const len = path.getTotalLength() + 2;
+  path.style.strokeDasharray  = len + "px";
+  path.style.strokeDashoffset = len + "px";
+  return len;
+}
+
+/* arm: set where each one starts from, with transitions off */
+function spArm(list){
+  for(let i=0; i<list.length; i++){
+    list[i].path.style.transition = "none";
+    list[i].path.style.strokeDashoffset = list[i].from + "px";
+  }
+  /* one flush, for all of them, before any transition is attached */
+  if(list.length) void window.getComputedStyle(list[0].path).strokeDashoffset;
+}
+
+/* go: start them all together, after the flush and never before it */
+function spGo(list){
+  let longest = 0;
+  for(let i=0; i<list.length; i++){
+    const it = list[i];
+    it.path.style.transition = "stroke-dashoffset " + it.ms + "ms " + it.ease;
+    it.path.style.strokeDashoffset = it.to + "px";
+    if(it.ms > longest) longest = it.ms;
+  }
+  return spWait(longest + 20);
+}
+
 function spSetup(){
+  const make = function(id, d){
+    const path = document.getElementById(id);
+    if(!path || !path.getTotalLength) return null;
+    return { path: path, len: spFit(path, d) };
+  };
   const shapes = SPLASH_LINE.concat([SPLASH_MARK]).concat(SPLASH_MARK_CAPS);
   const ids    = ["spM0","spM1","spM2","spMk","spK1","spK2"];
-  const out    = [];
+  const fwd = [];
   for(let i=0; i<ids.length; i++){
-    const path = document.getElementById(ids[i]);
-    if(!path || !path.getTotalLength) return null;
-    path.setAttribute("d", shapes[i]);
-    /* two units of slack: getTotalLength and the renderer's own idea of how
-       long a path is need not agree to the last decimal, and if the dash is
-       a hair short the shape is not fully hidden and pops into view instead
-       of being drawn. Over-running costs nothing. */
-    const len = path.getTotalLength() + 2;
-    /* px, not a bare number: a style property is CSS, where an unitless
-       length is not valid -- Safari says so */
-    path.style.strokeDasharray  = len + "px";
-    path.style.strokeDashoffset = len + "px";   /* held off until its turn */
-    out.push({ path: path, len: len,
-               a: path.getPointAtLength(0), b: path.getPointAtLength(len) });
+    const it = make(ids[i], shapes[i]);
+    if(!it) return null;
+    it.a = it.path.getPointAtLength(0);
+    it.b = it.path.getPointAtLength(it.path.getTotalLength());
+    fwd.push(it);
   }
-
+  /* the reversed copies, used only to gather a line back up again */
+  const rev = [];
+  for(let i=0; i<3; i++){
+    const it = make("spR" + i, spReverse(shapes[i]));
+    if(!it) return null;
+    rev.push(it);
+  }
   /* the travels: from where one shape's stroke ends to where the next begins,
      bowed a little so the pen arcs across rather than ruling a line */
-  const trav = [];
+  const tf = [], tr = [];
   for(let i=0; i<3; i++){
-    const path = document.getElementById("spT" + i);
-    if(!path) return null;
-    const from = out[i].b, to = out[i+1].a;
+    const from = fwd[i].b, to = fwd[i+1].a;
     const dx = to.x - from.x, dy = to.y - from.y;
     const mx = (from.x + to.x)/2, my = (from.y + to.y)/2;
     const d  = "M" + from.x.toFixed(2) + "," + from.y.toFixed(2) +
-               "Q" + (mx - dy*0.16).toFixed(2) + "," + (my + dx*0.16).toFixed(2) +
+               "C" + (mx - dy*0.14).toFixed(2) + "," + (my + dx*0.14).toFixed(2) +
+               " " + (mx - dy*0.14).toFixed(2) + "," + (my + dx*0.14).toFixed(2) +
                " " + to.x.toFixed(2) + "," + to.y.toFixed(2);
-    path.setAttribute("d", d);
-    const len = path.getTotalLength() + 2;
-    path.style.strokeDasharray  = len + "px";
-    path.style.strokeDashoffset = len + "px";
-    trav.push({ path: path, len: len });
+    const a = make("spT" + i, d), b = make("spU" + i, spReverse(d));
+    if(!a || !b) return null;
+    tf.push(a); tr.push(b);
   }
-  return { shapes: out, trav: trav };
-}
-
-/* A CSS transition, not Web Animations. Safari's Web Animations support for
-   SVG stroke properties is the shakiest part of this whole thing -- where it
-   does not take, the value simply lands on its end state and the shape appears
-   instead of being drawn, which is exactly what "jumping" looks like. A
-   transition on stroke-dashoffset has worked in Safari for years.
-
-   The one rule a transition has is that the value it starts from must already
-   be committed, or there is nothing to move away from. So the start value is
-   set with transitions off and then the style is forced to flush -- reading a
-   computed value does it -- before the transition is attached. Two frames of
-   requestAnimationFrame are not a substitute: the browser is free to coalesce
-   them, and Safari does. */
-function spRun(path, from, to, ms, ease){
-  return new Promise(function(done){
-    let over = false;
-    const end = function(e){
-      if(over) return;
-      if(e && e.propertyName && e.propertyName.indexOf("dashoffset") < 0) return;
-      over = true;
-      path.removeEventListener("transitionend", end);
-      done();
-    };
-    path.addEventListener("transitionend", end);
-
-    path.style.transition = "none";
-    path.style.strokeDashoffset = from + "px";
-    /* forces the style above to be committed on its own */
-    void window.getComputedStyle(path).strokeDashoffset;
-
-    path.style.transition = "stroke-dashoffset " + ms + "ms " + ease;
-    path.style.strokeDashoffset = to + "px";
-
-    /* transitionend does not fire if the transition never starts -- a tab in
-       the background, a value that did not change -- so never wait forever */
-    setTimeout(end, ms + 120);
-  });
+  return { fwd: fwd, rev: rev, tf: tf, tr: tr };
 }
 
 async function playSplashLine(){
@@ -15157,8 +15209,7 @@ async function playSplashLine(){
   if(!svg) return;
   const S = spSetup();
   if(!S) return;
-  const sh = S.shapes, tr = S.trav;
-  const mark = sh[3], caps = [sh[4], sh[5]];
+  const mark = S.fwd[3], caps = [S.fwd[4], S.fwd[5]];
 
   /* with motion turned down there is no drawing: the mark is simply there */
   if(window.matchMedia &&
@@ -15172,34 +15223,51 @@ async function playSplashLine(){
   }
 
   svg.classList.add("on");
-  /* The head and the tail are never lifted at the same time. A shape is gathered
-     up from its start while the travel is drawn out of its end, and the travel is
-     gathered up while the next shape is drawn out of ITS end -- and because each
-     travel begins exactly where the shape before it stopped, the ink on screen is
-     always one connected line, whatever stage it is at. */
-  await spRun(sh[0].path, sh[0].len, 0, 380, SP_DRAW);
+  spArm([{ path: S.fwd[0].path, from: S.fwd[0].len }]);
+  await spGo([{ path: S.fwd[0].path, to: 0, ms: 380, ease: SP_DRAW }]);
+
   for(let i=0; i<3; i++){
     if(launchDone) return;
     await spWait(110);                       /* held, long enough to read */
     if(launchDone) return;
-    spRun(sh[i].path, 0, -sh[i].len, 240, SP_OFF);      /* tail gathers it up */
-    await spRun(tr[i].path, tr[i].len, 0, 240, SP_TRAV); /* head sets off */
+
+    /* the drawn shape hands over to its reversed twin -- the same ink, so the
+       swap cannot be seen -- and that twin is drawn back up while the travel
+       is drawn out of the point the shape stopped at */
+    spArm([{ path: S.rev[i].path, from: 0 },
+           { path: S.fwd[i].path, from: S.fwd[i].len },
+           { path: S.tf[i].path,  from: S.tf[i].len }]);
+    await spGo([{ path: S.rev[i].path, to: S.rev[i].len, ms: 240, ease: SP_OFF },
+                { path: S.tf[i].path,  to: 0,            ms: 240, ease: SP_TRAV }]);
     if(launchDone) return;
-    spRun(tr[i].path, 0, -tr[i].len, 260, SP_OFF);      /* tail follows across */
-    /* the mark is a long path, so it gets the time a pen would take rather than
-       a UI duration -- this is a cold start, seen once, not a control anyone is
-       waiting on */
-    const ms = (i === 2) ? 820 : 380;
-    if(i === 2) break;
-    await spRun(sh[i+1].path, sh[i+1].len, 0, ms, SP_DRAW);
+
+    /* and the travel is gathered up while the next shape grows out of its end */
+    const next = S.fwd[i+1];
+    const ms   = (i === 2) ? 820 : 380;
+    spArm([{ path: S.tr[i].path, from: 0 },
+           { path: S.tf[i].path, from: S.tf[i].len },
+           { path: next.path,    from: next.len }]);
+    if(i === 2){
+      /* the mark is a long path, so it gets the time a pen would take rather
+         than a UI duration -- a cold start, seen once, not a control anyone is
+         waiting on. The two tops belong to the logo rather than to the pen, so
+         they appear underneath it as it passes. */
+      spGo([{ path: S.tr[i].path, to: S.tr[i].len, ms: 260, ease: SP_OFF },
+            { path: next.path,    to: 0,           ms: ms,  ease: SP_DRAW }]);
+      setTimeout(function(){
+        spArm([{ path: caps[0].path, from: caps[0].len }]);
+        spGo([{ path: caps[0].path, to: 0, ms: 240, ease: SP_DRAW }]);
+      }, 410);
+      setTimeout(function(){
+        spArm([{ path: caps[1].path, from: caps[1].len }]);
+        spGo([{ path: caps[1].path, to: 0, ms: 240, ease: SP_DRAW }]);
+      }, 650);
+      await spWait(680);          /* the name rises before the pen finishes */
+      return;
+    }
+    await spGo([{ path: S.tr[i].path, to: S.tr[i].len, ms: 260, ease: SP_OFF },
+                { path: next.path,    to: 0,           ms: ms,  ease: SP_DRAW }]);
   }
-  if(launchDone) return;
-  spRun(mark.path, mark.len, 0, 820, SP_DRAW);
-  /* the two tops belong to the logo, not to the pen: they appear underneath it
-     as it passes, which is the only moment they would not read as an addition */
-  setTimeout(function(){ spRun(caps[0].path, caps[0].len, 0, 240, SP_DRAW); }, 410);
-  setTimeout(function(){ spRun(caps[1].path, caps[1].len, 0, 240, SP_DRAW); }, 650);
-  await spWait(680);             /* the name rises before the pen finishes */
 }
 
 /* called as each piece of startup finishes — never backwards, never skips */
