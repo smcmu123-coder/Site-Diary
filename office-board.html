@@ -134,7 +134,8 @@ body{background:var(--canvas);color:var(--ink);
    meant a count like 128 of 140 wrapped onto three lines and spilled over the
    arc. --fit is written on the element by ring(), worked out from how wide
    that particular figure actually is. */
-.big{font-size:min(var(--t-title), calc(var(--dial) * var(--fit, .5)));
+.big{font-size:min(var(--t-title), calc(var(--dial) * var(--fit, .5)),
+    calc(var(--dial) * .34));
   font-weight:var(--w-bold);letter-spacing:-.035em;white-space:nowrap;
   line-height:1;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
 .sub{font-size:min(var(--t-cap), calc(var(--dial) * var(--subfit, .16)));
@@ -390,6 +391,14 @@ body{background:var(--canvas);color:var(--ink);
 }
 @media (max-width:1180px){
   .rings{grid-template-columns:repeat(2,1fr)}
+  /* Two rows of rings takes twice the height of one, so each ring gives up
+     what it can spare — the note underneath, and some of its padding — and
+     keeps the dial, which is the part worth looking at. */
+  :root{--dial:clamp(70px, 11vh, 120px)}
+  .rings{gap:var(--s3)}
+  .ring{padding:var(--s3) var(--s2);gap:var(--s2)}
+  .ring .note{display:none}
+  .attgrid{max-height:21vh}
   .attgrid{grid-template-columns:repeat(2,1fr)}
   .cols{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr) auto}
   .panel.dark{grid-column:1 / -1}
@@ -398,6 +407,12 @@ body{background:var(--canvas);color:var(--ink);
 @media (max-width:820px){
   .ladays{grid-template-columns:repeat(2,1fr)}
   .rings{grid-template-columns:repeat(2,1fr)}
+  :root{--dial:clamp(58px, 9vh, 98px)}
+  .ring{padding:var(--s2);gap:var(--s1)}
+  /* the mark and the clock stay on one line rather than taking three */
+  :root{--mark:clamp(26px, 4vh, 44px)}
+  .top{gap:var(--s3)}
+  .attgrid{max-height:19vh}
   .attgrid{grid-template-columns:1fr}
   .cols{grid-template-columns:1fr}
   .top{flex-wrap:wrap}
@@ -409,24 +424,24 @@ body{background:var(--canvas);color:var(--ink);
    take what is left, rather than the whole board overflowing off the bottom. */
 @media (max-height:760px){
   .wrap{gap:var(--s3)}
-  .ring{padding:var(--s3) var(--s2)}
-  .ring h3{font-size:var(--t-lead)}
+  :root{--dial:clamp(62px, 13vh, 120px)}
+  .ring{padding:var(--s3) var(--s2);gap:var(--s2)}
   .attgrid{max-height:34vh}
 }
 @media (max-height:620px){
-  /* Tight enough that the dials stop earning their space. The arc goes, but
-     the count and the state in words stay — they carried the meaning anyway. */
-  .dial{width:auto;height:auto}
-  .dial svg{display:none}
-  /* no circle to fit inside any more, so the figure goes back to full size */
-  .big{font-size:var(--t-title)}
-  .sub{font-size:var(--t-cap);margin-top:0}
-  .mid{position:static;flex-direction:row;align-items:baseline;gap:var(--s2)}
-  .ring{flex-direction:row;align-items:center;text-align:left;
-    padding:var(--s3) var(--s4);gap:var(--s3)}
-  .ring h3{flex:1;min-width:0}
+  /* The screen is short — a laptop with everything open, or the board zoomed
+     right in. The dial shrinks and the line underneath goes; the ring itself
+     stays, because the arc is what is read from the far side of the office. */
+  :root{--dial:clamp(50px, 9.5vh, 92px)}
+  .ring{padding:var(--s2);gap:var(--s1)}
   .ring .note{display:none}
-  .rings{grid-template-columns:repeat(2,1fr)}
+}
+
+@media (max-width:900px) and (max-height:820px){
+  :root{--dial:clamp(48px, 8vh, 82px)}
+  .ring{padding:var(--s2);gap:var(--s1)}
+  .attgrid{max-height:16vh}
+  .attention{padding:var(--s3) var(--s4)}
 }
 
 /* A tall portrait screen — the wall panel this board was made for. The narrow
@@ -442,7 +457,8 @@ body{background:var(--canvas);color:var(--ink);
   /* the variable, not the element, so the figure inside the ring is sized
      against the dial this screen actually gets */
   :root{--dial:clamp(70px, 8vh, 120px)}
-  .ring .note{font-size:var(--t-cap);max-width:20ch}
+  .ring .note{display:block;font-size:var(--t-cap);max-width:20ch}
+  .ring{padding:var(--s4) var(--s2);gap:var(--s2)}
   .cols{grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr) auto}
   .panel.dark{grid-column:1 / -1}
   .attgrid{grid-template-columns:repeat(2,1fr);max-height:36vh}
@@ -460,21 +476,13 @@ body{background:var(--canvas);color:var(--ink);
   .stat .n{font-size:var(--t-head);min-width:64px}
 }
 
-/* A wide, short screen — a landscape TV or a laptop. Both halves of the board
-   are on one screen here too, so the top half gives up its dials: the count and
-   the state in words carried the meaning anyway, and the height they free is
-   worth more to the fortnight underneath. */
+/* A wide, short screen — a landscape TV or a laptop. The rings keep their
+   dials here; only their size gives way. */
 @media (orientation:landscape) and (max-height:1200px){
   .wrap{grid-template-rows:auto auto auto minmax(0,1fr) auto;gap:var(--s3)}
-  .dial{width:auto;height:auto}
-  .dial svg{display:none}
-  .big{font-size:var(--t-title)}
-  .sub{font-size:var(--t-cap);margin-top:0}
-  .mid{position:static;flex-direction:row;align-items:baseline;gap:var(--s2)}
-  .ring{flex-direction:row;align-items:center;text-align:left;
-    padding:var(--s3) var(--s4);gap:var(--s3)}
-  .ring h3{flex:1;min-width:0}
-  .ring .note{display:none}
+  /* a wide, short screen: the dial comes down in size but never comes off */
+  :root{--dial:clamp(72px, 11vh, 132px)}
+  .ring{padding:var(--s3) var(--s2);gap:var(--s2)}
   .attgrid{max-height:30vh}
   .panel.dark #week{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s6);
     align-content:start}
