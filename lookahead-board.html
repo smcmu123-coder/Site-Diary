@@ -2,18 +2,19 @@
 <html lang="en-GB"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CGC siteHUB — Two week look ahead</title>
+<title>CGC siteHUB — Two Week Look Ahead</title>
 <style>
 /* ==========================================================================
-   CGC siteHUB — two week look ahead
-   The sister board to office-board.html, and deliberately the same page in a
-   different arrangement: the token block below is lifted from it unchanged, so
-   the two screens can never drift apart on colour, type or spacing. The site
-   board answers "where are we today". This one answers "what is coming", and
-   that is the only difference in its job.
-
-   Read from three or four metres, same as the other, so density drops items
-   rather than shrinking type.
+   CGC siteHUB — two week look ahead, portrait
+   What is coming: a fortnight across the whole screen, a day to a cell. Where
+   the job stands today is its own board, in office-board.html, so the two can
+   go on separate screens. Both read the same board-data.json, so they can
+   never disagree.
+   Same design language as the app: the palette is sampled from the logo, the
+   spacing scale is the app's, and no status is ever told by colour alone.
+   What differs is distance. This is read from three or four metres across an
+   office, not at arm's length, so every size is roughly doubled and the
+   density ladder drops items rather than shrinking type.
    ========================================================================== */
 :root{
   /* brand — straight from the logo panel (#1F5A2D base, #174C26 top) */
@@ -86,106 +87,251 @@ body{background:var(--canvas);color:var(--ink);
 .ghost{position:fixed;right:-7vw;bottom:-18vh;width:min(920px, 62vw);opacity:.04}
 
 /* --- the frame ----------------------------------------------------------- */
+/* Grid, not floats. Rows size themselves and the panels take what is left,
+   so nothing is clipped when the board goes on a different screen. */
 .wrap{position:relative;height:100vh;padding:var(--s6) var(--s7) var(--s5);
-  display:grid;grid-template-rows:auto 1fr auto;gap:var(--s5)}
+  display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+  gap:var(--s5)}
 
-/* --- header (the site board's, unchanged) -------------------------------- */
+/* --- header -------------------------------------------------------------- */
 .top{display:flex;align-items:center;gap:var(--s6)}
 .top .mark{height:var(--mark);flex:none}
+/* The app shows the job as a tinted pill with an inset ring, not a solid slab.
+   A solid green block here competed with the logo and with every status colour
+   on the board; tinted, it names the job and then gets out of the way. */
 .jobpill{display:inline-flex;align-items:center;gap:14px;
   background:var(--green-50);color:var(--green-700);padding:11px 26px;
   border-radius:var(--r-pill);font-size:var(--t-title);font-weight:var(--w-bold);
   letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   box-shadow:inset 0 0 0 1.5px var(--green-100)}
-/* This board is not about the minute, it is about the fortnight, so the range
-   leads and the clock steps back to the size the date has on the other board. */
-.range{margin-left:auto;text-align:right;flex:none}
-.range .r{font-size:var(--t-head);font-weight:var(--w-bold);letter-spacing:-.02em;
-  color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums}
-.range .d{font-size:var(--t-sub);color:var(--ink-2);font-weight:var(--w-med);margin-top:4px}
+.clock{margin-left:auto;text-align:right;flex:none}
+.clock .t{font-size:var(--t-display);font-weight:var(--w-bold);letter-spacing:-.035em;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;line-height:1;
+  color:var(--ink)}
+.clock .d{font-size:var(--t-sub);color:var(--ink-2);font-weight:var(--w-med);margin-top:4px}
 
-/* --- the two weeks ------------------------------------------------------- */
-.weeks{display:grid;grid-template-rows:1fr 1fr;gap:var(--s5);min-height:0}
-.week{display:grid;grid-template-rows:auto 1fr;gap:var(--s3);min-height:0}
-/* Same section heading as the panels on the site board: small spaced capitals
-   in grey over a hairline, with the week's tally sitting on the right of it. */
-.wkhead{display:flex;align-items:baseline;gap:var(--s3);
+/* --- the four rings ------------------------------------------------------ */
+/* Surfaces carry a shadow or a border, never both. The app uses shadow alone,
+   so the board does too — stacking the two is what made these read as boxes
+   drawn on a page rather than cards sitting on one. */
+.rings{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s4)}
+.ring{background:var(--paper);border-radius:var(--r-lg);
+  padding:var(--s5) var(--s3);text-align:center;box-shadow:var(--sh);
+  display:flex;flex-direction:column;align-items:center;gap:var(--s3)}
+/* The title steps back and the figure leads. Before, the two were competing at
+   nearly the same weight and the eye had nowhere to land first. */
+.ring h3{font-size:var(--t-over);font-weight:var(--w-bold);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);line-height:1.2;
+  /* two lines' worth whether the title needs them or not, so all four dials
+     sit on the same line across the board */
+  min-height:2.4em;display:flex;align-items:center;justify-content:center}
+.dial{position:relative;width:var(--dial);height:var(--dial)}
+.dial svg{width:100%;height:100%;display:block}
+.mid{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center}
+/* The figure is sized to the circle it sits in, not to the card. A ring only
+   has the width of its own inner circle to play with, and the old fixed size
+   meant a count like 128 of 140 wrapped onto three lines and spilled over the
+   arc. --fit is written on the element by ring(), worked out from how wide
+   that particular figure actually is. */
+.big{font-size:min(var(--t-title), calc(var(--dial) * var(--fit, .5)));
+  font-weight:var(--w-bold);letter-spacing:-.035em;white-space:nowrap;
+  line-height:1;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.sub{font-size:min(var(--t-cap), calc(var(--dial) * var(--subfit, .16)));
+  color:var(--ink-3);font-weight:var(--w-med);margin-top:.18em;white-space:nowrap;
+  line-height:1;font-variant-numeric:tabular-nums}
+.note{font-size:var(--t-sub);font-weight:var(--w-med);color:var(--ink-2);
+  line-height:1.35;max-width:26ch}
+/* the state in words as well as colour — this is what carries across a room */
+.rstate{display:inline-flex;align-items:center;gap:var(--s2);padding:5px 14px;
+  border-radius:var(--r-pill);font-size:var(--t-cap);font-weight:var(--w-bold);
+  letter-spacing:.02em}
+.rstate b{font-size:var(--t-cap);line-height:1}
+.rstate.ok{background:var(--ok-bg);color:var(--ok)}
+.rstate.part,.rstate.wip{background:var(--warn-bg);color:var(--warn-700)}
+.rstate.none{background:var(--bad-bg);color:var(--bad)}
+.rstate.idle{background:var(--canvas);color:var(--ink-3)}
+
+/* --- needs attention ----------------------------------------------------- */
+/* This was being built and then thrown away. It is the single most useful
+   thing on an office wall, so it now sits full width under the rings. */
+/* The heavy left bar and the filled red badge were doing the same job twice.
+   One coloured dot and coloured wording is enough to find it across a room,
+   and it leaves the red free to mean something on the rows themselves. */
+.attention{background:var(--paper);border-radius:var(--r-lg);
+  padding:var(--s4) var(--s5) var(--s5);box-shadow:var(--sh)}
+.attention h2{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--bad);font-weight:var(--w-bold);display:flex;align-items:center;
+  gap:var(--s2);padding:0 0 var(--s3);margin-bottom:var(--s3);
+  border-bottom:1px solid var(--line-2)}
+.attention h2::before{content:"";width:9px;height:9px;border-radius:50%;
+  background:var(--bad);flex:none}
+.attention.clear h2{color:var(--ok)}
+.attention.clear h2::before{background:var(--ok)}
+.attgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 var(--s6)}
+.attgrid.two{grid-template-columns:repeat(2,1fr)}
+
+/* --- the three panels ---------------------------------------------------- */
+.cols{display:grid;grid-template-columns:1fr 1fr .72fr;gap:var(--s4);min-height:0}
+.panel{background:var(--paper);border-radius:var(--r-lg);
+  padding:var(--s4) var(--s5) var(--s5);box-shadow:var(--sh);display:flex;
+  flex-direction:column;min-height:0;overflow:hidden}
+/* Section headings follow the app's own: small, spaced capitals in grey above a
+   hairline. Three filled green pills across the bottom of the board were three
+   loud labels shouting over the data they were labelling. */
+.panel h2{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:var(--w-bold);padding:0 0 var(--s3);
+  margin-bottom:var(--s3);border-bottom:1px solid var(--line-2)}
+.panel .list,.panel #week{flex:1;min-height:0;overflow:auto;
+  scrollbar-width:none;-ms-overflow-style:none}
+.panel .list::-webkit-scrollbar,.panel #week::-webkit-scrollbar{display:none}
+.attgrid{max-height:26vh;overflow:auto;scrollbar-width:none}
+.attgrid::-webkit-scrollbar{display:none}
+/* the one dark surface, matched to the app's home hero */
+.panel.dark{background:#0C2A18}
+.panel.dark h2{color:var(--green-200);border-bottom-color:rgba(255,255,255,.14)}
+
+/* --- rows ---------------------------------------------------------------- */
+/* Rows used to be bordered, filled tiles stacked with gaps between them — four
+   edges and a background per row, which is a lot of furniture for one line of
+   text. They are now separated by a hairline, the way the app separates rows,
+   with a single dot carrying the colour. Status still reads three ways: dot,
+   glyph and coloured wording, so it survives a cheap panel and colourblindness. */
+.item{padding:var(--s3) 2px var(--s3) var(--s5);background:transparent;border:0;
+  border-bottom:1px solid var(--line-2);margin:0;position:relative;
+  display:flex;align-items:flex-start;gap:var(--s3)}
+.item:last-child{border-bottom:0}
+.item i{position:absolute;left:2px;top:calc(var(--s3) + 6px);width:9px;height:9px;
+  border-radius:50%;background:var(--green)}
+.item .txt{flex:1;min-width:0}
+.item b{display:block;font-size:var(--t-lead);font-weight:var(--w-med);letter-spacing:-.01em;
+  margin-top:3px;color:var(--ink)}
+.item span{display:block;font-size:var(--t-cap);color:var(--ink-2);margin-top:2px}
+.item .when{flex:none;font-size:var(--t-cap);font-weight:var(--w-bold);color:var(--ink-3);
+  white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.item.alert i{background:var(--red)} .item.alert b{color:var(--red)}
+.item.warnbg i{background:var(--amber)} .item.warnbg b{color:var(--warn-700)}
+.item.done i{background:var(--ok)} .item.done b{color:var(--ok)}
+/* the glyph does the work colour used to do on its own */
+.item.alert .txt b::before{content:"\26a0  ";font-weight:800}
+.item.warnbg .txt b::before{content:"\25AA  ";font-weight:800}
+.item.done .txt b::before{content:"\2713  ";font-weight:800}
+.empty{color:var(--ink-2);font-size:var(--t-sub);padding:var(--s2) 2px}
+/* last step before a row gets cut in half on a short screen: the qualifier
+   under each row goes, the row itself stays */
+.list.tight .item span,.attgrid.tight .item span{display:none}
+#week.tight .stat .l span{display:none}
+.more{color:var(--ink-2);font-size:var(--t-cap);font-weight:var(--w-bold);
+  padding:var(--s2) 2px}
+
+/* density: fewer rows, never smaller words. Below this the board stops being
+   readable from a desk, so extra items roll into a "+ n more" line instead. */
+.list.compact .item{padding-top:var(--s2);padding-bottom:var(--s2)}
+.list.compact .item i{top:calc(var(--s2) + 6px)}
+.list.compact .item b{font-size:var(--t-body)}
+.list.two{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s6);align-content:start}
+.list.two .item{margin-bottom:0}
+.list.two .item b{font-size:var(--t-body)}
+.list.two .item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list.two .more{grid-column:1 / -1}
+
+/* --- tags ---------------------------------------------------------------- */
+.tag{display:inline-block;padding:2px 11px;border-radius:var(--r-pill);font-size:var(--t-over);
+  font-weight:var(--w-bold);letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid transparent}
+.tag.del{background:var(--blue-bg);color:var(--blue);border-color:rgba(23,70,128,.25)}
+.tag.exc{background:var(--plum-bg);color:var(--plum);border-color:rgba(115,47,82,.25)}
+.tag.off,.tag.on{background:var(--teal-bg);color:var(--teal);border-color:rgba(12,90,84,.25)}
+.tag.vis{background:var(--violet-bg);color:var(--violet);border-color:rgba(76,49,120,.25)}
+.tag.rep{background:var(--orange-bg);color:var(--orange);border-color:rgba(154,74,6,.25)}
+.tag.hol{background:var(--amber-bg);color:var(--amber);border-color:rgba(138,80,0,.25)}
+.tag.in{background:var(--ok-bg);color:var(--ok);border-color:rgba(30,107,54,.3)}
+.tag.part{background:var(--amber-bg);color:var(--warn-700);border-color:rgba(107,62,0,.3)}
+
+/* --- this week ----------------------------------------------------------- */
+.stat{padding:var(--s3) 0;background:transparent;border:0;
+  border-bottom:1px solid rgba(255,255,255,.10);display:flex;
+  align-items:center;gap:var(--s4)}
+.stat:last-child{border-bottom:0}
+.stat .n{font-size:var(--t-title);font-weight:var(--w-bold);letter-spacing:-.03em;
+  color:#fff;min-width:88px;line-height:1;font-variant-numeric:tabular-nums}
+.stat .l{flex:1;font-size:var(--t-cap);color:#E4F0E8;font-weight:var(--w-med);line-height:1.3}
+.stat .l span{display:block;color:var(--green-200);font-weight:600;font-size:var(--t-over);
+  margin-top:3px;letter-spacing:.04em}
+
+/* --- the two week look ahead -------------------------------------------- */
+/* Everything below is scoped to .la so it cannot reach the panels above it.
+   The cells follow the same rules as every other surface here: a shadow or a
+   border, never both, and the state of a day said in words inside the card
+   rather than by giving the card different furniture. */
+.la{display:grid;grid-template-rows:auto 1fr 1fr;gap:var(--s3);min-height:0}
+.la h2{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);font-weight:var(--w-bold);padding:0 0 var(--s3);
+  border-bottom:1px solid var(--line-2);display:flex;align-items:baseline;gap:var(--s3)}
+.la h2 .rng{margin-left:auto;letter-spacing:.04em;color:var(--ink-2)}
+.laweek{display:grid;grid-template-rows:auto 1fr;gap:var(--s2);min-height:0}
+.lahead{display:flex;align-items:baseline;gap:var(--s3);
   font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
-  color:var(--ink-3);font-weight:var(--w-bold);
-  padding-bottom:var(--s2);border-bottom:1px solid var(--line-2)}
-.wkhead .tally{margin-left:auto;letter-spacing:.04em;color:var(--ink-2)}
-.days{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s3);min-height:0}
+  color:var(--ink-3);font-weight:var(--w-bold)}
+.lahead .tally{margin-left:auto;letter-spacing:.04em;color:var(--ink-2)}
+.ladays{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s3);min-height:0}
 
-/* A day is a panel, and panels here carry a shadow, never a shadow and a
-   border. Everything else — today, a weekend, a day already gone — is said
-   inside the card, not by giving it different furniture. */
-.day{background:var(--paper);border-radius:var(--r-lg);box-shadow:var(--sh);
-  padding:var(--s3) var(--s4) var(--s4);display:flex;flex-direction:column;
+.day{background:var(--paper);border-radius:var(--r);box-shadow:var(--sh);
+  padding:var(--s2) var(--s3) var(--s3);display:flex;flex-direction:column;
   min-height:0;overflow:hidden}
-.day.rest{background:transparent;box-shadow:none;
-  box-shadow:inset 0 0 0 1px var(--line-2)}
+.day.rest{background:transparent;box-shadow:inset 0 0 0 1px var(--line-2)}
 .day.past{opacity:.5}
-/* Today is marked the way the app marks it: a green ring and the date in
-   green, not a filled green block that would shout down every tag on it. */
 .day.today{box-shadow:var(--sh-lift), inset 0 0 0 2px var(--green-600)}
-
 .dhead{display:flex;align-items:baseline;gap:var(--s2);
-  padding-bottom:var(--s2);margin-bottom:var(--s2);
+  padding-bottom:var(--s1);margin-bottom:var(--s2);
   border-bottom:1px solid var(--line-2)}
 .dow{font-size:var(--t-over);letter-spacing:.1em;text-transform:uppercase;
   color:var(--ink-3);font-weight:var(--w-bold)}
-.dnum{margin-left:auto;font-size:var(--t-lead);font-weight:var(--w-bold);
+.dnum{margin-left:auto;font-size:var(--t-cap);font-weight:var(--w-bold);
   letter-spacing:-.02em;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .day.today .dow,.day.today .dnum{color:var(--green-600)}
 .day.today .dhead{border-bottom-color:var(--green-100)}
 .todaytag{font-size:var(--t-over);font-weight:var(--w-bold);letter-spacing:.06em;
   text-transform:uppercase;background:var(--green-50);color:var(--green-700);
-  border-radius:var(--r-pill);padding:2px 10px;
+  border-radius:var(--r-pill);padding:1px 8px;
   box-shadow:inset 0 0 0 1px var(--green-100)}
 
-.dlist{flex:1;min-height:0;overflow:hidden;font-size:var(--t-body)}
-/* Rows are hairline-separated, exactly as on the site board. The colour comes
-   from the tag and nothing else, so a day with four different things on it
-   still reads as one list rather than four coloured boxes.
-
-   Everything inside a cell is sized in em against the cell, not in absolute
+/* Everything inside a cell is sized in em against the cell, never in absolute
    steps, because a cell has to show everything booked on it and the only way
-   to do that on a busy day is to give up some size. See fitDays(). */
-.it{padding:.42em 0;border-bottom:1px solid var(--line-2)}
-.it:last-child{border-bottom:0}
-.it .tag{margin-bottom:.18em}
-.it b{display:block;font-size:1em;font-weight:var(--w-med);
-  letter-spacing:-.01em;color:var(--ink);line-height:1.25}
-.it .sub{display:block;font-size:.8em;color:var(--ink-2);margin-top:.12em;
+   to do that on a heavy day is to give up some size. See fitCell(). */
+.dlist{flex:1;min-height:0;overflow:hidden;font-size:var(--t-cap)}
+.la .it{padding:.4em 0;border-bottom:1px solid var(--line-2)}
+.la .it:last-child{border-bottom:0}
+.la .it b{display:block;font-size:1em;font-weight:var(--w-med);letter-spacing:-.01em;
+  color:var(--ink);line-height:1.25}
+.la .it .sub{display:block;font-size:.82em;color:var(--ink-2);margin-top:.1em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.it .at{font-size:.8em;font-weight:var(--w-bold);color:var(--ink-3);
-  font-variant-numeric:tabular-nums;margin-right:.45em}
-.none{font-size:.8em;color:var(--ink-3);padding:.42em 0;font-weight:var(--w-med)}
-.it .tag{font-size:.68em;padding:.15em .7em}
-
-/* Steps down the ladder: the tag moves onto the title's line, then the second
-   line of detail goes. Both buy back a whole line per row on a day that has a
-   lot on it, and both cost less than making the wording smaller. */
-.dlist.inline .it{display:flex;align-items:baseline;gap:.5em}
+.la .it .at{font-size:.82em;font-weight:var(--w-bold);color:var(--ink-3);
+  font-variant-numeric:tabular-nums;margin-right:.4em}
+.la .it .tag{font-size:.74em;padding:.12em .65em;margin-bottom:.15em;display:inline-block}
+.la .none{font-size:.82em;color:var(--ink-3);padding:.4em 0;font-weight:var(--w-med)}
+/* steps down the ladder: the tag moves onto the title's line, then the second
+   line of detail goes. Both cost less than making the wording smaller. */
+.dlist.inline .it{display:flex;align-items:baseline;gap:.45em}
 .dlist.inline .it .tag{flex:none;margin:0}
 .dlist.inline .it .tx{flex:1;min-width:0}
 .dlist.nosub .it .sub{display:none}
-.dlist.nosub .it{padding:.3em 0}
-
-/* --- tags (the site board's shape; the colours come from the app) --------- */
-.tag{display:inline-block;padding:2px 10px;border-radius:var(--r-pill);
-  font-size:var(--t-over);font-weight:var(--w-bold);letter-spacing:.06em;
-  text-transform:uppercase;border:1px solid transparent;white-space:nowrap;
-  max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.dlist.nosub .it{padding:.28em 0}
 
 /* --- footer -------------------------------------------------------------- */
 .foot{display:flex;align-items:center;gap:var(--s3);font-size:var(--t-cap);
   color:var(--ink-2);font-weight:var(--w-med)}
 .foot .right{margin-left:auto}
-.foot .legend{display:flex;gap:var(--s4);flex-wrap:wrap}
-.foot .lg{display:inline-flex;align-items:center;gap:6px}
-.foot .sw{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
-.dot{width:11px;height:11px;border-radius:50%;background:var(--ok);display:inline-block;flex:none}
+/* The key is read from further away than anything else on the board and was
+   the one place a pale tint did not survive the distance. The swatches carry
+   the kind's own colour at full strength; the tags on the cells stay tinted,
+   because there the wording sits on top of them. */
+.foot .legend{display:flex;gap:var(--s4);flex-wrap:wrap;align-items:center}
+.foot .lg{display:inline-flex;align-items:center;gap:6px;font-weight:var(--w-med)}
+.foot .sw{width:12px;height:12px;border-radius:4px;display:inline-block;flex:none}
+/* freshness is told by a word, not only by the colour of a dot */
+.dot{width:11px;height:11px;border-radius:50%;background:var(--ok);display:inline-block;
+  flex:none}
 .dot.stale{background:var(--late)}
 .foot .age{font-weight:var(--w-bold);color:var(--ok)}
 .foot .age.stale{color:var(--late)}
@@ -204,41 +350,145 @@ body{background:var(--canvas);color:var(--ink);
 .tried span{background:#fff;border:1px solid var(--line);border-radius:8px;
   padding:5px 12px;color:var(--ink-2)}
 
-/* --- motion (the site board's two one-shot moves) ------------------------- */
+/* --- motion --------------------------------------------------------------
+   Two moves, both one-shot. The board settles in when it first receives a
+   snapshot, and a region gives one short settle when its contents actually
+   change. Nothing loops: a wall screen with a permanent animation on it is
+   read once and then ignored, and the office stops trusting that movement
+   means news. Easing is the app's own long-settle curve. */
 @keyframes bRise{ from{ opacity:0; transform:translateY(14px) } to{ opacity:1; transform:none } }
 @keyframes bSettle{ from{ opacity:.35; transform:translateY(5px) } to{ opacity:1; transform:none } }
+
 .wrap.first .top{ animation:bRise .5s cubic-bezier(.16,1,.3,1) both }
-.wrap.first .week:nth-child(1){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .10s both }
-.wrap.first .week:nth-child(2){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .18s both }
-.wrap.first .foot{ animation:bRise .5s cubic-bezier(.16,1,.3,1) .26s both }
+.wrap.first .ring{ animation:bRise .58s cubic-bezier(.16,1,.3,1) both }
+.wrap.first .ring:nth-child(1){ animation-delay:.06s }
+.wrap.first .ring:nth-child(2){ animation-delay:.12s }
+.wrap.first .ring:nth-child(3){ animation-delay:.18s }
+.wrap.first .ring:nth-child(4){ animation-delay:.24s }
+.wrap.first .attention{ animation:bRise .58s cubic-bezier(.16,1,.3,1) .30s both }
+.wrap.first .cols .panel:nth-child(1){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .36s both }
+.wrap.first .cols .panel:nth-child(2){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .42s both }
+.wrap.first .cols .panel:nth-child(3){ animation:bRise .58s cubic-bezier(.16,1,.3,1) .48s both }
+.wrap.first .foot{ animation:bRise .5s cubic-bezier(.16,1,.3,1) .54s both }
 .fresh{ animation:bSettle .42s cubic-bezier(.16,1,.3,1) both }
+
 @media (prefers-reduced-motion:reduce){
-  .wrap.first .top,.wrap.first .week,.wrap.first .foot,.fresh{
-    animation:none;opacity:1;transform:none }
+  .wrap.first .top,.wrap.first .ring,.wrap.first .attention,
+  .wrap.first .cols .panel,.wrap.first .foot,.fresh{ animation:none;opacity:1;transform:none }
 }
 
 /* --- fitting whatever window it lands in --------------------------------- */
-/* Fourteen columns across a narrow screen would be fourteen slivers, so the
-   fortnight goes four across and scrolls no further than the screen. */
+
+/* A narrow browser window — half a laptop screen, or a portrait display.
+   Two rings abreast and the panels stack rather than squeezing to slivers. */
+/* A portrait screen. The fortnight would be seven slivers across 1080px, so
+   it goes four across and takes four rows; the rings stay in one row because
+   they are the first thing looked at. */
+@media (max-width:1400px){
+  .ladays{grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(0,1fr)}
+  .la{grid-template-rows:auto 1fr 1fr}
+}
 @media (max-width:1180px){
-  .days{grid-template-columns:repeat(4,1fr)}
-  .weeks{grid-template-rows:auto auto;overflow:auto;scrollbar-width:none}
-  .weeks::-webkit-scrollbar{display:none}
-  .days{grid-auto-rows:minmax(0,1fr)}
+  .rings{grid-template-columns:repeat(2,1fr)}
+  .attgrid{grid-template-columns:repeat(2,1fr)}
+  .cols{grid-template-columns:1fr 1fr}
+  .panel.dark{grid-column:1 / -1}
+  .list.two{grid-template-columns:1fr}
 }
 @media (max-width:820px){
-  .days{grid-template-columns:repeat(2,1fr)}
+  .ladays{grid-template-columns:repeat(2,1fr)}
+  .rings{grid-template-columns:repeat(2,1fr)}
+  .attgrid{grid-template-columns:1fr}
+  .cols{grid-template-columns:1fr}
   .top{flex-wrap:wrap}
-  .range{margin-left:0}
+  .clock{margin-left:0}
+}
+
+/* A short window — a laptop with bookmarks bar and dock, roughly 600-750px of
+   usable height. The rings go to one row of four small dials and the panels
+   take what is left, rather than the whole board overflowing off the bottom. */
+@media (max-height:760px){
+  .wrap{gap:var(--s3)}
+  .ring{padding:var(--s3) var(--s2)}
+  .ring h3{font-size:var(--t-lead)}
+  .attgrid{max-height:20vh}
 }
 @media (max-height:620px){
-  .day{padding:var(--s2) var(--s3) var(--s3)}
-  .wrap{gap:var(--s3)}
+  /* Tight enough that the dials stop earning their space. The arc goes, but
+     the count and the state in words stay — they carried the meaning anyway. */
+  .dial{width:auto;height:auto}
+  .dial svg{display:none}
+  /* no circle to fit inside any more, so the figure goes back to full size */
+  .big{font-size:var(--t-title)}
+  .sub{font-size:var(--t-cap);margin-top:0}
+  .mid{position:static;flex-direction:row;align-items:baseline;gap:var(--s2)}
+  .ring{flex-direction:row;align-items:center;text-align:left;
+    padding:var(--s3) var(--s4);gap:var(--s3)}
+  .ring h3{flex:1;min-width:0}
+  .ring .note{display:none}
+  .rings{grid-template-columns:repeat(2,1fr)}
 }
+
+/* A tall portrait screen — the wall panel this board was made for. The narrow
+   rules above are written for a laptop window that happens to be narrow, where
+   height is the scarce thing. Here width is scarce and height is not, so the
+   rings go back to one row across the top and the space that frees up goes to
+   the fortnight, which is the half of the board with the most to say. */
+@media (orientation:portrait) and (min-height:1000px){
+  .wrap{grid-template-rows:auto minmax(0,1fr) auto}
+  .rings{grid-template-columns:repeat(4,1fr)}
+  .ring{padding:var(--s4) var(--s2);gap:var(--s2)}
+  .ring h3{font-size:var(--t-cap)}
+  /* the variable, not the element, so the figure inside the ring is sized
+     against the dial this screen actually gets */
+  :root{--dial:clamp(70px, 8vh, 120px)}
+  .ring .note{font-size:var(--t-cap);max-width:20ch}
+  .cols{grid-template-columns:1fr 1fr}
+  .panel.dark{grid-column:1 / -1}
+  .attgrid{grid-template-columns:repeat(2,1fr);max-height:18vh}
+  /* the week's four figures go two abreast rather than in one tall column,
+     which is what was pushing the last two off the bottom of the panel */
+  /* the week's four figures go across the panel in one row rather than down
+     it, which is what was pushing the last of them off the bottom */
+  .panel.dark #week{display:grid;grid-template-columns:repeat(4,1fr);
+    gap:0 var(--s5);align-content:start}
+  .stat{border-bottom:0}
+  .stat .n{min-width:0}
+  .stat{padding:var(--s1) 0}
+  .stat:nth-child(2){border-bottom:1px solid rgba(255,255,255,.10)}
+  .stat .l span{margin-top:1px}
+  .stat .n{font-size:var(--t-head);min-width:64px}
+}
+
+/* A wide, short screen — a landscape TV or a laptop. Both halves of the board
+   are on one screen here too, so the top half gives up its dials: the count and
+   the state in words carried the meaning anyway, and the height they free is
+   worth more to the fortnight underneath. */
+@media (orientation:landscape) and (max-height:1200px){
+  .wrap{grid-template-rows:auto minmax(0,1fr) auto;gap:var(--s3)}
+  .dial{width:auto;height:auto}
+  .dial svg{display:none}
+  .big{font-size:var(--t-title)}
+  .sub{font-size:var(--t-cap);margin-top:0}
+  .mid{position:static;flex-direction:row;align-items:baseline;gap:var(--s2)}
+  .ring{flex-direction:row;align-items:center;text-align:left;
+    padding:var(--s3) var(--s4);gap:var(--s3)}
+  .ring h3{flex:1;min-width:0}
+  .ring .note{display:none}
+  .attgrid{max-height:14vh}
+  .panel.dark #week{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s6);
+    align-content:start}
+  .stat{padding:var(--s1) 0;border-bottom:0}
+  /* the qualifier under each figure is the first thing to go when the panel
+     is short: the figure and its label still say it */
+  .stat .l span{display:none}
+}
+
+/* Print, for anyone who wants the morning position on paper */
 @media print{
   body,.wrap{height:auto;overflow:visible}
   .ghost,.state{display:none}
-  .day{break-inside:avoid}
+  .panel,.attention,.ring{break-inside:avoid}
 }
 </style></head><body>
 <img class="ghost" src="data:image/png;base64,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" alt="">
@@ -254,13 +504,21 @@ body{background:var(--canvas);color:var(--ink);
   <div class="top">
     <img class="mark" src="data:image/png;base64,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" alt="Cheltenham Green Civils">
     <div class="jobpill" id="job">&mdash;</div>
-    <div class="range">
-      <div class="r" id="rangeTxt">&mdash;</div>
+    <div class="clock">
+      <div class="t" id="clock">--:--</div>
       <div class="d" id="today">&mdash;</div>
     </div>
   </div>
 
-  <div class="weeks" id="weeks"></div>
+  <div class="la" id="la">
+    <h2>Two week look ahead<span class="rng" id="laRange">&mdash;</span></h2>
+    <div class="laweek"><div class="lahead"><span>This week</span>
+      <span class="tally" id="tally0"></span></div>
+      <div class="ladays" id="week0"></div></div>
+    <div class="laweek"><div class="lahead"><span>Next week</span>
+      <span class="tally" id="tally1"></span></div>
+      <div class="ladays" id="week1"></div></div>
+  </div>
 
   <div class="foot">
     <span class="dot" id="dot"></span>
@@ -272,313 +530,665 @@ body{background:var(--canvas);color:var(--ink);
 
 <script>
 /* ------------------------------------------------------------------------
-   The board holds no rules of its own. Everything shown here — which days are
-   working days, what is booked on them, what each kind of thing is called and
-   what colour it takes — is computed in the app and published in the snapshot.
-   The wall can therefore never disagree with the phone.
+   The board reads a snapshot the app publishes. It re-reads it every thirty
+   seconds, so a fresh publish appears on the wall without anyone touching it.
    ------------------------------------------------------------------------ */
-var REFRESH_MS = 300000;   /* re-read the file every five minutes */
-var TICK_MS    = 60000;    /* redraw every minute for the date and today marker */
+var REFRESH_MS = 30000;
 
-/* Where the figures come from. The app writes board-data.json into the
-   repository; this board looks beside itself first, then a folder up, then at
-   the site root, because the two files do not always end up in the same place.
-   An address can also be forced:  ?data=https://…/board-data.json  */
-var DATA_CANDIDATES = (function(){
-  var forced = new URLSearchParams(location.search).get("data");
-  if(forced) return [forced];
-  var saved = null;
-  try{ saved = localStorage.getItem("boardDataUrl"); }catch(e){}
-  var list = ["board-data.json", "../board-data.json", "/board-data.json",
-              "docs/board-data.json"];
-  if(saved) list.unshift(saved);
-  return list;
-})();
-var TRIED = [];
+/* The board re-reads the file every thirty seconds whether anything changed or
+   not. Rewriting innerHTML each time makes the whole wall blink, and a blink
+   with no new information in it trains people to stop looking. So each region
+   is only written when its markup has actually changed. */
+var lastHTML = {};
 
-/* Rewriting the whole wall every five minutes makes it blink, and a blink with
-   no news in it teaches the office to stop looking. Regions are written only
-   when their markup has actually changed. */
-var lastHTML = {}, painted = false;
+/* The office board and the look ahead are two files off one snapshot, and
+   each carries only the regions it shows. Anything written to a region this
+   board has not got is dropped rather than thrown. */
+function byId(id){
+  return document.getElementById(id)
+    || { style:{}, className:"", innerHTML:"", textContent:"" };
+}
+
 function setHTML(id, html){
+  var el = document.getElementById(id);
+  if(!el) return;
   if(lastHTML[id] === html) return;
   lastHTML[id] = html;
-  var el = document.getElementById(id);
   el.innerHTML = html;
-  if(painted){ el.classList.remove("fresh"); void el.offsetWidth; el.classList.add("fresh"); }
+  /* a region that changed after the first paint gets a single short settle, so
+     the eye is drawn to what moved rather than to the whole board */
+  if(painted){
+    el.classList.remove("fresh");
+    void el.offsetWidth;
+    el.classList.add("fresh");
+  }
 }
+var painted = false;
 
 function pad(n){ return (n<10?"0":"")+n; }
 function iso(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function parse(s){ var p=String(s).split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+function shortDate(s){ return s ? pad(parse(s).getDate())+"/"+pad(parse(s).getMonth()+1) : ""; }
+function addDays(s,n){ var d=parse(s); d.setDate(d.getDate()+n); return iso(d); }
+function weekStart(s){ var d=parse(s), dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return iso(d); }
+function weekDays(ws){ var a=[],i; for(i=0;i<7;i++) a.push(addDays(ws,i)); return a; }
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
   .replace(/>/g,"&gt;"); }
-var DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-var MON = ["January","February","March","April","May","June","July","August",
-           "September","October","November","December"];
-function dowOf(s){ return DOW[(parse(s).getDay()+6)%7]; }
-function dayMonth(s){ var d=parse(s); return d.getDate()+" "+MON[d.getMonth()].slice(0,3); }
 
-/* the tag border is the tag's own colour, softened — worked out from the hex
-   the app publishes, so a new kind added in the app needs nothing here */
-function softBorder(hex){
-  var h = String(hex||"").replace("#","");
-  if(h.length !== 6) return "transparent";
-  return "rgba("+parseInt(h.slice(0,2),16)+","+parseInt(h.slice(2,4),16)+","
-    + parseInt(h.slice(4,6),16)+",.28)";
+/* stone and sand arrive by the wagon load, so they are counted that way */
+var LOAD_SIZES = { Stone:20, Sand:20 };
+function loadSizeOf(d){
+  var n = Number(d && d.loadSize);
+  if(isFinite(n) && n > 0) return n;
+  return LOAD_SIZES[d && d.type] || 0;
 }
+function deliveryWords(d){
+  var want = Number(d.qty)||0;
+  var got = (d.received||[]).reduce(function(n,r){ return n+(Number(r.qty)||0); },0);
+  var size = loadSizeOf(d);
+  var unit = d.unit || "";
+  if(size && want >= size){
+    var loads = Math.ceil(want/size), inLoads = Math.floor(got/size);
+    return { got:got, want:want, full: got>=want,
+      progress: inLoads + " of " + loads + " loads",
+      ordered: loads + " loads · " + want + " " + unit,
+      came: (inLoads||1) + (inLoads===1?" load":" loads") + " · " + got + " " + unit };
+  }
+  return { got:got, want:want, full: want ? got>=want : false,
+    progress: got + " of " + want + " " + unit,
+    ordered: want + " " + unit,
+    came: got + " " + unit };
+}
+
+/* A ring says its state three ways at once: the arc, a glyph and a word.
+   Across an office nobody can tell amber from red on a cheap panel. */
+var RING_STATE = {
+  idle: { col:"var(--ink-4)",    mark:"\u2013", word:"Nothing due" },
+  ok:   { col:"var(--ok)",       mark:"\u2713", word:"Complete" },
+  part: { col:"var(--warn-700)", mark:"\u25AA", word:"Part done" },
+  wip:  { col:"var(--warn-700)", mark:"\u25AA", word:"In progress" },
+  none: { col:"var(--bad)",      mark:"!",       word:"Not started" }
+};
+/* How wide a string is, in ems, close enough to size it by. The board has to
+   do this before the browser has laid anything out, so it is arithmetic on the
+   characters rather than a measurement. Digits are tabular here, so they are
+   all one width. */
+function emWidth(t){
+  var w = 0, i, c;
+  for(i=0; i<t.length; i++){
+    c = t.charAt(i);
+    w += c >= "0" && c <= "9" ? 0.60
+      : c === " " ? 0.26
+      : c === "/" ? 0.32
+      : c >= "A" && c <= "Z" ? 0.70
+      : 0.55;
+  }
+  return Math.max(w, 0.6);
+}
+
+/* The figure has to sit inside the ring's inner circle, not the square the
+   circle is drawn in. The inner circle is 79% of the dial across, and a line
+   of text set above the middle of a circle gets less width than that — these
+   two fractions are what is left once the sub-line underneath is allowed for,
+   and they were arrived at by measuring the result rather than by guessing. */
+var FIG_W = 0.55, SUB_W = 0.46;
+
+function ring(title, done, total, note, wip){
+  var pct = total ? Math.min(1, done/total) : 0;
+  var R=76, C=2*Math.PI*R;
+  var key = total===0 ? "idle" : pct>=1 ? "ok"
+    : pct>0 ? "part" : (wip ? "wip" : "none");
+  var st = RING_STATE[key], col = st.col;
+  var track = "var(--line-2)";
+  /* The count leads and the total goes underneath it. Before, the whole of
+     "12 of 14" was set at the figure size, which is four times the width of
+     the number that actually matters — so it never fitted and the word
+     "complete" ran across the arc. The state underneath already says whether
+     it is done, so that word is not needed inside the ring as well. */
+  var fig  = total===0 ? "None" : String(done);
+  var under = total===0 ? "" : "of " + total;
+  var fit    = (FIG_W / emWidth(fig)).toFixed(3);
+  var subfit = under ? (SUB_W / emWidth(under)).toFixed(3) : "0.16";
+  return '<div class="ring"><h3>'+title+'</h3>'
+    + '<div class="dial"><svg viewBox="0 0 180 180" preserveAspectRatio="xMidYMid meet">'
+    + '<circle cx="90" cy="90" r="'+R+'" fill="none" stroke="'+track+'" stroke-width="9"/>'
+    + '<circle cx="90" cy="90" r="'+R+'" fill="none" stroke="'+col+'" stroke-width="9" '
+    + 'stroke-linecap="round" stroke-dasharray="'+(C*pct).toFixed(1)+' '+(C*(1-pct)).toFixed(1)+'" '
+    + 'transform="rotate(-90 90 90)"/></svg>'
+    + '<div class="mid"><div class="big" style="--fit:'+fit+';color:'+col+'">'+fig+'</div>'
+    + (under ? '<div class="sub" style="--subfit:'+subfit+'">'+under+'</div>' : "")
+    + '</div></div>'
+    + '<div class="rstate '+key+'"><b>'+st.mark+'</b>'+st.word+'</div>'
+    + '<div class="note">'+note+'</div></div>';
+}
+
+
+/* ------------------------------------------------------------------------
+   The two week look ahead. The board holds no rules of its own: which days
+   are working days, what is booked on them, and what each kind is called and
+   coloured all arrive in the snapshot, so the wall can never disagree with
+   the phone.
+   ------------------------------------------------------------------------ */
+var DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+var MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function dowOf(x){ return DOW[(parse(x).getDay()+6)%7]; }
+function dayMonth(x){ var d=parse(x); return d.getDate()+" "+MON[d.getMonth()]; }
 
 var KINDS = {};
 function kindOf(k){
   return KINDS[k] || { label:String(k||"Item").replace(/^./,function(c){return c.toUpperCase();}),
                        colour:"#48534D", bg:"#EEF1EF" };
 }
+/* the tag border is the tag's own colour, softened, so a kind added in the app
+   needs nothing changed here */
+function softBorder(hex){
+  var h=String(hex||"").replace("#","");
+  if(h.length!==6) return "transparent";
+  return "rgba("+parseInt(h.slice(0,2),16)+","+parseInt(h.slice(2,4),16)+","
+    + parseInt(h.slice(4,6),16)+",.3)";
+}
 
-function dayCell(d, todayISO){
-  var cls = ["day"];
-  if(d.date === todayISO) cls.push("today");
-  else if(d.date < todayISO) cls.push("past");
+function dayCell(d, T){
+  var cls=["day"];
+  if(d.date===T) cls.push("today");
+  else if(d.date<T) cls.push("past");
   if(!d.working) cls.push("rest");
-
-  var head = '<div class="dhead"><span class="dow">'+dowOf(d.date)+'</span>'
-    + (d.date === todayISO ? '<span class="todaytag">Today</span>' : '')
+  var head='<div class="dhead"><span class="dow">'+dowOf(d.date)+'</span>'
+    + (d.date===T ? '<span class="todaytag">Today</span>' : '')
     + '<span class="dnum">'+esc(dayMonth(d.date))+'</span></div>';
-
-  var items = d.items || [], body = "";
+  var items=d.items||[], body="", i, k;
   if(!items.length){
-    body = '<div class="none">'+(d.working ? "Nothing booked" : "Not a working day")+'</div>';
+    body='<div class="none">'+(d.working?"Nothing booked":"Not a working day")+'</div>';
   } else {
-    var show = items, i, k;
-    for(i=0;i<show.length;i++){
-      k = kindOf(show[i].kind);
-      body += '<div class="it">'
+    for(i=0;i<items.length;i++){
+      k=kindOf(items[i].kind);
+      body+='<div class="it">'
         + '<span class="tag" style="background:'+k.bg+';color:'+k.colour
         + ';border-color:'+softBorder(k.colour)+'">'+esc(k.label)+'</span>'
         + '<span class="tx"><b>'
-        + (show[i].time ? '<span class="at">'+esc(show[i].time)+'</span>' : '')
-        + esc(show[i].text)+'</b>'
-        + (show[i].sub ? '<span class="sub">'+esc(show[i].sub)+'</span>' : '')
+        + (items[i].time ? '<span class="at">'+esc(items[i].time)+'</span>' : '')
+        + esc(items[i].text)+'</b>'
+        + (items[i].sub ? '<span class="sub">'+esc(items[i].sub)+'</span>' : '')
         + '</span></div>';
     }
   }
-  return '<div class="'+cls.join(" ")+'">'+head
-    + '<div class="dlist">'+body+'</div></div>';
+  return '<div class="'+cls.join(" ")+'">'+head+'<div class="dlist">'+body+'</div></div>';
 }
 
-/* Everything booked on a day has to be on the wall. Nothing is rolled into a
-   "+ n more" line and nothing is cut off, so when a day has more on it than
-   fits at full size the cell gives up size instead of content:
+function laTally(days){
+  var n=0, w=0, i;
+  for(i=0;i<days.length;i++){ n+=(days[i].items||[]).length; if(days[i].working) w++; }
+  return n===0 ? "Nothing booked"
+    : n+(n===1?" thing":" things")+" across "+w+(w===1?" working day":" working days");
+}
 
-     1. the tag moves onto the title's line, buying back a line per row
-     2. the cell's type steps down, and every measurement inside it follows,
-        because the rows are sized in em against the cell
-
-   Type only shrinks in the cells that need it. A quiet day next to a heavy one
-   stays at full size rather than being dragged down with it. */
+/* Everything booked on a day has to be on the wall, so nothing is rolled into
+   a "+ n more" line and nothing is cut off. When a day has more on it than
+   fits at full size the cell gives up size instead of content, and only the
+   cells that need it do: a quiet day beside a heavy one stays full size. */
 var MIN_SCALE = 0.40;   /* below this nobody reads it from across the office */
 var EASY_SCALE = 0.80;  /* above this, take the loss in size over losing detail */
 
 /* Measured off the last row's own position rather than the cell's scroll
-   height: a floated tag inside a clipped row does not always show up in
-   scrollHeight, and a row half off the bottom is exactly what this is here to
-   prevent. */
+   height: a row half off the bottom is exactly what this is here to prevent,
+   and scrollHeight does not always report it. */
 function fits(box){
-  var rows = box.children;
+  var rows=box.children;
   if(!rows.length) return true;
   return rows[rows.length-1].getBoundingClientRect().bottom
-       <= box.getBoundingClientRect().bottom + 1;
+      <= box.getBoundingClientRect().bottom + 1;
 }
-
-/* Largest scale at which the cell's contents fit, in its current state. */
 function bestScale(box, base){
-  box.style.fontSize = "";
+  box.style.fontSize="";
   if(fits(box)) return 1;
-  var lo = MIN_SCALE, hi = 1, mid, best = 0, i;
+  var lo=MIN_SCALE, hi=1, mid, best=0, i;
   for(i=0;i<9;i++){
-    mid = (lo + hi) / 2;
-    box.style.fontSize = (base * mid).toFixed(2) + "px";
-    if(fits(box)){ best = mid; lo = mid; } else hi = mid;
+    mid=(lo+hi)/2;
+    box.style.fontSize=(base*mid).toFixed(2)+"px";
+    if(fits(box)){ best=mid; lo=mid; } else hi=mid;
   }
   return best;
 }
-
 function fitCell(box){
+  /* The cell's natural size, never the size the last pass left it at. This has
+     to clear the inline size before measuring: the fit pass runs again on a
+     resize, on the minute tick and after layout settles, and reading the
+     already-shrunk size as the starting point makes every pass shrink it
+     again until the wording disappears. */
+  box.style.fontSize = "";
   var base = parseFloat(getComputedStyle(box).fontSize);
-  var states = ["", "inline", "inline nosub"], i, sc, chosen = null;
-
+  var states=["","inline","inline nosub"], i, sc, chosen=null;
   for(i=0;i<states.length;i++){
-    box.className = "dlist" + (states[i] ? " " + states[i] : "");
-    sc = bestScale(box, base);
-    if(sc >= EASY_SCALE){ chosen = { s:states[i], k:sc }; break; }
-    if(sc > 0 && (!chosen || sc > chosen.k + 0.02)) chosen = { s:states[i], k:sc };
+    box.className="dlist"+(states[i]?" "+states[i]:"");
+    sc=bestScale(box, base);
+    if(sc>=EASY_SCALE){ chosen={s:states[i],k:sc}; break; }
+    if(sc>0 && (!chosen || sc>chosen.k+0.02)) chosen={s:states[i],k:sc};
   }
-
   if(!chosen){
-    /* a day with an extraordinary amount on it: take it as small as it needs
-       to be rather than hide any of it */
-    box.className = "dlist inline nosub";
-    box.style.fontSize = (base * MIN_SCALE).toFixed(2) + "px";
+    box.className="dlist inline nosub";
+    box.style.fontSize=(base*MIN_SCALE).toFixed(2)+"px";
     return;
   }
-  box.className = "dlist" + (chosen.s ? " " + chosen.s : "");
-  box.style.fontSize = chosen.k >= 1 ? "" : (base * chosen.k).toFixed(2) + "px";
+  box.className="dlist"+(chosen.s?" "+chosen.s:"");
+  box.style.fontSize = chosen.k>=1 ? "" : (base*chosen.k).toFixed(2)+"px";
 }
-
-/* The two weeks split the height between them by how much they are carrying,
-   so a heavy week is not squeezed into the same band as an empty one. */
-function shareHeight(wk){
-  var a = busiest(wk[0]), b = busiest(wk[1]);
-  if(!a && !b) return;
-  var ra = Math.max(1, Math.min(2, (a||1) / Math.max(1,(b||1)) ));
-  var rb = Math.max(1, Math.min(2, (b||1) / Math.max(1,(a||1)) ));
-  document.getElementById("weeks").style.gridTemplateRows = ra + "fr " + rb + "fr";
-}
-function busiest(days){
-  var m = 0, i; days = days || [];
-  for(i=0;i<days.length;i++) m = Math.max(m, (days[i].items||[]).length);
-  return m;
-}
-
 function fitDays(){
-  var cells = document.querySelectorAll(".dlist"), i;
-  for(i=0;i<cells.length;i++) fitCell(cells[i]);
+  var c=document.querySelectorAll(".dlist"), i;
+  for(i=0;i<c.length;i++) fitCell(c[i]);
 }
 
-function tally(days){
-  var n = 0, working = 0, i;
-  for(i=0;i<days.length;i++){ n += (days[i].items||[]).length; if(days[i].working) working++; }
-  return n === 0 ? "Nothing booked"
-    : n + (n===1 ? " thing" : " things") + " across " + working
-      + (working===1 ? " working day" : " working days");
+/* The panels in the top half carry their own cap, but on a short screen the
+   rows that do fit can still end up half cut. Two steps, same idea as the
+   day cells: pack the rows tighter, then drop the qualifier under them. */
+function fitPanels(){
+  ["overview","received","attList","week"].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.className = el.className.replace(/ ?tight/,"").replace(/ ?compact/,"");
+    if(el.scrollHeight <= el.clientHeight + 2) return;
+    el.className += " compact";
+    if(el.scrollHeight <= el.clientHeight + 2) return;
+    el.className += " tight";
+  });
 }
 
-function draw(data){
-  window.__last = data;
-  KINDS = data.planKinds || {};
-  var today = iso(new Date());
-  var la = data.lookahead || [];
+function drawLookahead(D, T){
+  KINDS = D.planKinds || {};
+  var la = D.lookahead || [];
+  if(!la.length){ byId("la").style.display="none"; return; }
+  byId("la").style.display="";
 
-  setHTML("job", esc(data.job || "Site"));
-
-  var first = la.length ? la[0].date : today;
-  var last  = la.length ? la[la.length-1].date : today;
-  setHTML("rangeTxt", esc(dayMonth(first)) + " &ndash; " + esc(dayMonth(last)));
-  var td = new Date();
-  setHTML("today", DOW[(td.getDay()+6)%7] === "Mon" ? "Monday " + td.getDate() + " " + MON[td.getMonth()]
-    : ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][td.getDay()]
-      + " " + td.getDate() + " " + MON[td.getMonth()]);
-
-  var wk = [la.slice(0,7), la.slice(7,14)], html = "", w, i;
-  for(w=0; w<2; w++){
-    if(!wk[w].length) continue;
-    html += '<div class="week"><div class="wkhead"><span>'
-      + (w === 0 ? "This week" : "Next week")
-      + '</span><span class="tally">'+esc(tally(wk[w]))+'</span></div><div class="days">';
-    for(i=0;i<wk[w].length;i++) html += dayCell(wk[w][i], today);
-    html += '</div></div>';
+  setHTML("laRange", esc(dayMonth(la[0].date))+" \u2013 "+esc(dayMonth(la[la.length-1].date)));
+  var wk=[la.slice(0,7), la.slice(7,14)], w, i, html;
+  /* the two weeks split the height by how much they are carrying, so a heavy
+     week is not squeezed into the same band as an empty one */
+  var busiest=function(days){ var m=0,j; days=days||[];
+    for(j=0;j<days.length;j++) m=Math.max(m,(days[j].items||[]).length); return m||1; };
+  var a=busiest(wk[0]), b2=busiest(wk[1]);
+  byId("la").style.gridTemplateRows = "auto "
+    + Math.max(1, Math.min(1.8, a/b2)) + "fr " + Math.max(1, Math.min(1.8, b2/a)) + "fr";
+  for(w=0;w<2;w++){
+    html="";
+    for(i=0;i<wk[w].length;i++) html+=dayCell(wk[w][i], T);
+    setHTML("week"+w, html);
+    setHTML("tally"+w, esc(laTally(wk[w])));
   }
-  setHTML("weeks", html);
-  shareHeight(wk);
 
-  /* the legend names every kind actually on the board, and nothing else */
-  var used = {}, leg = "";
-  for(i=0;i<la.length;i++) (la[i].items||[]).forEach(function(x){ used[x.kind] = 1; });
+  /* the key names every kind actually on the board, and nothing else */
+  var used={}, leg="";
+  for(i=0;i<la.length;i++) (la[i].items||[]).forEach(function(x){ used[x.kind]=1; });
   Object.keys(used).forEach(function(k){
-    var kk = kindOf(k);
-    leg += '<span class="lg"><span class="sw" style="background:'+kk.bg
-      + ';box-shadow:inset 0 0 0 1px '+softBorder(kk.colour)+'"></span>'+esc(kk.label)+'</span>';
+    var kk=kindOf(k);
+    leg+='<span class="lg"><span class="sw" style="background:'+kk.colour+'"></span>'
+      + esc(kk.label)+'</span>';
   });
   setHTML("legend", leg);
+}
 
-  stampLine(data);
+function draw(D){
+  var T = iso(new Date()), WS = weekStart(T);
+  /* only submitted records are published, so a missing status means submitted */
+  var recs = (D.records||[]).filter(function(r){ return r.job===D.job; })
+    .map(function(r){ if(!r.status) r.status = "submitted"; return r; });
+  var onSite = (D.plant||[]).filter(function(p){
+    return p.job===D.job && (!p.onDate||p.onDate<=T) && (!p.offDate||p.offDate>T); });
+  var done = function(form,date){ return recs.some(function(r){
+    return r.form===form && r.date===date && r.status==="submitted"; }); };
+  /* A record that is present but not submitted has been written up and is
+     waiting on a signature. The board only sees these if the app publishes
+     drafts as well as submitted records. */
+  var started = function(form,date){ return recs.some(function(r){
+    return r.form===form && r.date===date && r.status!=="submitted"; }); };
 
+  var checksToday = recs.filter(function(r){
+    return r.form==="plantcheck" && r.date===T && r.status==="submitted"; }).length;
+  var prev = (function(){ var d=addDays(T,-1), n=0;
+    while([0,6].indexOf(parse(d).getDay())>=0 && n++<7) d=addDays(d,-1); return d; })();
+  var pd = recs.filter(function(r){ return r.form==="diary" && r.date===prev
+    && r.status==="submitted"; })[0];
+  var excOpen = (pd && pd.data && pd.data.excavationsOpen ? (pd.data.excavationList||[]) : []).length;
+  var excDone = recs.filter(function(r){ return r.form==="excavation" && r.date===T
+    && r.status==="submitted"; }).length;
+  var formsDone = ["briefing","diary"].filter(function(k){ return done(k,T); }).length;
+  var formsWip = ["briefing","diary"].filter(function(k){
+    return !done(k,T) && started(k,T); }).length;
+  var weeklyDone = ["puwer","loler"].filter(function(k){
+    return recs.some(function(r){ return r.form===k && r.status==="submitted"
+      && weekStart(r.date)===WS; }); }).length;
+
+  /* Plant checks are either done in the app each morning, or kept on paper and
+     scanned in at the end of the week. The ring says which. */
+  var chk = D.checks || { how:"app" };
+  var plantRing;
+  if(chk.how === "paper"){
+    var scans = (D.scans||[]).filter(function(x){
+      return x.job===D.job && x.kind==="plantcheck" && x.week===(chk.week||WS); });
+    var scanned = onSite.filter(function(m){
+      return scans.some(function(x){ return x.plantId===m.id; }); }).length;
+    var dayName = chk.scanDay || "Friday";
+    var dueYet = !chk.scanDate || T >= chk.scanDate;
+    if(!onSite.length){
+      plantRing = ring("Plant Inspections", 0, 0, "No plant on site");
+    } else if(!dueYet){
+      plantRing = ring("Plant Inspections", 0, 0,
+        "On paper \u2014 not due until " + dayName);
+    } else {
+      plantRing = ring("Plant Inspections", scanned, onSite.length,
+        scanned >= onSite.length ? "All sheets scanned in"
+          : (onSite.length - scanned) + " still to scan");
+    }
+  } else {
+    plantRing = ring("Plant Inspections", checksToday, onSite.length,
+      onSite.length ? (onSite.length-checksToday ? (onSite.length-checksToday)+" still to check"
+        : "All machines checked") : "No plant on site");
+  }
+
+  /* The order is the order the office asks about it: today's paperwork first,
+     then the two inspection regimes, then the weekly registers that are only
+     chased at the end of the week. */
+  setHTML("rings",
+    ring("Today&rsquo;s Paperwork", formsDone, 2,
+      formsDone===2 ? "Briefing and diary in"
+        : formsWip ? ["briefing","diary"].filter(function(k){
+              return !done(k,T) && started(k,T); })
+              .map(function(k){ return k==="diary" ? "Diary" : "Briefing"; }).join(" and ")
+            + " started, waiting to be signed off"
+        : (done("briefing",T) ? "Diary still to come" : "Briefing still to come"),
+      formsWip)
+  + ring("Excavation Inspections", excDone, excOpen,
+      excOpen ? (excOpen-excDone ? (excOpen-excDone)+" before work starts" : "All signed off")
+        : "None left open")
+  + plantRing
+  + (function(){
+      /* the registers are not chased until the day they fall due */
+      var wk = (D.weekly||[]).filter(function(x){ return x.key!=="toolboxtalk"; });
+      if(!wk.length)
+        return ring("Weekly Registers", weeklyDone, 2,
+          weeklyDone===2 ? "PUWER and LOLER in" : "Due by "+shortDate(addDays(WS,4)));
+      var dueNow = wk.filter(function(x){ return !x.due || T >= x.due; });
+      var done = wk.filter(function(x){ return x.done; }).length;
+      if(!dueNow.length){
+        var soonest = wk.slice().sort(function(a,b){
+          return String(a.due).localeCompare(String(b.due)); })[0];
+        return ring("Weekly Registers", 0, 0,
+          "Not due until " + (soonest.dueDay || "Friday"));
+      }
+      return ring("Weekly Registers", done, wk.length,
+        done >= wk.length ? "All in"
+          : wk.filter(function(x){ return !x.done; }).map(function(x){ return x.short; })
+              .join(" and ") + " still to do");
+    })());
+
+  /* today on site */
+  /* the bar colours come from the tokens, so the palette is changed in one place */
+  var COL={del:"var(--blue)",exc:"var(--plum)",off:"var(--teal)",on:"var(--teal)",
+    vis:"var(--violet)",rep:"var(--orange)",hol:"var(--amber)"};
+  var ov=[];
+  (D.deliveries||[]).forEach(function(x){
+    if(x.job!==D.job || x.dueDate!==T || x.cancelled) return;
+    var w = deliveryWords(x);
+    if(w.full) return;                     /* it has landed — it shows on the other side */
+    ov.push({k:"del",label:"Delivery",b:x.description||x.type,
+      s:(x.supplier||"")+(w.ordered?" · "+w.ordered:""),
+      when: w.got ? w.progress + " in" : "due"});
+  });
+  [].concat(D.plant||[], D.lifting||[], D.tools||[]).forEach(function(x){
+    if(x.job!==D.job) return;
+    var tag=x.fleetNo||x.idNo||"";
+    if(x.exchangeDate===T) ov.push({k:"exc",label:"Exchange",b:x.item,
+      s:tag+(x.exchangeNote?" · "+x.exchangeNote:""),when:"today"});
+    if(x.offDate===T) ov.push({k:"off",label:"Off hire",b:x.item,
+      s:tag+(x.hireCompany?" · "+x.hireCompany:""),when:"today"});
+    if(x.onDate===T) ov.push({k:"on",label:"Arriving",b:x.item,
+      s:tag+(x.hireCompany?" · "+x.hireCompany:""),when:"today"});
+  });
+  (D.events||[]).forEach(function(e){
+    if(e.job!==D.job || e.date!==T) return;
+    /* it is whatever it was booked in as — not everything is a visitor */
+    ov.push({k:"vis",label:e.kind||"Appointment",b:e.title,s:e.notes||"",when:e.time||""});
+  });
+  (D.defects||[]).forEach(function(x){
+    if(x.status!=="open" || !x.repair || x.repair.date!==T) return;
+    var m=(D.plant||[]).filter(function(p){ return p.id===x.plantId; })[0]||{};
+    ov.push({k:"rep",label:"Repair",b:m.item||"Machine",s:x.item,when:"booked in"});
+  });
+  (D.leave||[]).forEach(function(l){
+    if(l.from>T || l.to<T) return;
+    var p=(D.labour||[]).filter(function(x){ return x.id===l.personId; })[0];
+    if(!p || p.job!==D.job) return;
+    ov.push({k:"hol",label:"Off",b:p.name,s:l.type==="HOL"?"Holiday":l.type,
+      when:"back "+shortDate(addDays(l.to,1))});
+  });
+  var ovList = byId("overview");
+  /* the more there is on, the tighter it packs — nothing gets cut off */
+  ovList.className = "list two" + (ov.length>8 ? " compact" : "");
+  var OV_CAP = 14;
+  var ovShow = ov.length > OV_CAP ? ov.slice(0,OV_CAP) : ov;
+  setHTML("overview", ov.length
+    ? ovShow.map(function(x){
+        return '<div class="item"><i style="background:'+COL[x.k]+'"></i><div class="txt">'
+          + '<span class="tag '+x.k+'">'+x.label+'</span><b>'+esc(x.b)+'</b>'
+          + '<span>'+esc(x.s)+'</span></div><div class="when">'+esc(x.when)+'</div></div>';
+      }).join("") + (ov.length>OV_CAP ? '<div class="more">and '+(ov.length-OV_CAP)
+          +' more booked in</div>' : "")
+    : '<div class="empty">Nothing booked in for today.</div>');
+
+  /* needs attention */
+  var att=[];
+  (D.defects||[]).forEach(function(x){
+    if(x.status!=="open") return;
+    var m=(D.plant||[]).filter(function(p){ return p.id===x.plantId; })[0]||{};
+    if(m.job && m.job!==D.job) return;
+    /* an older record may not carry a reported date; better to say nothing
+       than to put NaN on a wall */
+    var days = x.reportedAt ? Math.max(0, Math.round((Date.now()-x.reportedAt)/86400000)) : null;
+    att.push({cls:"alert",b:(m.item||"Machine")+(m.fleetNo?" ("+m.fleetNo+")":""),
+      s:x.item+(x.description?" — "+x.description:""),
+      when:days===null?"":days===0?"today":days+(days===1?" day":" days")});
+  });
+  onSite.forEach(function(p){
+    if(!p.examDate) return;
+    var days=Math.round((parse(p.examDate)-parse(T))/86400000);
+    if(days<=30) att.push({cls:days<0?"alert":"warnbg",b:p.item+" examination",
+      s:days<0?"lapsed "+shortDate(p.examDate):"certificate runs out "+shortDate(p.examDate),
+      when:days<0?"overdue":days+(days===1?" day":" days")});
+  });
+  var missing=[], underway=[];
+  if(!done("briefing",T)) (started("briefing",T)?underway:missing).push("daily briefing");
+  if(!done("diary",T)) (started("diary",T)?underway:missing).push("site diary");
+  var plural = function(n, one, many){ return n + " " + (n===1 ? one : many); };
+  if(onSite.length-checksToday>0)
+    missing.push(plural(onSite.length-checksToday, "plant check", "plant checks"));
+  if(excOpen-excDone>0)
+    missing.push(plural(excOpen-excDone, "excavation inspection", "excavation inspections"));
+  if(missing.length) att.push({cls:"warnbg",b:"Still to do today",
+    s:missing.join(", ").replace(/,([^,]*)$/," and$1"),when:""});
+  if(underway.length) att.push({cls:"warnbg",b:"Started, not signed off",
+    s:underway.join(", ").replace(/,([^,]*)$/," and$1"),when:"in progress"});
+  /* The old "inspections due within the month" strip has gone. Every item it
+     showed is an examination inside 30 days, which the Needs attention panel
+     above already lists — two places saying the same thing is how a board
+     stops being believed. */
+
+  /* ---------- what has come in ---------- */
+  var inToday=[];
+  (D.deliveries||[]).forEach(function(x){
+    if(x.job!==D.job || x.cancelled) return;
+    var todayDrops=(x.received||[]).filter(function(r){ return r.date===T; });
+    if(!todayDrops.length) return;
+    var gotToday=todayDrops.reduce(function(n,r){ return n+(Number(r.qty)||0); },0);
+    var w = deliveryWords(x);
+    var size = loadSizeOf(x);
+    var tickets=todayDrops.map(function(r){ return r.ticket; }).filter(Boolean);
+    var loadsToday = size ? Math.round(gotToday/size) : 0;
+    inToday.push({ full: w.full, qty:gotToday,
+      b:x.description||x.type,
+      s:(x.supplier||"") + (tickets.length ? " · ticket "+tickets.join(", ") : ""),
+      when: loadsToday ? loadsToday + (loadsToday===1?" load":" loads") : gotToday+" "+(x.unit||""),
+      note: w.full ? (size ? "all " + Math.ceil(w.want/size) + " loads in" : "complete")
+        : w.progress + " so far" });
+  });
+  var recList = byId("received");
+  /* same steps as the other side, so both panels hold what they are given */
+  var REC_CAP = 14;
+  recList.className = "list two" + (inToday.length>8 ? " compact" : "");
+  setHTML("received", inToday.length
+    ? inToday.slice(0, REC_CAP).map(function(x){
+        return '<div class="item'+(x.full?" done":"")+'">'
+          + '<i style="background:'+(x.full?"var(--ok)":"var(--amber)")+'"></i>'
+          + '<div class="txt"><span class="tag '+(x.full?"in":"part")+'">'
+          + (x.full?"Complete":"Part load")+'</span><b>'+esc(x.b)+'</b>'
+          + '<span>'+esc(x.s)+(x.note?(x.s?" · ":"")+x.note:"")+'</span></div>'
+          + '<div class="when">'+esc(x.when)+'</div></div>';
+      }).join("")
+      + (inToday.length>REC_CAP ? '<div class="more">and '+(inToday.length-REC_CAP)
+          +' more in</div>' : "")
+    : '<div class="empty">Nothing taken in yet today.</div>');
+
+  /* This list used to be built and thrown away — it was never on the wall.
+     It is the first thing the office needs, so it sits under the rings.
+     Nine rows at full size beats fourteen nobody can read from a desk. */
+  var attWrap = byId("attention");
+  var attList = byId("attList");
+  var CAP = 9;
+  attWrap.className = "attention" + (att.length ? "" : " clear");
+  byId("attHead").textContent = att.length
+    ? "Needs attention \u2014 " + att.length : "Nothing outstanding";
+  attList.className = "attgrid" + (att.length <= 4 ? " two" : "");
+  setHTML("attList", att.length
+    ? att.slice(0, CAP).map(function(x){
+        return '<div class="item '+x.cls+'"><i></i><div class="txt"><b>'+esc(x.b)+'</b>'
+          + '<span>'+esc(x.s)+'</span></div>'
+          + (x.when ? '<div class="when">'+esc(x.when)+'</div>' : "") + '</div>'; }).join("")
+      + (att.length>CAP ? '<div class="more">and '+(att.length-CAP)
+          +' more on the registers</div>' : "")
+    : '<div class="empty">Everything is in. No open defects, no lapsed certificates.</div>');
+
+  /* this week */
+  var wkRecs = recs.filter(function(r){ return weekStart(r.date)===WS && r.status==="submitted"; });
+  var checksWeek = wkRecs.filter(function(r){ return r.form==="plantcheck"; }).length;
+  var lastDiary = recs.filter(function(r){ return r.form==="diary" && r.status==="submitted"; })
+    .sort(function(a,b){ return b.date.localeCompare(a.date); })[0];
+  var labour = lastDiary ? (lastDiary.data.labourTable||[])
+    .filter(function(x){ return x.onSite===true; }).length : 0;
+  var stat=function(n,l,s){ return '<div class="stat"><div class="n">'+n+'</div>'
+    + '<div class="l">'+l+'<span>'+s+'</span></div></div>'; };
+  setHTML("week",
+      stat(wkRecs.length, "records in the pack", "week commencing "+shortDate(WS))
+    + (chk.how==="paper"
+        ? stat((D.scans||[]).filter(function(x){ return x.job===D.job
+            && x.kind==="plantcheck" && x.week===WS; }).length,
+            "sheets scanned in", "this week")
+        : stat(checksWeek, "plant checks done", "this week"))
+    + stat(labour, "on site", "from the last diary")
+    + stat(onSite.length, "machines on site",
+        (D.tools||[]).filter(function(x){ return x.job===D.job; }).length+" items of equipment"));
+
+  drawLookahead(D, T);
+
+  document.getElementById("job").textContent = D.job || "—";
   document.getElementById("state").style.display = "none";
   var board = document.getElementById("board");
   board.style.display = "";
-  /* only once the board is actually on screen do the cells have a height to
-     measure against, so the fit pass runs here rather than at write time */
+  /* only once the board is on screen do the cells have a height to measure
+     against, so the fit pass runs here rather than at write time */
   fitDays();
-  if(!painted){ board.classList.add("first"); painted = true;
-    setTimeout(function(){ board.classList.remove("first"); }, 1600); }
+  /* one more pass once the browser has finished laying the board out: the
+     first pass measures cells the instant they appear, and on a cold load
+     that can be a frame before the grid has settled */
+  fitPanels();
+  requestAnimationFrame(function(){ fitDays(); fitPanels(); });
+  setTimeout(function(){ fitDays(); fitPanels(); }, 350);
+  /* the entrance runs once, on the first snapshot the board ever receives */
+  if(!painted){
+    board.classList.add("first");
+    painted = true;
+    /* the entrance is a one-off; the class is dropped so a later refresh that
+       rebuilds a region doesn't replay it */
+    setTimeout(function(){ board.classList.remove("first"); }, 1400);
+  }
 }
 
-function stampLine(data){
-  var el = document.getElementById("stamp"), dot = document.getElementById("dot");
-  var at = data.publishedAt || data.published;
-  if(!at){ el.textContent = "\u2014"; return; }
-  var p = new Date(at), mins = Math.round((Date.now() - p.getTime())/60000);
-  var age = mins<2 ? "just now" : mins<60 ? mins+" minutes ago"
-    : mins<1440 ? Math.round(mins/60)+" hours ago" : Math.round(mins/1440)+" days ago";
-  var stale = mins > 36*60;
-  el.innerHTML = "Published "+pad(p.getHours())+":"+pad(p.getMinutes())
-    + " &middot; <span class=\"age"+(stale?" stale":"")+"\">"
-    + (stale ? "out of date \u2014 " + age : age) + "</span>";
-  dot.className = stale ? "dot stale" : "dot";
+function clock(publishedAt){
+  var now=new Date();
+  document.getElementById("clock").textContent = pad(now.getHours())+":"+pad(now.getMinutes());
+  document.getElementById("today").textContent = now.toLocaleDateString("en-GB",
+    { weekday:"long", day:"numeric", month:"long" });
+  if(publishedAt){
+    var p=new Date(publishedAt);
+    var mins=Math.round((Date.now()-publishedAt)/60000);
+    var age = mins<2 ? "just now" : mins<60 ? mins+" minutes ago"
+      : mins<1440 ? Math.round(mins/60)+" hours ago" : Math.round(mins/1440)+" days ago";
+    var stale = mins > 180;
+    document.getElementById("stamp").innerHTML = "Published "+pad(p.getHours())+":"
+      + pad(p.getMinutes())+" · <span class=\"age"+(stale?" stale":"")+"\">"
+      + (stale ? "out of date \u2014 " + age : age) + "</span>";
+    /* the dot changes colour, but the words carry it on their own */
+    document.getElementById("dot").className = stale ? "dot stale" : "dot";
+  }
 }
 
-function message(title, body){
-  document.getElementById("state").style.display = "";
-  document.getElementById("board").style.display = "none";
-  document.getElementById("stateTitle").textContent = title;
-  document.getElementById("stateText").innerHTML = body;
-}
+var lastPublished = 0;
 
-/* Try each address in turn; the first that answers wins and is remembered. */
+/* The app writes board-data.json into the repository; this board looks beside
+   itself first, then a folder up, then at the site root, because the two files
+   do not always end up in the same place. An address can also be forced:
+   ?data=https://…/board-data.json  Whatever works is remembered. */
+var DATA_CANDIDATES = (function(){
+  var forced = new URLSearchParams(location.search).get("data");
+  if(forced) return [forced];
+  var saved=null;
+  try{ saved = localStorage.getItem("boardDataUrl"); }catch(e){}
+  var list = ["board-data.json","../board-data.json","/board-data.json","docs/board-data.json"];
+  if(saved) list.unshift(saved);
+  return list;
+})();
+var TRIED = [];
+
 function fetchBoard(){
-  var i = 0; TRIED = [];
+  var i=0; TRIED=[];
   function attempt(){
     if(i >= DATA_CANDIDATES.length) return Promise.reject(new Error("not found"));
     var url = DATA_CANDIDATES[i++];
-    return fetch(url + (url.indexOf("?") > -1 ? "&" : "?") + "t=" + Date.now(),
-        { cache:"no-store" })
+    return fetch(url + (url.indexOf("?")>-1?"&":"?") + "t=" + Date.now(), { cache:"no-store" })
       .then(function(r){
         TRIED.push(url + " \u2014 " + r.status);
         if(!r.ok) throw new Error(r.status);
         return r.json();
       })
-      .then(function(d){
-        try{ localStorage.setItem("boardDataUrl", url); }catch(e){}
-        return d;
-      })
+      .then(function(d){ try{ localStorage.setItem("boardDataUrl", url); }catch(e){} return d; })
       .catch(function(){ return attempt(); });
   }
   return attempt();
 }
 
 function load(){
-  var isFile = location.protocol === "file:";
   fetchBoard()
-    .then(function(data){
-      if(!data.lookahead){
-        if(window.__last){ draw(window.__last); return; }
-        message("Nothing to show yet",
-          "The board file is there, but it was written by an older build of the app and "
-          + "has no fortnight in it. Open the app and send the board again.");
-        return;
-      }
-      draw(data);
+    .then(function(D){
+      lastPublished = D.publishedAt || 0;
+      draw(D);
+      clock(lastPublished);
     })
     .catch(function(){
-      /* yesterday's plan on the wall is worth more than an error message */
-      if(window.__last){ draw(window.__last); return; }
-      var where = '<div class="tried">' + TRIED.map(function(x){
-        return "<span>" + esc(x) + "</span>"; }).join("") + '</div>';
-      message(isFile ? "Put this on a web address" : "Cannot find the board file",
-        isFile
-          ? "This page has been opened straight from the file system, and a browser will not "
-            + "let it read <code>board-data.json</code> that way. Put both files on the same "
-            + "web address and open it from there."
-          : "The app is sending the file, but this page cannot reach it. These are the "
-            + "addresses it tried, and what came back:" + where);
+      /* yesterday's board is worth more than an error message */
+      if(painted) return;
+      var isFile = location.protocol === "file:";
+      document.getElementById("stateTitle").textContent =
+        isFile ? "Put this on a web address" : "Cannot find the board file";
+      document.getElementById("stateText").innerHTML = isFile
+        ? "This page has been opened straight from the file system, and a browser will not "
+          + "let it read <code>board-data.json</code> that way. Put both files on the same "
+          + "web address and open it from there."
+        : "The app is sending the file, but this page cannot reach it. These are the "
+          + "addresses it tried, and what came back:"
+          + '<div class="tried">' + TRIED.map(function(x){
+              return "<span>"+esc(x)+"</span>"; }).join("") + "</div>";
     });
 }
-
 load();
 setInterval(load, REFRESH_MS);
-/* the date line and the today marker move without a new file arriving */
-setInterval(function(){ if(window.__last) draw(window.__last); }, TICK_MS);
-window.addEventListener("resize", function(){
-  if(window.__last){ lastHTML = {}; draw(window.__last); }
-});
+setInterval(function(){ clock(lastPublished); }, 20000);
+/* the cells are fitted to their own height, so a resize has to re-fit them */
+window.addEventListener("resize", function(){ if(painted){ fitDays(); fitPanels(); } });
 </script>
 </body></html>
