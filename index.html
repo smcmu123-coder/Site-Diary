@@ -1395,7 +1395,7 @@ html,body{ overscroll-behavior-y:none }
 </div>
 
 <div class="savewarn" id="savewarn">
-  <b>Not saving</b> — storage is full, so nothing new is being kept.
+  <span id="savewarntext"><b>Not saving</b> — nothing new is being kept.</span>
   <button data-go="settings">Sort it out</button>
 </div>
 
@@ -2102,7 +2102,13 @@ let IDB_NAME = "cgc-sitehub";
 const IDB_STORE = "app";
 if(IS_DEMO){ KEY += ".demo"; IDB_NAME += "-demo"; }
 
+/* One connection, kept open. Opening a fresh one for every read and write is
+   slow, and a phone that has been asleep will sometimes hand back a database
+   it has already closed underneath us — so the handle is dropped the moment
+   the browser says it has gone, and the next save opens a live one. */
+let idbConn = null;
 function idb(){
+  if(idbConn) return Promise.resolve(idbConn);
   return new Promise((res, rej)=>{
     if(!self.indexedDB){ rej(new Error("no indexeddb")); return; }
     const req = indexedDB.open(IDB_NAME, 1);
@@ -2110,9 +2116,19 @@ function idb(){
       const db = req.result;
       if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
     };
-    req.onsuccess = () => res(req.result);
+    req.onsuccess = () => {
+      idbConn = req.result;
+      idbConn.onclose = () => { idbConn = null; };
+      idbConn.onversionchange = () => { idbForget(); };
+      res(idbConn);
+    };
     req.onerror = () => rej(req.error);
+    req.onblocked = () => rej(new Error("another copy of the app is open"));
   });
+}
+function idbForget(){
+  try{ if(idbConn) idbConn.close(); }catch(e){}
+  idbConn = null;
 }
 function idbGet(key){
   return idb().then(db => new Promise((res, rej)=>{
@@ -2124,11 +2140,16 @@ function idbGet(key){
 }
 function idbSet(key, value){
   return idb().then(db => new Promise((res, rej)=>{
-    const tx = db.transaction(IDB_STORE, "readwrite");
-    tx.objectStore(IDB_STORE).put(value, key);
+    let tx;
+    try{
+      tx = db.transaction(IDB_STORE, "readwrite");
+      /* put() takes its own copy there and then, so the object is safe to
+         carry on using while the write finishes */
+      tx.objectStore(IDB_STORE).put(value, key);
+    }catch(e){ rej(e); return; }
     tx.oncomplete = () => res(true);
-    tx.onerror = () => rej(tx.error);
-    tx.onabort = () => rej(tx.error || new Error("aborted"));
+    tx.onerror = () => { rej(tx.error); };
+    tx.onabort = () => rej(tx.error || new Error("the write was stopped"));
   }));
 }
 
@@ -2160,10 +2181,22 @@ let DB = blankDB();
 
 
 let saveFailed = false, savePending = null;
+let saveTrouble = null;       /* what went wrong last time, for the Profile screen */
+let savingNow = null;         /* the write in flight */
+let saveQueued = false;       /* something changed while that write was running */
+let saveRetry = null;
 
-function warnBanner(on){
+/* localStorage holds about 5MB. Anything bigger than this is never going to
+   fit, so there is no sense in trying and no sense in calling the failure
+   "full" when it is only localStorage that is full. */
+const LS_LIMIT = 2 * 1024 * 1024;
+
+function warnBanner(on, message){
   const b = document.getElementById("savewarn");
-  if(b) b.classList.toggle("show", !!on);
+  if(!b) return;
+  const t = document.getElementById("savewarntext");
+  if(t && message) t.innerHTML = message;
+  b.classList.toggle("show", !!on);
 }
 
 /* Writes are batched so a burst of typing is one write, and flushed the moment
@@ -2178,69 +2211,167 @@ function save(){
   return true;
 }
 
+/* One write at a time. A change made while a write is running is picked up by
+   another write straight after it, rather than two large writes running over
+   the top of each other. */
 function flushSave(){
   clearTimeout(savePending);
   savePending = null;
-  const snapshot = JSON.parse(JSON.stringify(DB));
-  delete snapshot.__movedFromLocalStorage;
-  return idbSet(KEY, snapshot)
-    .then(()=>{
+  if(savingNow){ saveQueued = true; return savingNow; }
+  return runSave();
+}
+function runSave(){
+  saveQueued = false;
+  savingNow = writeDB().then(ok=>{
+    savingNow = null;
+    if(saveQueued) return runSave();
+    return ok;
+  });
+  return savingNow;
+}
+
+/* The store is handed the data itself. It used to be copied through text
+   first, which built a second copy of every photograph in memory before the
+   write even started — on a job with a lot of scans on it that copy is what
+   ran the phone out of room, not the storage. */
+async function writeDB(){
+  const moved = DB.__movedFromLocalStorage;
+  if(moved) delete DB.__movedFromLocalStorage;
+  let err = null;
+
+  for(let attempt = 0; attempt < 3; attempt++){
+    try{
+      await idbSet(KEY, DB);
+      saveTrouble = null;
       if(saveFailed){ saveFailed = false; warnBanner(false); }
+      clearTimeout(saveRetry); saveRetry = null;
       /* once it is safely in the new store, the old one can be let go */
-      if(DB.__movedFromLocalStorage){
-        try{ localStorage.removeItem(KEY); }catch(e){}
-        delete DB.__movedFromLocalStorage;
-      }
+      if(moved){ try{ localStorage.removeItem(KEY); }catch(e){} }
       return true;
-    })
-    .catch(()=>{
-      /* fall back to the old store rather than lose the work outright */
-      try{
-        localStorage.setItem(KEY, JSON.stringify(DB));
-        return true;
-      }catch(e){
-        saveFailed = true;
-        warnBanner(true);
-        toast("Not saved — storage is full. Open Profile.");
-        return false;
+    }catch(e){
+      err = e;
+      /* Something the store cannot copy — a rare one, but the older way of
+         doing it coped, so fall back to that rather than lose the work. */
+      if(e && e.name === "DataCloneError"){
+        try{
+          await idbSet(KEY, JSON.parse(JSON.stringify(DB)));
+          saveTrouble = null;
+          if(saveFailed){ saveFailed = false; warnBanner(false); }
+          return true;
+        }catch(e2){ err = e2; }
       }
-    });
+      /* A database closed behind our back is the usual reason, and it cures
+         itself on a fresh connection — so try again before telling anyone. */
+      idbForget();
+      if(attempt < 2) await new Promise(r=>setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
+
+  if(moved) DB.__movedFromLocalStorage = true;
+  return saveWentWrong(err);
+}
+
+/* Nothing here says "full" unless the browser says the room has actually run
+   out. A write can fail for half a dozen reasons that have nothing to do with
+   space, and calling all of them "storage is full" sends people hunting for
+   room they already have. */
+async function saveWentWrong(err){
+  const size = measureDB().bytes;
+
+  /* the small-store fallback: only any use while there is little enough to
+     fit, which on a job with scans on it there is not */
+  if(size < LS_LIMIT){
+    try{
+      localStorage.setItem(KEY, JSON.stringify(DB));
+      saveTrouble = null;
+      if(saveFailed){ saveFailed = false; warnBanner(false); }
+      return true;
+    }catch(e){ /* genuinely out of room in the old store — carry on below */ }
+  }
+
+  const room = await refreshQuota(true);
+  const name = (err && err.name) || "";
+  const roomy = room && room.quota ? room.free > size * 1.2 : null;
+  const full = roomy === false || (roomy === null && name === "QuotaExceededError");
+
+  saveFailed = true;
+  saveTrouble = { at: Date.now(), name: name || "Save failed",
+    message: (err && err.message) || "", size, room, full };
+
+  if(full){
+    warnBanner(true, "<b>Not saving</b> — there is no room left, so nothing new is being kept.");
+    toast("Not saved — no room left. Open Profile.");
+    return false;
+  }
+
+  /* There is room, so this is the browser turning the write down rather than
+     running out — worth another go on its own, without anyone doing anything. */
+  warnBanner(true, "<b>Not saving</b> — the last save did not go through. Trying again.");
+  toast("Not saved just now — trying again.");
+  /* asking to keep the data is free and occasionally fixes exactly this */
+  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  clearTimeout(saveRetry);
+  saveRetry = setTimeout(()=>{ saveRetry = null; flushSave(); }, 8000);
+  return false;
 }
 
 /* The browser will tell us how much room there is, but only asynchronously,
    so the answer is kept here for the next time the screen is drawn. */
-let quotaBytes = 0, quotaUsed = 0, quotaAsked = false;
-function refreshQuota(){
-  /* asked once only: where the browser cannot tell us, asking again on every
-     redraw would spin forever */
-  if(quotaAsked) return Promise.resolve();
+let quotaBytes = 0, quotaUsed = 0, quotaAsked = false, quotaPersisted = null;
+function refreshQuota(force){
+  if(quotaAsked && !force) return Promise.resolve(quotaRoom());
   quotaAsked = true;
-  if(!(navigator.storage && navigator.storage.estimate)) return Promise.resolve();
-  return navigator.storage.estimate().then(est=>{
+  if(!(navigator.storage && navigator.storage.estimate)) return Promise.resolve(null);
+  return navigator.storage.estimate().then(async est=>{
     quotaBytes = est.quota || 0;
     quotaUsed = est.usage || 0;
-  }).catch(()=>{});
+    try{
+      if(navigator.storage.persisted) quotaPersisted = await navigator.storage.persisted();
+    }catch(e){}
+    return quotaRoom();
+  }).catch(()=>null);
+}
+function quotaRoom(){
+  if(!quotaBytes) return null;
+  return { used: quotaUsed, quota: quotaBytes, free: Math.max(0, quotaBytes - quotaUsed),
+    persisted: quotaPersisted };
+}
+
+/* What is in the store and how big it is, counted by walking it rather than
+   writing the whole lot out as text first — on a big job that text ran to
+   more than a hundred megabytes, every time this screen was drawn. */
+function measureDB(){
+  let bytes = 0, photos = 0, photoBytes = 0;
+  const walk = (v, depth) => {
+    if(v === null || v === undefined || depth > 24) return;
+    const t = typeof v;
+    if(t === "string"){
+      bytes += v.length;
+      if(v.startsWith("data:image")){ photos++; photoBytes += v.length; }
+      return;
+    }
+    if(t === "number" || t === "boolean"){ bytes += 8; return; }
+    if(Array.isArray(v)){ bytes += 2; v.forEach(x=>walk(x, depth+1)); return; }
+    if(t === "object"){
+      bytes += 2;
+      for(const k in v){ bytes += k.length + 4; walk(v[k], depth+1); }
+    }
+  };
+  walk(DB, 0);
+  return { bytes, photos, photoBytes };
 }
 
 /* How much room is left, and what is taking it up. */
 function storageInfo(){
-  const json = JSON.stringify(DB);
-  const bytes = json.length;
-  let photos = 0, photoBytes = 0;
-  const walk = v => {
-    if(!v) return;
-    if(typeof v === "string"){
-      if(v.startsWith("data:image")){ photos++; photoBytes += v.length; }
-      return;
-    }
-    if(Array.isArray(v)) return v.forEach(walk);
-    if(typeof v === "object") return Object.values(v).forEach(walk);
-  };
-  walk(DB);
+  const { bytes, photos, photoBytes } = measureDB();
   /* the real allowance, once the browser has told us; a cautious guess until */
   const cap = quotaBytes || (2 * 1024 * 1024 * 1024);
-  return { bytes, photos, photoBytes, cap, known: !!quotaBytes,
-    pct: Math.min(100, Math.round(bytes/cap*100)) };
+  /* what the browser says this site is using — everything it holds, not just
+     the records, so it is the number that decides whether a save fits */
+  const used = quotaUsed || bytes;
+  return { bytes, photos, photoBytes, cap, used, known: !!quotaBytes,
+    persisted: quotaPersisted, free: Math.max(0, cap - used),
+    pct: Math.min(100, Math.round(used/cap*100)) };
 }
 
 const kb = n => n < 1024*1024 ? Math.round(n/1024) + " KB"
@@ -6909,8 +7040,11 @@ function render(){
   else if(view.name==="timesheet") app.innerHTML = timesheetView();
   else if(view.name==="settings"){
     app.innerHTML = settingsView();
-    if(!quotaAsked) refreshQuota().then(()=>{
-      if(quotaBytes && view.name==="settings") render();   /* only if it told us something */
+    /* asked afresh every time this screen is opened, so the figures on it are
+       the browser's own rather than a guess made earlier in the session */
+    const before = quotaBytes + ":" + quotaUsed;
+    refreshQuota(true).then(()=>{
+      if(view.name==="settings" && quotaBytes && before !== quotaBytes + ":" + quotaUsed) render();
     });
   }
   bind();
@@ -11410,18 +11544,33 @@ function settingsView(){
       const col = level==="red" ? "var(--bad)" : level==="amber" ? "var(--warn)" : "var(--green)";
       return `<div class="card"${level?` style="background:${level==="red"?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"`:""}>
         <div class="spread">
-          <b style="font-weight:660${level?`;color:${col}`:""}">${kb(st.bytes)} of ${
-            st.known ? kb(st.cap) : "roughly " + kb(st.cap)} available</b>
+          <b style="font-weight:660${level?`;color:${col}`:""}">${kb(st.used)} of ${
+            st.known ? kb(st.cap) : "roughly " + kb(st.cap)} used</b>
           <b style="font-variant-numeric:tabular-nums;color:${col}">${
             st.pct < 1 ? "under 1" : st.pct}%</b>
         </div>
         <span class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:${col}"></i></span>
         <p style="margin-top:10px;font-size:13px;color:var(--ink-2)">
-          ${st.photos} photograph${st.photos===1?"":"s"} and scan${st.photos===1?"":"s"},
-          taking ${kb(st.photoBytes)} of it. Records are held in the browser database,
-          which is measured in gigabytes rather than megabytes.</p>
-        ${saveFailed ? `<p style="margin-top:8px;color:var(--bad);font-weight:640">
-          The last save did not go through. Take a backup now, then free up some space.</p>` : ""}
+          The records come to ${kb(st.bytes)} of that, ${kb(st.photoBytes)} of which is
+          ${st.photos} photograph${st.photos===1?"":"s"} and scan${st.photos===1?"":"s"}.
+          ${st.known ? kb(st.free) + " is left." : "They are held in the browser database, "
+            + "which is measured in gigabytes rather than megabytes."}</p>
+        ${st.persisted === false ? `<p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
+          The browser has not agreed to hold on to this, so it may clear it if the phone runs
+          short. It is asked again each time the app opens.</p>` : ""}
+        ${saveTrouble ? `<div class="card" style="background:var(--bad-bg);box-shadow:none;margin:12px 0 0;padding:12px 14px">
+          <b style="color:var(--bad);font-weight:660;font-size:13.5px">${
+            saveTrouble.full ? "The last save did not go through — no room left"
+              : "The last save did not go through"}</b>
+          <p style="margin:6px 0 0;font-size:12.5px;color:var(--ink-2)">${
+            saveTrouble.full
+              ? "Take a backup now, then free up some space."
+              : "There is room, so it is being tried again on its own. Take a backup if it keeps happening."}</p>
+          <p style="margin:6px 0 0;font-size:12px;color:var(--ink-3);overflow-wrap:anywhere">
+            ${esc(saveTrouble.name)}${saveTrouble.message ? " — " + esc(saveTrouble.message) : ""}
+            · ${shortDate(iso(new Date(saveTrouble.at)))} ${timeOnly(saveTrouble.at)}</p>
+          <button class="btn line sm" style="margin:10px 0 0" data-savenow="1">Try saving again</button>
+        </div>` : ""}
         <button class="btn line sm" style="margin:12px 0 0" data-reclaim="1">
           Remove photographs older than a month</button>
         <p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
@@ -13486,6 +13635,16 @@ function bind(){
     const x = (DB.scans||[]).find(y=>y.id===el.getAttribute("data-scanopen"));
     if(x && x.pages[0]) showPhoto(x.pages[0].src, x.pages[0].at);
   });
+
+  const saveBtn = app.querySelector("[data-savenow]");
+  if(saveBtn) saveBtn.onclick = async ()=>{
+    toast("Saving…");
+    /* a fresh connection, in case the last one had been closed on us */
+    idbForget();
+    const ok = await flushSave();
+    render();
+    if(ok) toast("Saved");
+  };
 
   const rec2 = app.querySelector("[data-reclaim]");
   if(rec2) rec2.onclick = ()=>{
