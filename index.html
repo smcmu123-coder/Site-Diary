@@ -6174,36 +6174,98 @@ async function ramsBuildFiles(target, what){
   return files;
 }
 
+/* ------------------------------------------------ texting and emailing --
+   A share sheet can carry the document but never the recipients, so picking
+   Messages from it left the "To" line empty. Texts and emails now go out as
+   links with the numbers and addresses already filled in; the share sheet is
+   kept as a separate choice for sending the file itself. */
+const isApplePhone = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+function cleanPhone(n){
+  const t = String(n||"").trim();
+  return (t.startsWith("+") ? "+" : "") + t.replace(/\D/g, "");
+}
+
+/* iPhone and Android read a list of numbers differently. */
+function smsHref(numbers, body){
+  const nums = [...new Set(numbers.map(cleanPhone).filter(x=>x.replace("+","").length >= 6))];
+  const b = encodeURIComponent(body);
+  if(!nums.length) return "";
+  if(isApplePhone()){
+    return nums.length > 1
+      ? "sms:/open?addresses=" + nums.join(",") + "&body=" + b
+      : "sms:" + nums[0] + "&body=" + b;
+  }
+  return "sms:" + nums.join(",") + "?body=" + b;
+}
+
+function openLink(href, newTab){
+  const a = document.createElement("a");
+  a.href = href;
+  if(newTab){ a.target = "_blank"; a.rel = "noopener"; }
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* Text, email or share — only the ones that can actually reach someone are
+   offered, and a single option goes straight through. */
+function ramsPickChannel(title, note, options){
+  const opts = options.filter(Boolean);
+  if(!opts.length){ toast("Nobody here has a number or email on file."); return; }
+  if(opts.length === 1){ opts[0].go(); return; }
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg">
+      <h3>${esc(title)}</h3>
+      ${note ? `<p>${esc(note)}</p>` : ""}
+      ${opts.map((o,i)=>`<button class="btn ${i?"line":""}" data-ch="${i}">${esc(o.label)}</button>`).join("")}
+      ${opts.some(o=>o.hint) ? `<p class="hint" style="margin:-2px 0 12px">${esc(opts.find(o=>o.hint).hint)}</p>` : ""}
+      <button class="btn ghost" style="margin:0" data-x>Cancel</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.onclick = e => { if(e.target===wrap) close(); };
+  wrap.querySelector("[data-x]").onclick = close;
+  wrap.querySelectorAll("[data-ch]").forEach(btn=>btn.onclick = () => {
+    close(); opts[Number(btn.dataset.ch)].go();
+  });
+}
+
+const peopleCount = n => n + (n===1 ? " person" : " people");
+
 async function ramsSendCopy(rev, add, person, kind){
   if(!person.email && !person.phone) return;
   const target = add || rev;
   const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + revText(rev));
+  const first = (person.name||"").split(" ")[0];
   const subject = "Signed copy — " + what + " — " + DB.job;
-  const body = "Hi " + (person.name||"").split(" ")[0] + ",\n\nAttached is your signed copy of "
+  const body = "Hi " + first + ",\n\nAttached is your signed copy of "
     + what + " for " + DB.job + ".\n\n" + cfg().company;
+  const text = "Hi " + first + ", thanks for signing " + what + " for " + DB.job
+    + ". Ask on site if you'd like a copy. — " + cfg().company;
   const files = await ramsBuildFiles(target, what);
-  let channel = "share";
+  const canShare = !!(navigator.share && files.length && navigator.canShare && navigator.canShare({ files }));
 
-  if(navigator.share && files.length && navigator.canShare && navigator.canShare({ files })){
-    try{ await navigator.share({ files, title:subject, text:body }); }
-    catch(e){ channel = "cancelled"; }
-  } else if(person.email){
-    channel = "email";
-    const a = document.createElement("a");
-    a.href = "mailto:" + encodeURIComponent(person.email) + "?subject=" + encodeURIComponent(subject)
-      + "&body=" + encodeURIComponent(body);
-    a.target = "_blank"; a.rel = "noopener";
-    document.body.appendChild(a); a.click(); a.remove();
-  } else if(person.phone){
-    channel = "sms";
-    const a = document.createElement("a");
-    a.href = "sms:" + encodeURIComponent(person.phone) + "?body=" + encodeURIComponent(body);
-    document.body.appendChild(a); a.click(); a.remove();
-  }
+  const log = channel => {
+    target.distribution = target.distribution || [];
+    target.distribution.push({ id:"dist_"+Date.now(), at:Date.now(), kind, channel, to:person.name });
+    save(); render();
+  };
 
-  target.distribution = target.distribution || [];
-  target.distribution.push({ id:"dist_"+Date.now(), at:Date.now(), kind, channel, to:person.name });
-  save(); render();
+  ramsPickChannel("Send " + first + " their copy", "", [
+    person.phone && smsHref([person.phone], text) ? { label:"Text " + first, go: () => {
+      openLink(smsHref([person.phone], text)); log("sms"); } } : null,
+    person.email ? { label:"Email " + first, go: () => {
+      openLink("mailto:" + encodeURIComponent(person.email) + "?subject=" + encodeURIComponent(subject)
+        + "&body=" + encodeURIComponent(body), true);
+      log("email"); } } : null,
+    canShare ? { label:"Share the document",
+      hint:"A text can't carry the document — share it to send the file itself.",
+      go: async () => {
+        try{ await navigator.share({ files, title:subject, text:body }); log("share"); }
+        catch(e){ /* cancelled */ }
+      } } : null
+  ]);
 }
 
 async function ramsNotifyAll(rev, add){
@@ -6214,27 +6276,38 @@ async function ramsNotifyAll(rev, add){
   const what = (add ? (add.title||"Addendum") : (rev.title||"RAMS") + " — Rev " + revText(rev));
   const subject = "Please sign — " + what + " — " + DB.job;
   const body = "The " + what + " for " + DB.job + " needs signing on site as soon as you can.";
-  const emails = reachable.filter(p=>p.email).map(p=>p.email);
+  const text = body + " — " + cfg().company;
+  const texters = people.filter(p=>cleanPhone(p.phone).replace("+","").length >= 6);
+  const emailers = people.filter(p=>p.email);
   const files = await ramsBuildFiles(target, what);
-  let channel = "email";
+  const canShare = !!(navigator.share && files.length && navigator.canShare && navigator.canShare({ files }));
 
-  if(navigator.share && files.length && navigator.canShare && navigator.canShare({ files })){
-    try{ await navigator.share({ files, title:subject, text:body }); channel = "share"; }
-    catch(e){ /* cancelled — still logged as attempted below */ }
-  } else if(emails.length){
-    const a = document.createElement("a");
-    a.href = "mailto:?bcc=" + encodeURIComponent(emails.join(",")) + "&subject="
-      + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
-    a.target = "_blank"; a.rel = "noopener";
-    document.body.appendChild(a); a.click(); a.remove();
-  }
+  const log = (channel, list) => {
+    target.distribution = target.distribution || [];
+    target.distribution.push({ id:"dist_"+Date.now(), at:Date.now(), kind:"nudge", channel,
+      to: list.map(p=>p.name).join(", ") });
+    save(); render();
+    const missing = people.length - list.length;
+    const how = channel === "sms" ? "number" : channel === "email" ? "email" : "contact";
+    toast((channel === "sms" ? "Text ready for " : channel === "email" ? "Email ready for " : "Shared with ")
+      + peopleCount(list.length)
+      + (missing && channel !== "share" ? " — " + missing + " with no " + how + " on file" : ""));
+  };
 
-  target.distribution = target.distribution || [];
-  target.distribution.push({ id:"dist_"+Date.now(), at:Date.now(), kind:"nudge", channel,
-    to: reachable.map(p=>p.name).join(", ") });
-  save(); render();
-  toast("Sent to " + reachable.length + " on site"
-    + (people.length>reachable.length ? " — "+(people.length-reachable.length)+" have no contact on file" : ""));
+  ramsPickChannel("Notify everyone", peopleCount(people.length) + " on site today.", [
+    texters.length ? { label:"Text " + peopleCount(texters.length), go: () => {
+      openLink(smsHref(texters.map(p=>p.phone), text)); log("sms", texters); } } : null,
+    emailers.length ? { label:"Email " + peopleCount(emailers.length), go: () => {
+      openLink("mailto:?bcc=" + encodeURIComponent(emailers.map(p=>p.email).join(",")) + "&subject="
+        + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body), true);
+      log("email", emailers); } } : null,
+    canShare ? { label:"Share the document",
+      hint:"Sharing sends the file, but you pick who it goes to yourself.",
+      go: async () => {
+        try{ await navigator.share({ files, title:subject, text:body }); log("share", reachable); }
+        catch(e){ /* cancelled */ }
+      } } : null
+  ]);
 }
 
 function openRamsLog(list){
