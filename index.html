@@ -15029,7 +15029,7 @@ function startLaunch(){
    unbroken line carry a thin boom as well as a solid body. */
 const SPLASH_LINE = [
   'M16,68 L46,68 L46,46 L48,42 L32,9 L9,38 C3,44 5,55 15,59 L27,50 L18,42 L41,13 L55,43 L60,46 L60,19 L84,19 L89,44 L89,68 C95,69 96,74 96,79 L92,88 C90,92 86,93 80,93 L20,93 C14,93 10,92 8,88 L4,79 C4,74 5,69 11,68 Z',
-  'M6,28 L58,22 L52,52 L16,52 L6,28 L16,52 L52,52 L78,52 L78,26 L93,24 L95,54 L80,54 A12,12 0 1,1 80,78 A12,12 0 1,1 80,54 L32,54 A12,12 0 1,1 32,78 A12,12 0 1,1 32,54',
+  'M6,28 L58,22 L52,52 L16,52 L6,28 L16,52 L52,52 L78,52 L78,26 L93,24 L95,54 L80,54C86.63,54.00 92.00,59.37 92.00,66.00C92.00,72.63 86.63,78.00 80.00,78.00C73.37,78.00 68.00,72.63 68.00,66.00C68.00,59.37 73.37,54.00 80.00,54.00 L32,54C38.63,54.00 44.00,59.37 44.00,66.00C44.00,72.63 38.63,78.00 32.00,78.00C25.37,78.00 20.00,72.63 20.00,66.00C20.00,59.37 25.37,54.00 32.00,54.00',
   'M58,8 C67,8 69,17 62,21 L55,21 L46,44 L38,66 L26,68 C21,77 26,87 37,93 C49,87 53,77 48,68 L38,66 L46,44 L55,21'
 ];
 
@@ -15040,10 +15040,10 @@ const SPLASH_LINE = [
    SPLASH_MARK is ONE stroke: it starts at the foot of the first C and does not
    lift again until the last one. The two short arcs after it are the tops of
    the G and the final C, which the logo itself leaves separate. */
-const SPLASH_MARK = 'M33.37,59.91A14.807,14.807 0 0,1 9.81,57.85A14.807,14.807 0 0,1 18.29,35.77A14.807,14.807 0 0,1 37.18,50.00A14.807,14.807 0 0,0 51.90,64.81A14.807,14.807 0 0,0 66.71,50.00L53.08,50.00L65.14,50.00A14.807,14.807 0 0,0 66.62,48.45A14.807,14.807 0 0,0 92.43,59.91';
+const SPLASH_MARK = 'M33.37,59.91C28.60,65.21 20.72,66.35 14.63,62.63C8.55,58.90 5.99,51.36 8.54,44.69C11.10,38.03 18.05,34.14 25.07,35.44C32.08,36.74 37.18,42.86 37.18,50.00C37.09,58.18 43.72,64.81 51.90,64.81C60.08,64.81 66.71,58.18 66.71,50.00L53.08,50.00L65.14,50.00C66.71,49.48 66.68,48.97 66.62,48.45C66.03,54.83 69.55,60.92 75.41,63.53C81.27,66.14 88.14,64.68 92.43,59.91';
 const SPLASH_MARK_CAPS = [
-  'M39.77,41.51A14.807,14.807 0 0,1 62.55,39.71',
-  'M67.35,45.42A14.807,14.807 0 0,1 92.43,40.09'
+  'M39.77,41.51C42.31,37.88 46.33,35.59 50.74,35.24C55.15,34.89 59.48,36.53 62.55,39.71',
+  'M67.35,45.42C68.98,40.39 73.18,36.62 78.35,35.52C83.52,34.42 88.89,36.16 92.43,40.09'
 ];
 
 function spWait(ms){ return new Promise(r=>setTimeout(r, ms)); }
@@ -15080,9 +15080,13 @@ function spSetup(){
     const path = document.getElementById(ids[i]);
     if(!path || !path.getTotalLength) return null;
     path.setAttribute("d", shapes[i]);
-    const len = path.getTotalLength();
-    /* px, not a bare number: a style property and an animation keyframe are
-       both CSS, where an unitless length is not valid -- Safari says so */
+    /* two units of slack: getTotalLength and the renderer's own idea of how
+       long a path is need not agree to the last decimal, and if the dash is
+       a hair short the shape is not fully hidden and pops into view instead
+       of being drawn. Over-running costs nothing. */
+    const len = path.getTotalLength() + 2;
+    /* px, not a bare number: a style property is CSS, where an unitless
+       length is not valid -- Safari says so */
     path.style.strokeDasharray  = len + "px";
     path.style.strokeDashoffset = len + "px";   /* held off until its turn */
     out.push({ path: path, len: len,
@@ -15102,7 +15106,7 @@ function spSetup(){
                "Q" + (mx - dy*0.16).toFixed(2) + "," + (my + dx*0.16).toFixed(2) +
                " " + to.x.toFixed(2) + "," + to.y.toFixed(2);
     path.setAttribute("d", d);
-    const len = path.getTotalLength();
+    const len = path.getTotalLength() + 2;
     path.style.strokeDasharray  = len + "px";
     path.style.strokeDashoffset = len + "px";
     trav.push({ path: path, len: len });
@@ -15110,24 +15114,41 @@ function spSetup(){
   return { shapes: out, trav: trav };
 }
 
-/* Web Animations rather than a CSS transition: it does not depend on a style
-   change having been flushed first, which is what makes it survive Safari. */
+/* A CSS transition, not Web Animations. Safari's Web Animations support for
+   SVG stroke properties is the shakiest part of this whole thing -- where it
+   does not take, the value simply lands on its end state and the shape appears
+   instead of being drawn, which is exactly what "jumping" looks like. A
+   transition on stroke-dashoffset has worked in Safari for years.
+
+   The one rule a transition has is that the value it starts from must already
+   be committed, or there is nothing to move away from. So the start value is
+   set with transitions off and then the style is forced to flush -- reading a
+   computed value does it -- before the transition is attached. Two frames of
+   requestAnimationFrame are not a substitute: the browser is free to coalesce
+   them, and Safari does. */
 function spRun(path, from, to, ms, ease){
-  if(path.animate){
-    const anim = path.animate(
-      [{ strokeDashoffset: from + "px" }, { strokeDashoffset: to + "px" }],
-      { duration: ms, easing: ease, fill: "forwards" });
-    if(anim.finished) return anim.finished.catch(function(){});
-    return spWait(ms);
-  }
-  /* no Web Animations: fall back to a transition, and give the reset a frame
-     of its own so it cannot be folded into the change that follows it */
-  path.style.transition = "none";
-  path.style.strokeDashoffset = from + "px";
-  return spFrame().then(function(){
+  return new Promise(function(done){
+    let over = false;
+    const end = function(e){
+      if(over) return;
+      if(e && e.propertyName && e.propertyName.indexOf("dashoffset") < 0) return;
+      over = true;
+      path.removeEventListener("transitionend", end);
+      done();
+    };
+    path.addEventListener("transitionend", end);
+
+    path.style.transition = "none";
+    path.style.strokeDashoffset = from + "px";
+    /* forces the style above to be committed on its own */
+    void window.getComputedStyle(path).strokeDashoffset;
+
     path.style.transition = "stroke-dashoffset " + ms + "ms " + ease;
     path.style.strokeDashoffset = to + "px";
-    return spWait(ms);
+
+    /* transitionend does not fire if the transition never starts -- a tab in
+       the background, a value that did not change -- so never wait forever */
+    setTimeout(end, ms + 120);
   });
 }
 
@@ -15210,6 +15231,18 @@ async function finishLaunch(){
       setTimeout(()=>{ L.wrap.style.display = "none"; }, 520);
     }
   }, 1400);
+}
+
+/* Run something once the start-up screen is out of the way -- or immediately,
+   if it already is. Polled rather than promised so it cannot strand work if the
+   screen is tapped away part-way through. */
+function afterLaunch(fn){
+  if(launchDone) return fn();
+  const wait = setInterval(function(){
+    if(!launchDone) return;
+    clearInterval(wait);
+    fn();
+  }, 150);
 }
 
 /* ------------------------------------------------------------------- boot -- */
@@ -15337,9 +15370,16 @@ if(!DB.events) DB.events = [];
 
   /* Whatever was done on the other device, collected once the app is already
      usable. It is deliberately after render(): the screen never waits on the
-     network, and if there is no signal nothing here matters. */
+     network, and if there is no signal nothing here matters.
+
+     The redraw waits for the start-up screen to finish. Drawing a line is paint
+     work on the main thread, so a full render landing in the middle of it stalls
+     the frame; the transition carries on in wall-clock time regardless, so when
+     the thread comes back the line has lurched forward. On a phone with little
+     saved that never shows up. On a tablet with a season of records on it, it
+     is the difference between a line being drawn and a line jumping. */
   if(syncReady()){
-    syncPull(true).then(ok=>{ if(ok) render(); });
+    syncPull(true).then(ok=>{ if(ok) afterLaunch(render); });
   }
 })();
 
