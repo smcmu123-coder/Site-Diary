@@ -289,7 +289,55 @@ select.in{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xml
   margin-bottom:10px}
 .rep .rh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
   font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:700}
-.rep .rm{color:var(--bad);font-weight:650;font-size:13px;text-transform:none;letter-spacing:0}
+/* Removing an entry is a 56px target like everything else, not a 13px word —
+   a glove has none of a fingertip's precision. It sits at the top of the
+   entry, the far end from the Done button, so the one that throws work away is
+   never next to the one pressed on the way out. */
+.rep .rm{color:var(--bad);font-weight:650;font-size:14.5px;text-transform:none;letter-spacing:0;
+  min-height:56px;display:inline-flex;align-items:center;padding:0 6px;
+  margin:-14px -6px -14px 0}
+/* the button that folds an entry away sits at the foot of it, in thumb reach */
+.rep .repdone-btn{margin:14px 0 0;min-height:56px}
+
+/* ---- an entry, filled in and folded away -------------------------------
+   Every list in the app folds the same way, so the shape of a finished entry
+   is learnt once. Green tint, a tick, and the entry said back in words: the
+   colour alone never carries it, because colour alone is no use to anyone
+   who cannot see it, or in low sun on a dirty screen. */
+/* The whole box is the way back in — one big target rather than a small word
+   at the end of a row, because the finger opening it has a glove on it. The
+   word "Edit" is on it as well, so nothing here is a guess. Removing an entry
+   is not on this box on purpose: it lives inside the opened entry, as far from
+   anything routine as it can be, so a mis-tap cannot delete a safety record. */
+.repdone{display:flex;align-items:center;gap:12px;width:100%;
+  border:1.5px solid var(--ok);border-radius:14px;background:var(--ok-bg);
+  padding:10px 12px;margin-bottom:10px;min-height:56px;text-align:left;
+  cursor:pointer;transition:background var(--d-1,.14s) ease,transform var(--d-1,.14s) ease}
+.repdone:active{background:#DCEBE0;transform:scale(.995)}
+.repdone .tick{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ok);
+  color:#fff;display:grid;place-items:center}
+.repdone .tick svg{width:18px;height:18px;display:block}
+.repdone .txt{flex:1;min-width:0}
+.repdone .txt b{display:block;font-size:15.5px;font-weight:650;color:var(--ink);
+  line-height:1.3;overflow-wrap:anywhere}
+/* Not --ink-2: on this green tint that lands at 6.9:1, and the target for a
+   screen read outdoors is 7:1. This is 8.1:1. */
+.repdone .txt span{display:block;font-size:13.5px;color:#3A4A42;margin-top:2px;
+  line-height:1.35;overflow-wrap:anywhere}
+html[data-theme="dark"] .repdone .txt span{color:var(--ink-2)}
+.repdone .edit{flex:none;display:inline-flex;align-items:center;gap:4px;
+  font-size:14.5px;font-weight:660;color:var(--green-700)}
+.repdone .edit svg{width:15px;height:15px}
+/* the count under a list, so it is clear what is left without scrolling it */
+.reptally{font-size:13px;color:var(--ink-2);font-weight:560;margin:-2px 0 10px}
+.reptally b{color:var(--ok);font-weight:700}
+.reptally.left b{color:var(--warn-700)}
+@media (prefers-reduced-motion: no-preference){
+  .repdone{ animation:repFold var(--d-2, .18s) var(--e-out, ease-out) both }
+}
+@keyframes repFold{ from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+.repdone:focus-visible,.rep .rm:focus-visible{
+  outline:3px solid var(--green);outline-offset:2px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .g2>*{min-width:0}
 .in{max-width:100%}
@@ -1491,6 +1539,7 @@ const DIARY = [
   { title:"Work carried out", fields:[
     { id:"tasks", type:"repeater", label:"Tasks", itemLabel:"Task", addLabel:"Add task", required:true,
       hint:"One entry per job of work, and who did it.",
+      summary:r=>({ title:r.what, detail:sNames(r.who, "on it") }),
       columns:[
         { id:"what", type:"textarea", label:"What was done", required:true,
           hint:"Include where — chainage, plot numbers, manhole refs." },
@@ -1502,7 +1551,9 @@ const DIARY = [
     { id:"dayworks", type:"yesno", label:"Any dayworks carried out today?", required:true,
       hint:"Work outside the contract, instructed on site. A numbered sheet is raised for each one." },
     { id:"dwList", type:"repeater", label:"Dayworks", itemLabel:"Daywork", addLabel:"Add another daywork",
-      required:true, collapsible:true, showIf:{field:"dayworks",equals:true},
+      required:true, showIf:{field:"dayworks",equals:true},
+      summary:r=>({ title:(r.ref ? r.ref + " \u2014 " : "") + (r.what||"Daywork"),
+        detail:sJoin(sNames(r.labour,"labour"), sNames(r.plant,"machines"), durText(r.hours)) }),
       columns:[
         { id:"what", type:"textarea", label:"What was instructed?", required:true },
         { id:"ref", type:"text", label:"Daywork or instruction reference" },
@@ -1512,6 +1563,7 @@ const DIARY = [
         { id:"plant", type:"plantpick", label:"Plant used" },
         { id:"smallPlant", type:"repeater", label:"Small plant and tools",
           itemLabel:"Item", addLabel:"Add item",
+          summary:r=>({ title:r.item, detail:durText(r.hours) }),
           columns:[
             { id:"item", type:"text", label:"Item", required:true },
             { id:"hours", type:"duration", label:"Time used", required:true }
@@ -1528,7 +1580,12 @@ const DIARY = [
       hint:"Each one listed raises an inspection for the next working morning." },
     { id:"excavationList", type:"repeater", label:"Excavations left open",
       itemLabel:"Excavation", addLabel:"Add another excavation",
-      required:true, collapsible:true, showIf:{field:"excavationsOpen",equals:true},
+      required:true, showIf:{field:"excavationsOpen",equals:true},
+      summary:r=>({ title:r.ref || r.location || "Excavation",
+        detail:sJoin(r.ref && r.location ? r.location : "",
+          (r.depth!==undefined && r.depth!=="") ? r.depth + "m deep" : "",
+          r.support, r.secured===true ? "Secured for the night"
+            : r.secured===false ? "NOT secured" : "") }),
       columns:[
         { id:"ref", type:"text", label:"Reference", required:true,
           hint:"For example, FW12–FW14 or MH8 chamber." },
@@ -1543,6 +1600,8 @@ const DIARY = [
 
   { title:"Visitors", fields:[
     { id:"visitors", type:"repeater", label:"Visitors", itemLabel:"Visitor", addLabel:"Add visitor",
+      summary:r=>({ title:r.name, detail:sJoin(r.org,
+        r.inducted===true ? "Inducted" : r.inducted===false ? "Not inducted" : "") }),
       columns:[
         { id:"name", type:"text", label:"Name", required:true },
         { id:"org", type:"text", label:"Company" },
@@ -1554,6 +1613,8 @@ const DIARY = [
     { id:"delays", type:"yesno", label:"Any delays or disruption?", required:true },
     { id:"delayList", type:"repeater", label:"The delays", itemLabel:"Delay",
       addLabel:"Add a delay", required:true, showIf:{field:"delays",equals:true},
+      summary:r=>({ title:sJoin(r.cause, durText(r.time)) || "Delay",
+        detail:sJoin(r.detail, r.affected) }),
       hint:"One entry for each. They add up in the delay tracker on the Project page.",
       columns:[
         { id:"cause", type:"select", label:"What caused it", required:true,
@@ -1911,8 +1972,11 @@ function puwerSections(){
   return [
     { title:"Work equipment", fields:[
       { id:"tools", type:"repeater", label:"Items inspected", itemLabel:"Item",
-        addLabel:"Add item", required:true, collapsible:true,
+        addLabel:"Add item", required:true,
         hint:"Loaded from your work equipment register. Add anything else being used.",
+        summary:r=>({ title:r.tool,
+          detail:r.ok===false ? sJoin("Defect \u2014 " + (r.defects||"see entry"), r.action)
+            : r.ok===true ? "Satisfactory" : "" }),
         columns:[
           { id:"tool", type:"text", label:"Tool / ID mark or number", required:true },
           { id:"ok", type:"yesno", label:"Inspection satisfactory?", required:true },
@@ -1938,8 +2002,12 @@ function lolerSections(){
   return [
     { title:"Lifting equipment", fields:[
       { id:"items", type:"repeater", label:"Items inspected", itemLabel:"Item",
-        addLabel:"Add item", required:true, collapsible:true,
+        addLabel:"Add item", required:true,
         hint:"Loaded from your lifting register. Add anything else being used.",
+        summary:r=>({ title:sJoin(r.description, r.idNo),
+          detail:sJoin(r.ok===false ? "Defect \u2014 " + (r.defects||"see entry")
+              : r.ok===true ? "Satisfactory" : "",
+            r.status, r.certEnd ? "cert to " + shortDate(r.certEnd) : "") }),
         columns:[
           { id:"description", type:"text", label:"Description", required:true },
           { id:"idNo", type:"text", label:"ID number", required:true },
@@ -2031,8 +2099,14 @@ function havsSections(){
   return [
     { title:"Exposure log", fields:[
       { id:"entries", type:"repeater", label:"Entries", itemLabel:"Entry",
-        addLabel:"Add an entry", required:true, collapsible:true,
+        addLabel:"Add an entry", required:true,
         hint:"One entry per operative per tool. The app works out the exposure.",
+        summary:r=>{
+          const pts = havsPoints(Number(r.magnitude)||0, durHours(r.triggerTime));
+          return { title:sJoin(r.operative, r.tool==="Other" ? (r.toolOther||"Other") : r.tool),
+            detail:sJoin(durText(r.triggerTime), pts ? pts + " points" : "",
+              pts ? havsStatus(pts).label : "") };
+        },
         columns:[
           { id:"operative", type:"peopleselect", label:"Operative", required:true },
           { id:"tool", type:"select", label:"Tool used", required:true,
@@ -5587,6 +5661,13 @@ function durText(v){
   if(m) parts.push(m+" min"+(m===1?"":"s"));
   return parts.join(" ");
 }
+/* the little phrases the folded-away entries are written from */
+const sList = a => Array.isArray(a) ? a.filter(Boolean) : [];
+const sJoin = (...bits) => bits.filter(x => x !== undefined && x !== null
+  && String(x).trim() !== "").join(" \u00b7 ");
+const sNames = (a, word) => { const n = sList(a).length;
+  return n ? (n <= 2 ? sList(a).join(", ") : n + " " + word) : ""; };
+
 const durEmpty = v => !v || (typeof v==="object" && !(Number(v.h)||0) && !(Number(v.m)||0));
 const durMins = v => !v ? 0 : (Number(v.h)||0)*60 + (Number(v.m)||0);
 
@@ -7529,6 +7610,24 @@ function prefill(date, formKey, excRef){
   });
   return v;
 }
+/* What is still unanswered on one entry of a list. Used both when the form is
+   signed off and when an entry is folded away, so the two can never disagree
+   about whether an entry is finished. */
+function rowMissing(f, row){
+  const out = [];
+  (f.columns||[]).forEach(c=>{
+    if(c.type==="repeater") return;          /* a list inside a list is its own affair */
+    if(!c.required) return;
+    if(!visible(c, row||{})) return;         /* only what is actually on screen */
+    const cv = (row||{})[c.id];
+    const empty = c.type==="duration" ? durEmpty(cv)
+      : c.type==="check" ? (!cv || cv.v===undefined)
+      : (cv===undefined || cv===null || cv==="" || (Array.isArray(cv) && !cv.length));
+    if(empty) out.push(c);
+  });
+  return out;
+}
+
 function validate(){
   const e = {}, v = formState.values;
   sectionsFor(formState.form).forEach(s=>s.fields.forEach(f=>{
@@ -7573,19 +7672,62 @@ function validate(){
       return;
     }
     if(f.type==="repeater"){
-      for(let i=0;i<val.length;i++) for(const c of f.columns){
-        if(c.type==="repeater") continue;            /* a list inside a list is its own affair */
-        if(!visible(c, val[i])) continue;            /* only what is actually on screen */
-        const cv = val[i][c.id];
-        const empty = c.type==="duration" ? durEmpty(cv)
-          : c.type==="check" ? (!cv || cv.v===undefined)
-          : (cv===undefined || cv==="" || (Array.isArray(cv) && !cv.length));
-        if(c.required && empty)
-          { e[f.id]=(f.itemLabel||"Row")+" "+(i+1)+": "+c.label+" is required"; return; }
+      for(let i=0;i<val.length;i++){
+        const miss = rowMissing(f, val[i]);
+        if(miss.length){
+          e[f.id]=(f.itemLabel||"Row")+" "+(i+1)+": "+miss[0].label+" is required"; return;
+        }
       }
     }
   }));
   return e;
+}
+
+const TICK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>';
+const PENCIL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/></svg>';
+
+/* An entry that has been filled in and folded away. Every list in the app uses
+   this same box, so a finished entry looks the same whatever it is an entry
+   of. What it says back is written by the list itself — see summary() on each
+   one — because "the first thing you typed, cut off at 70 characters" told
+   nobody anything useful. */
+function repSummary(f, row){
+  if(typeof f.summary === "function"){
+    try{
+      const out = f.summary(row||{}) || {};
+      if(out.title || out.detail)
+        return { title: String(out.title||"").trim() || (f.itemLabel||"Item"),
+                 detail: String(out.detail||"").trim() };
+    }catch(e){ /* fall through to the plain version */ }
+  }
+  const said = [];
+  (f.columns||[]).forEach(c=>{
+    if(c.type==="repeater" || c.type==="signature" || c.type==="havscalc") return;
+    const v2 = (row||{})[c.id];
+    if(v2===undefined || v2===null || v2==="") return;
+    said.push(c.type==="duration" ? durText(v2)
+      : c.type==="yesno" ? (v2 ? c.label : "No")
+      : Array.isArray(v2) ? v2.length + " selected" : String(v2));
+  });
+  return { title: said[0] || "Filled in", detail: said.slice(1,3).join(" · ") };
+}
+
+function repDoneRow(f, row, i, id){
+  const { title, detail } = repSummary(f, row);
+  const cut = (t,n) => t.length > n ? t.slice(0, n-1).trimEnd() + "\u2026" : t;
+  const noun = (f.itemLabel||"item").toLowerCase();
+  return `<button type="button" class="repdone" data-undone="${id}" data-i="${i}"
+    aria-label="${esc(f.itemLabel||"Item")} ${i+1} filled in: ${esc(cut(title,72))}. Tap to change it.">
+    <span class="tick">${TICK_SVG}</span>
+    <span class="txt">
+      <b>${esc(cut(title, 72))}</b>
+      ${detail ? `<span>${esc(cut(detail, 96))}</span>` : ""}
+    </span>
+    <span class="edit" aria-hidden="true">${PENCIL_SVG}Edit</span>
+  </button>`;
 }
 
 function fieldHtml(f, v, err, path){
@@ -7644,25 +7786,21 @@ function fieldHtml(f, v, err, path){
     }
     case "repeater":{
       const rows = val||[];
+      const noun = (f.itemLabel||"item").toLowerCase();
+      const doneCount = rows.filter(r=>r && r.__done).length;
       c = rows.map((row,i)=>{
-        if(f.collapsible && row.__done){
-          const first = f.columns.find(col=>row[col.id]);
-          const summary = first ? String(row[first.id]).slice(0,70) : "Filled in";
-          return `<div class="rep" style="background:var(--ok-bg);border-color:var(--ok)">
-            <div class="rh"><span style="color:var(--ok)">${esc(f.itemLabel||"Item")} ${i+1} — complete</span>
-              <button type="button" class="rm" style="color:var(--ink-2)"
-                data-undone="${id}" data-i="${i}">Edit</button></div>
-            <div style="font-size:14px;color:var(--ink-2)">${esc(summary)}</div>
-          </div>`;
-        }
+        if(row && row.__done) return repDoneRow(f, row, i, id);
         return `<div class="rep">
           <div class="rh"><span>${esc(f.itemLabel||"Item")} ${i+1}</span>
           <button type="button" class="rm" data-del="${id}" data-i="${i}">Remove</button></div>`+
           f.columns.map(col=>fieldHtml(Object.assign({},col,{required:false}), row, null, id+"."+i+"."+col.id)).join("")+
-          (f.collapsible ? `<button type="button" class="btn" style="margin:6px 0 0"
-            data-done="${id}" data-i="${i}">Complete ${esc((f.itemLabel||"item").toLowerCase())} ${i+1}</button>` : "")+
-          `</div>`;
+          `<button type="button" class="btn repdone-btn" data-done="${id}" data-i="${i}">
+            Done &mdash; fold this ${esc(noun)} away</button>
+          </div>`;
       }).join("") +
+        (rows.length > 1 || (rows.length === 1 && doneCount)
+          ? `<div class="reptally${doneCount<rows.length?" left":""}"><b>${doneCount}</b> of ${rows.length}
+              ${esc(noun)}${rows.length===1?"":"s"} filled in</div>` : "") +
         `<button type="button" class="btn add" data-add="${id}">+ ${esc(f.addLabel||"Add")}</button>`;
       break;
     }
@@ -12350,9 +12488,25 @@ function bind(){
     setVal(path, (getVal(path)||[]).filter((_,ix)=>ix!==i)); after(); });
   app.querySelectorAll("[data-done]").forEach(el=>el.onclick=()=>{
     const path=el.dataset.done, i=Number(el.dataset.i);
+    const f = getField(path);
     const rows = (getVal(path)||[]).slice();
+    /* An entry only folds away once it is actually finished, so a folded box
+       always means done. Anything still blank is named and jumped to rather
+       than left for the person to hunt for when they sign the form off. */
+    const miss = f ? rowMissing(f, rows[i]) : [];
+    if(miss.length){
+      toast(miss.length === 1 ? miss[0].label + " is still needed"
+        : miss.length + " answers still needed on this " + ((f.itemLabel||"item").toLowerCase()));
+      const el2 = document.getElementById("fl_" + path + "." + i + "." + miss[0].id);
+      if(el2){
+        el2.scrollIntoView({ behavior: REDUCED.matches ? "auto" : "smooth", block:"center" });
+        if(el2.focus) setTimeout(()=>{ try{ el2.focus({preventScroll:true}); }catch(e){} }, 220);
+      }
+      return;
+    }
     rows[i] = Object.assign({}, rows[i], { __done:true });
     setVal(path, rows); after();
+    toast((f && f.itemLabel ? f.itemLabel : "Item") + " " + (i+1) + " filled in");
   });
   app.querySelectorAll("[data-undone]").forEach(el=>el.onclick=()=>{
     const path=el.dataset.undone, i=Number(el.dataset.i);
