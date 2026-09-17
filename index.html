@@ -1386,7 +1386,10 @@ html,body{ overscroll-behavior-y:none }
 .cel h2{color:#fff;font-size:30px;font-weight:660;letter-spacing:-.03em;margin:0 0 10px}
 .cel .lede{color:#C9D8CC;font-size:15px;line-height:1.5;margin:0 0 4px}
 .cel .dt{color:#7C9184;font-size:13px;margin:0}
+.cel .cel-ask{color:#C9D8CC;font-size:14.5px;line-height:1.5;margin:20px 0 0;
+  padding-top:18px;border-top:1px solid rgba(255,255,255,.14)}
 .cel .cel-btn{margin-top:30px;background:#fff;color:#123D1E}
+.cel .cel-ask + .cel-btn{margin-top:16px}
 .cel .cel-next{margin-top:10px;color:#9FB8A6;font-size:13.5px;font-weight:620;
   background:none;min-height:40px}
 /* a short burst, not confetti: eight strokes that leave as quickly as they came */
@@ -11988,6 +11991,10 @@ function settingsView(){
       <button class="btn" data-share="1">Send a copy to OneDrive</button>
       <button class="btn line" data-export="1">Download a backup</button>
       <button class="btn line" data-import="1">Bring in a copy from another device</button>
+      <button class="btn line" data-restore="1">Go back to a saved backup</button>
+      <p style="margin:10px 0 0;font-size:13px;color:var(--ink-3)">Bringing a copy in
+      adds to what is here and never deletes. Going back to a backup replaces it,
+      so use that one to undo a bad day&rsquo;s work.</p>
       <div class="sect" style="margin:18px 0 8px">Showing it to someone</div>
       <p style="margin-bottom:12px">Makes a copy of the app with everything currently in it, to
       put online as its own link. Anyone can open it and tap through the job as it stands.
@@ -14005,6 +14012,7 @@ function bind(){
   const sh = app.querySelector("[data-share]"); if(sh) sh.onclick = shareBackup;
   const ex = app.querySelector("[data-export]"); if(ex) ex.onclick = exportBackup;
   const im = app.querySelector("[data-import]"); if(im) im.onclick = importBackup;
+  const rs = app.querySelector("[data-restore]"); if(rs) rs.onclick = restoreBackup;
   const dm = app.querySelector("[data-demo]"); if(dm) dm.onclick = shareDemo;
   const bd = app.querySelector("[data-board]"); if(bd) bd.onclick = publishBoard;
   app.querySelectorAll("[data-bcfg]").forEach(el=>{
@@ -14105,6 +14113,10 @@ function celebrationGone(){
 function celebrate(date){
   if(document.getElementById("cel")) return;
   const pr = dayProgress(date);
+  /* the end of the day is the one moment the day's work is known to be complete
+     and the person is known to be looking at the screen, so it is the moment to
+     ask for a backup -- and only if one has not already been taken today */
+  const due = (date === todayISO()) && !backupDoneToday();
   const el = document.createElement("div");
   el.className = "cel";
   el.id = "cel";
@@ -14125,18 +14137,34 @@ function celebrate(date){
       <p class="lede">${pr.total} record${pr.total===1?"":"s"} signed off${
         DB.job ? " on " + esc(DB.job) : ""}. Nothing left owing for today.</p>
       <p class="dt">${longDate(date)}</p>
-      <button class="btn cel-btn" data-celdone="1">Done</button>
-      <button class="cel-next" data-celrecords="1">See today&rsquo;s records</button>
+      ${due ? `<p class="cel-ask">The day&rsquo;s work is in. Take a backup and
+        it cannot be lost.</p>
+      <button class="btn cel-btn" data-celbackup="1">Back up today</button>
+      <button class="cel-next" data-celdone="1">Not now</button>`
+      : `<button class="btn cel-btn" data-celdone="1">Done</button>
+      <button class="cel-next" data-celrecords="1">See today&rsquo;s records</button>`}
     </div>`;
   document.body.appendChild(el);
 
   el.addEventListener("click", (e)=>{
+    if(e.target.closest("[data-celbackup]")){
+      /* stays open until the share sheet has been dealt with, so tapping it
+         does not take the panel away underneath the sheet */
+      if(celTimer){ clearTimeout(celTimer); celTimer = null; }
+      Promise.resolve(shareBackup()).then(()=>{
+        celebrationGone();
+        if(backupDoneToday()) toast("Backed up \u2014 today is safe");
+      });
+      return;
+    }
     if(e.target.closest("[data-celrecords]")){
       celebrationGone(); listDate = date; listFilter = "all"; go("list"); return;
     }
     celebrationGone();
   });
-  celTimer = setTimeout(celebrationGone, 6000);
+  /* it waits when there is something to decide, and gets out of the way when
+     there is not */
+  if(!due) celTimer = setTimeout(celebrationGone, 6000);
 }
 
 function submitForm(){
@@ -14433,8 +14461,17 @@ function exportBackup(){
   a.href = URL.createObjectURL(f);
   a.download = f.name;
   a.click();
+  markBackedUp();
   toast("Backup saved");
 }
+
+/* The date of the last backup, so the app can tell whether today's has been
+   taken. Stored as a day, not a time: one a day is the point of it. */
+function markBackedUp(){
+  DB.lastBackup = todayISO();
+  save();
+}
+const backupDoneToday = () => DB.lastBackup === todayISO();
 /* A demo build: this page with the records baked into it. Uploaded alongside
    the app, it becomes a link anybody can open. */
 async function buildDemo(){
@@ -14883,7 +14920,7 @@ async function shareBackup(){
   if(navigator.canShare && navigator.canShare({ files:[f] })){
     try{
       await navigator.share({ files:[f], title:"Site diary backup" });
-      DB.lastShared = Date.now(); save(); render();
+      DB.lastShared = Date.now(); markBackedUp(); render();
       return;
     }catch(e){ return; }              /* cancelled */
   }
@@ -14922,10 +14959,69 @@ function importBackup(){
           DB.tools   = mergeInto(DB.tools||[], d.tools||[], "id");
           DB.deliveries = mergeInto(DB.deliveries||[], d.deliveries||[], "id");
           DB.events  = mergeInto(DB.events||[], d.events||[], "id");
+          /* these four were being left out, so a copy brought over from another
+             device arrived without its leave, variations, packs or RAMS */
+          DB.leave   = mergeInto(DB.leave||[], d.leave||[], "id");
+          DB.vos     = mergeInto(DB.vos||[],   d.vos||[],   "id");
+          DB.packs   = mergeInto(DB.packs||[], d.packs||[], "id");
+          DB.rams    = mergeInto(DB.rams||[],  d.rams||[],  "id");
           DB.counter = Math.max(DB.counter||0, d.counter||0);
           if(d.job && !DB.job) DB.job = d.job;
           save(); render();
           toast("Merged — "+(DB.records.length-before)+" new");
+        });
+    };
+    fr.readAsText(inp.files[0]);
+  };
+  inp.click();
+}
+
+/* Putting the app back to a backup, which is a different thing from bringing a
+   copy in. Merging keeps whichever version was edited last and never deletes,
+   so it cannot undo anything -- restoring from an older file would leave the
+   newer records in place and look like it had done nothing. This replaces what
+   is here, deletions and all.
+
+   It takes a copy of the current state first, without asking. Restoring the
+   wrong file is otherwise the one action in the app that cannot be undone. */
+function restoreBackup(){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "application/json,.json";
+  inp.onchange = () => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      let d;
+      try{ d = JSON.parse(fr.result); }
+      catch(e){ toast("That file could not be read."); return; }
+      if(!d || !Array.isArray(d.records)){ toast("That is not a backup file."); return; }
+
+      const now  = DB.records.length;
+      const then = d.records.length;
+      const lost = Math.max(0, now - then);
+      const when = d.records.reduce((a,r)=> Math.max(a, r.updatedAt||r.submittedAt||0), 0);
+
+      askConfirm("Go back to this backup?",
+        "The file holds " + then + " diar" + (then===1?"y":"ies") +
+        (when ? ", the newest from " + shortDate(new Date(when).toISOString().slice(0,10)) : "") +
+        ". There " + (now===1?"is":"are") + " " + now + " on here now" +
+        (lost ? ", so " + lost + " would go" : "") +
+        ". Anything entered since the backup will not survive it. A copy of what " +
+        "is on here now downloads first, so this can be undone.",
+        "Restore", () => {
+          exportBackup();                       /* the way back, taken first */
+          /* the token lives on this device and is deliberately never written
+             into a backup, so it is carried across rather than wiped */
+          const token = (DB.board && DB.board.token) || "";
+          const fresh = blankDB();
+          Object.keys(fresh).forEach(k => { if(!(k in d)) d[k] = fresh[k]; });
+          DB = d;
+          DB.board = DB.board || {};
+          DB.board.token = token;
+          DB.lastBackup = todayISO();
+          if(!DB.job) DB.job = CONFIG.jobs[0];
+          save(); render();
+          toast("Restored — " + DB.records.length +
+                " diar" + (DB.records.length===1?"y":"ies"));
         });
     };
     fr.readAsText(inp.files[0]);
