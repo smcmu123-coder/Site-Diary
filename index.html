@@ -597,7 +597,11 @@ body.isdemo .app{padding-top:76px}
    settle, which is what makes a move read as calm rather than bouncy. */
 .sp-done{gap:22px}
 
-.sp-done img{width:116px;opacity:0;transform:scale(.94) translateY(6px)}
+/* the mark is a dark-green PNG, which would be invisible on the green.
+   brightness(0) flattens it to black, invert(1) lifts it to white, and the
+   transparency is untouched — so it lands in the same white as the line. */
+.sp-done img{width:116px;opacity:0;transform:scale(.94) translateY(6px);
+  filter:brightness(0) invert(1)}
 .sp-done.on img{animation:spMark .72s cubic-bezier(.16,1,.3,1) .04s forwards}
 @keyframes spMark{ to{ opacity:1;transform:none } }
 
@@ -612,6 +616,19 @@ body.isdemo .app{padding-top:76px}
 @keyframes spChar{ to{ transform:none } }
 .sp-done .nm .sp{width:.28em}
 .sp-done .nm .hl i{color:#A6D9B4}
+
+/* ---- the line, once the screen has gone fully green ----------------------
+   One unbroken white stroke draws a digger, a dumper and a shovel, retracting
+   and running on into the next rather than being lifted. It is drawn with
+   stroke-dashoffset so each machine stays crisp instead of morphing to mush.
+   Everything is transform/stroke only, so it stays off the layout path. */
+.sp-line{position:absolute;left:50%;top:50%;width:min(54vw,196px);height:min(54vw,196px);
+  transform:translate(-50%,-52%);opacity:0;pointer-events:none;
+  transition:opacity .2s var(--ease)}
+.sp-line.on{opacity:1}
+.sp-line path{fill:none;stroke:#fff;stroke-width:4.4;
+  stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-reduced-motion:reduce){ .sp-line{display:none} }
 
 /* hairline, drawn out from the centre once the name has landed */
 .sp-rule{width:112px;height:1px;background:rgba(255,255,255,.34);
@@ -1437,6 +1454,7 @@ html,body{ overscroll-behavior-y:none }
   <div class="sp-fill" id="spFill"></div>
   <div class="sp-num" id="spNum">0%</div>
   <div class="sp-cap" id="spCap">Starting up</div>
+  <svg class="sp-line" id="spLine" viewBox="0 0 100 100" aria-hidden="true"><path id="spLinePath" d=""></path></svg>
   <div class="sp-done" id="spDone">
     <img id="splashLogo" alt="">
     <div class="nm" id="spName" aria-label="CGC siteHUB"></div>
@@ -14987,6 +15005,53 @@ function startLaunch(){
   launchShow(0, "Starting up");
 }
 
+/* ---- the white line ------------------------------------------------------
+   Each machine is a single subpath with no pen lifts: where a line has to get
+   from one part of the machine to another it travels back over a stroke it has
+   already drawn, which is invisible at this weight. That is what lets one
+   unbroken line carry a thin boom as well as a solid body. */
+const SPLASH_LINE = [
+  'M16,68 L46,68 L46,46 L48,42 L32,9 L9,38 C3,44 5,55 15,59 L27,50 L18,42 L41,13 L55,43 L60,46 L60,19 L84,19 L89,44 L89,68 C95,69 96,74 96,79 L92,88 C90,92 86,93 80,93 L20,93 C14,93 10,92 8,88 L4,79 C4,74 5,69 11,68 Z',
+  'M6,28 L58,22 L52,52 L16,52 L6,28 L16,52 L52,52 L78,52 L78,26 L93,24 L95,54 L80,54 A12,12 0 1,1 80,78 A12,12 0 1,1 80,54 L32,54 A12,12 0 1,1 32,78 A12,12 0 1,1 32,54',
+  'M58,8 C67,8 69,17 62,21 L55,21 L46,44 L38,66 L26,68 C21,77 26,87 37,93 C49,87 53,77 48,68 L38,66 L46,44 L55,21'
+];
+
+function spWait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+/* draw it on, hold, then run it off the far end so the next one can follow */
+async function spDrawShape(path, d, draw, hold, erase){
+  path.style.transition = "none";
+  path.setAttribute("d", d);
+  const len = path.getTotalLength();
+  path.style.strokeDasharray  = len;
+  path.style.strokeDashoffset = len;
+  /* two frames: one to take the reset, one to be sure it has painted before
+     the transition is put back on, or the browser skips straight to the end */
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  path.style.transition = "stroke-dashoffset " + draw + "ms cubic-bezier(.16,1,.3,1)";
+  path.style.strokeDashoffset = "0";
+  await spWait(draw + hold);
+  if(launchDone) return;
+  path.style.transition = "stroke-dashoffset " + erase + "ms cubic-bezier(.4,0,.75,1)";
+  path.style.strokeDashoffset = (-len) + "";
+  await spWait(erase);
+}
+
+async function playSplashLine(){
+  const svg  = document.getElementById("spLine");
+  const path = document.getElementById("spLinePath");
+  if(!svg || !path || !path.getTotalLength) return;
+  if(window.matchMedia &&
+     window.matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  svg.classList.add("on");
+  for(const d of SPLASH_LINE){
+    if(launchDone) break;
+    await spDrawShape(path, d, 430, 150, 250);
+  }
+  svg.classList.remove("on");
+  await spWait(70);
+}
+
 /* called as each piece of startup finishes — never backwards, never skips */
 function launchStep(n){
   const step = LAUNCH_STEPS[Math.min(n, LAUNCH_STEPS.length-1)];
@@ -14998,21 +15063,24 @@ function launchStep(n){
 async function finishLaunch(){
   if(launchDone) return;
   for(let i=0; i<LAUNCH_STEPS.length; i++) await launchStep(i);
-  if(L.done){
-    setTimeout(()=>{
-      if(L.num) L.num.style.opacity = "0";
-      if(L.cap) L.cap.style.opacity = "0";
-      L.done.classList.add("on");
-    }, 220);
-  }
-  /* the name holds for a couple of seconds before it lifts away */
+
+  /* the screen is fully green now: the count steps aside, the line draws the
+     machines, and only then does the mark settle in */
+  if(L.num) L.num.style.opacity = "0";
+  if(L.cap) L.cap.style.opacity = "0";
+  await spWait(240);
+  await playSplashLine();
+  if(launchDone) return;
+  if(L.done) L.done.classList.add("on");
+
+  /* the name holds while the mark lands, then lifts away */
   setTimeout(()=>{
     launchDone = true;
     if(L.wrap){
       L.wrap.classList.add("gone");
       setTimeout(()=>{ L.wrap.style.display = "none"; }, 520);
     }
-  }, 2400);
+  }, 1500);
 }
 
 /* ------------------------------------------------------------------- boot -- */
