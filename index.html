@@ -275,6 +275,8 @@ select.in{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xml
   font-weight:660;font-size:15.5px}
 .segb.y{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
 .segb.n{background:var(--bad-bg);border-color:var(--bad);color:var(--bad)}
+/* picked, without saying good or bad about it */
+.segb.on{background:var(--green-50);border-color:var(--green);color:var(--green-700)}
 .cg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .cg>*{min-width:0}
 @media(max-width:360px){ .cg{grid-template-columns:1fr} }
@@ -5292,11 +5294,17 @@ function planItems(date){
   deliveriesOn(date).forEach(d=>{
     const got = receivedTotal(d);
     const loads = loadsOrdered(d);
-    out.push({ kind:"delivery", time:"", sort:1,
+    /* a delivery with a time sits among the appointments in time order; one
+       without stays in the block below them, where it is not pretending to
+       have a slot it has not got */
+    out.push({ kind:"delivery",
+      time: deliveryHasTime(d) ? d.dueTime : "",
+      sort: deliveryHasTime(d) ? 0 : 1,
       text:(d.description || d.type)
         + (loads ? " · " + loads + " load" + (loads===1?"":"s")
                  : d.qty ? " · " + d.qty + " " + (d.unit||"") : ""),
-      sub:(d.supplier||"") + (got ? " · " + deliveryProgress(d) + " in" : ""),
+      sub:[deliveryNoTime(d) ? "No time given" : "", d.supplier||"",
+           got ? deliveryProgress(d) + " in" : ""].filter(Boolean).join(" · "),
       go:{ name:"delivery", id:d.id },
       ref:{ type:"delivery", id:d.id } });
   });
@@ -5424,6 +5432,18 @@ const DELIVERY_COLOURS = { Stone:"#6B5B3E", Sand:"#A9761B", Concrete:"#4A5568",
   Materials:"#1B4F7A", Tools:"#5B3E8C", Plant:"#1F5A2D", Misc:"#6B6B6B" };
 
 function deliveries(){ return (DB.deliveries||[]).filter(d=>d.job===DB.job); }
+
+/* A delivery's time is one of three things, and they are not the same:
+   a time, "the supplier would not give one", and nothing said yet. The middle
+   one is worth showing -- it is the difference between a morning you can plan
+   and one you cannot -- so it is stored rather than left blank. */
+const deliveryHasTime = d => !!(d && d.dueTime && d.dueTime !== "none");
+const deliveryNoTime  = d => !!(d && d.dueTime === "none");
+function deliveryTimeLine(d){
+  if(deliveryHasTime(d)) return d.dueTime;
+  if(deliveryNoTime(d))  return "No time given";
+  return "";
+}
 
 /* Everything below belongs to a job. Older entries were saved without one, so
    they are matched through the person or machine they belong to. */
@@ -7130,7 +7150,7 @@ function compressDoc(file){
   });
 }
 
-function askNotice(title, lines, note){
+function askNotice(title, lines, note, dismiss){
   const wrap = document.createElement("div");
   wrap.className = "scrim";
   wrap.innerHTML = `<div class="dlg">
@@ -7140,7 +7160,7 @@ function askNotice(title, lines, note){
         ${lines.map(l=>`<div style="font-size:14px;color:var(--ink-2);padding:3px 0">
           &bull;&nbsp; ${esc(l)}</div>`).join("")}
       </div>
-      <button class="btn" style="margin:0" data-x>Right you are</button>
+      <button class="btn" style="margin:0" data-x>${esc(dismiss || "OK")}</button>
     </div>`;
   document.body.appendChild(wrap);
   const close = () => wrap.remove();
@@ -7403,11 +7423,13 @@ function homeView(){
     const loads = loadsOrdered(d);
     return Object.assign({}, it, {
       text: d.description || d.type,
-      sub: !want ? (d.supplier||"")
+      sub: [deliveryNoTime(d) ? "No time given" : "",
+        !want ? (d.supplier||"")
         : got >= want ? (loads ? loads + " load" + (loads===1?"":"s") + " in" : got + " " + unit + " received")
         : got ? deliveryProgress(d) + " received"
         : (loads ? loads + " load" + (loads===1?"":"s") + " · " + want + " " + unit
-                 : want + " " + unit) + (d.supplier ? " · " + d.supplier : ""),
+                 : want + " " + unit) + (d.supplier ? " · " + d.supplier : "")
+        ].filter(Boolean).join(" · "),
       settled: !!(want && got >= want)
     });
   });
@@ -9104,7 +9126,7 @@ let delDraft = null, dropDraft = null, totalsType = null;
 function blankDelivery(){
   return { type:"Stone", description:"", supplier:"", orderRef:"",
     qty:"", unit:DELIVERY_UNITS.Stone, loadSize:DELIVERY_LOADS.Stone || "",
-    dueDate:todayISO(), notes:"" };
+    dueDate:todayISO(), dueTime:"", notes:"" };
 }
 
 function deliveryFields(d, attr){
@@ -9116,6 +9138,16 @@ function deliveryFields(d, attr){
         </select></div>
       <div class="f"><label>Due on site</label>
         <input class="in" type="date" ${attr}="dueDate" value="${esc(d.dueDate||"")}"></div>
+    </div>
+    <div class="f"><label>Time on site</label>
+      <div class="seg">
+        <button type="button" class="segb ${deliveryHasTime(d)?"on":""}"
+          data-dtime="at">At a time</button>
+        <button type="button" class="segb ${deliveryNoTime(d)?"on":""}"
+          data-dtime="none">No time given</button>
+      </div>
+      ${deliveryHasTime(d) ? `<input class="in" type="time" style="margin-top:10px"
+        ${attr}="dueTime" value="${esc(d.dueTime)}" aria-label="Time on site">` : ""}
     </div>
     <div class="f"><label>What is coming</label>
       <input class="in" ${attr}="description" value="${esc(d.description||"")}"
@@ -9156,7 +9188,8 @@ function deliveryLine(d){
         <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16px;font-weight:650;display:block">${esc(d.description||d.type)}</b>
           <span style="font-size:13px;color:var(--ink-2)">
-            ${esc(d.type)}${d.supplier?" · "+esc(d.supplier):""} · ${shortDate(d.dueDate)}</span>
+            ${esc(d.type)}${d.supplier?" · "+esc(d.supplier):""} · ${shortDate(d.dueDate)}${
+              deliveryTimeLine(d) ? " · " + esc(deliveryTimeLine(d)) : ""}</span>
         </div>
         <span class="pill ${st.cls}">${esc(st.label)}</span>
       </div>
@@ -9718,6 +9751,8 @@ function deliveryView(){
 
     <div class="card">
       <div class="kv"><span class="k">Due on site</span><span class="v">${shortDate(d.dueDate)}</span></div>
+      <div class="kv"><span class="k">Time</span><span class="v">${
+        deliveryTimeLine(d) ? esc(deliveryTimeLine(d)) : "Not said"}</span></div>
       ${d.orderRef?`<div class="kv"><span class="k">Order reference</span><span class="v">${esc(d.orderRef)}</span></div>`:""}
       ${d.notes?`<div class="kv"><span class="k">Notes</span><span class="v">${esc(d.notes)}</span></div>`:""}
     </div>
@@ -13428,6 +13463,17 @@ function bind(){
       /* redraw once the field is finished with, so "that is 4 loads" keeps up */
       if(el.dataset.dnd==="qty" || el.dataset.dnd==="loadSize") render();
     };
+  });
+  app.querySelectorAll("[data-dtime]").forEach(el=>el.onclick=()=>{
+    if(!delDraft) return;
+    const pick = el.dataset.dtime;
+    if(pick === "none"){
+      delDraft.dueTime = deliveryNoTime(delDraft) ? "" : "none";
+    }else{
+      /* tapping the one already chosen clears it back to nothing said */
+      delDraft.dueTime = deliveryHasTime(delDraft) ? "" : "07:00";
+    }
+    render();
   });
   const da = app.querySelector("[data-deladd]");
   if(da) da.onclick = ()=>{ delDraft = blankDelivery(); render(); };
