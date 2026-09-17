@@ -607,12 +607,12 @@ body.isdemo .app{padding-top:76px}
 .sp-done img{display:none}
 /* and the name sits just under that drawn mark, not in the middle of it */
 .sp-done{inset:auto 0 auto 0;top:50%;display:block;text-align:center;
-  margin-top:calc(min(54vw,196px) * .22)}
+  margin-top:calc(var(--spsize) * .22)}
 .sp-done.on img{animation:spMark .72s cubic-bezier(.16,1,.3,1) .04s forwards}
 @keyframes spMark{ to{ opacity:1;transform:none } }
 
 /* the wordmark: one span per character, each masked by its own clip */
-.sp-done .nm{display:flex;justify-content:center;font-size:clamp(30px,9.4vw,42px);
+.sp-done .nm{display:flex;justify-content:center;font-size:clamp(30px,9.4vmin,50px);
   font-weight:var(--w-bold);letter-spacing:-.05em;color:#fff}
 .sp-done.on .nm{animation:spTrack 1.1s cubic-bezier(.16,1,.3,1) .26s forwards}
 @keyframes spTrack{ to{ letter-spacing:-.032em } }
@@ -628,7 +628,10 @@ body.isdemo .app{padding-top:76px}
    and running on into the next rather than being lifted. It is drawn with
    stroke-dashoffset so each machine stays crisp instead of morphing to mush.
    Everything is transform/stroke only, so it stays off the layout path. */
-.sp-line{position:absolute;left:50%;top:50%;width:min(54vw,196px);height:min(54vw,196px);
+/* sized off the short edge, so it scales with a tablet instead of sitting
+   at phone size in the middle of one */
+.splash{--spsize:clamp(170px,46vmin,320px)}
+.sp-line{position:absolute;left:50%;top:50%;width:var(--spsize);height:var(--spsize);
   transform:translate(-50%,-52%);opacity:0;pointer-events:none;
   transition:opacity .2s var(--ease)}
 .sp-line.on{opacity:1}
@@ -1468,7 +1471,7 @@ html,body{ overscroll-behavior-y:none }
   <div class="sp-fill" id="spFill"></div>
   <div class="sp-num" id="spNum">0%</div>
   <div class="sp-cap" id="spCap">Starting up</div>
-  <svg class="sp-line" id="spLine" viewBox="0 0 100 100" aria-hidden="true"><path id="spA"></path><path id="spB"></path><path class="cgc" id="spG1"></path><path class="cgc" id="spG2"></path><path class="cgc" id="spG3"></path></svg>
+  <svg class="sp-line" id="spLine" viewBox="0 0 100 100" aria-hidden="true"><path id="spM0"></path><path id="spM1"></path><path id="spM2"></path><path class="cgc" id="spMk"></path><path class="cgc" id="spK1"></path><path class="cgc" id="spK2"></path></svg>
   <div class="sp-done" id="spDone">
     <img id="splashLogo" alt="">
     <div class="nm" id="spName" aria-label="siteHUB"></div>
@@ -15050,77 +15053,96 @@ function spFrame(){
   return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 }
 
-/* The stroke is never lifted: the shape leaving starts running off the far end
-   before the next has finished arriving, so a handover is a continuous travel
-   rather than a cut to nothing. Two paths take it in turns to do that. */
-function spPrime(path, d){
-  path.style.transition = "none";
-  path.setAttribute("d", d);
-  const len = path.getTotalLength();
-  path.style.strokeDasharray  = len;
-  path.style.strokeDashoffset = len;
+/* One shape at a time, and never two on screen at once.
+   Each shape owns its own <path> with its d set once at start-up. Nothing
+   rewrites d mid-sequence: changing an attribute and starting a transition on
+   the same element in the same frame is exactly the case Safari is entitled to
+   collapse, which is how you end up watching shapes appear on top of one
+   another instead of being drawn.
+   The timing is driven by the animations' own finished promises rather than a
+   chain of timers, so a slow frame delays the next step instead of letting it
+   start on top of the one before. */
+const SP_DRAW = "cubic-bezier(.2,.5,.3,1)";   /* leads out, holds its pace */
+const SP_OFF  = "cubic-bezier(.4,0,.75,1)";   /* the tail accelerates away */
+
+function spSetup(){
+  const shapes = SPLASH_LINE.concat([SPLASH_MARK]).concat(SPLASH_MARK_CAPS);
+  const ids    = ["spM0","spM1","spM2","spMk","spK1","spK2"];
+  const out    = [];
+  for(let i=0; i<ids.length; i++){
+    const path = document.getElementById(ids[i]);
+    if(!path || !path.getTotalLength) return null;
+    path.setAttribute("d", shapes[i]);
+    const len = path.getTotalLength();
+    /* px, not a bare number: in a CSS context (which is what both the style
+       property and a Web Animations keyframe are) an unitless length is only
+       valid inside SVG attributes, and Safari is right to reject it */
+    path.style.strokeDasharray  = len + "px";
+    path.style.strokeDashoffset = len + "px";   /* held off until its turn */
+    out.push({ path: path, len: len });
+  }
+  return out;
 }
-function spOn(path, ms){
-  /* leads out and holds its pace: a pen that starts slowly reads as a
-     hesitation, and a strong ease-out would bolt and then crawl */
-  path.style.transition = "stroke-dashoffset " + ms + "ms cubic-bezier(.2,.5,.3,1)";
-  path.style.strokeDashoffset = "0";
-}
-function spOff(path, ms){
-  const len = path.getTotalLength();
-  path.style.transition = "stroke-dashoffset " + ms + "ms cubic-bezier(.45,.02,.55,1)";
-  path.style.strokeDashoffset = (-len) + "";
+
+/* Web Animations rather than a CSS transition: it does not depend on a style
+   change having been flushed first, which is what makes it survive Safari. */
+function spRun(it, from, to, ms, ease){
+  if(it.path.animate){
+    const anim = it.path.animate(
+      [{ strokeDashoffset: from + "px" }, { strokeDashoffset: to + "px" }],
+      { duration: ms, easing: ease, fill: "forwards" });
+    if(anim.finished) return anim.finished.catch(function(){});
+    return spWait(ms);
+  }
+  /* no Web Animations: fall back to a transition, and give the reset a frame
+     of its own so it cannot be folded into the change that follows it */
+  it.path.style.transition = "none";
+  it.path.style.strokeDashoffset = from + "px";
+  return spFrame().then(function(){
+    it.path.style.transition = "stroke-dashoffset " + ms + "ms " + ease;
+    it.path.style.strokeDashoffset = to + "px";
+    return spWait(ms);
+  });
 }
 
 async function playSplashLine(){
   const svg = document.getElementById("spLine");
-  const a   = document.getElementById("spA");
-  const b   = document.getElementById("spB");
-  const cg  = ["spG1","spG2","spG3"].map(id=>document.getElementById(id));
-  if(!svg || !a || !b || cg.some(x=>!x) || !a.getTotalLength) return;
+  if(!svg) return;
+  const S = spSetup();
+  if(!S) return;
+  const mark = S[3], caps = [S[4], S[5]];
+
   /* with motion turned down there is no drawing: the mark is simply there */
   if(window.matchMedia &&
      window.matchMedia("(prefers-reduced-motion:reduce)").matches){
-    [SPLASH_MARK].concat(SPLASH_MARK_CAPS).forEach((d,i)=>{
-      cg[i].setAttribute("d", d);
-      cg[i].style.strokeDasharray = "none";
-      cg[i].style.strokeDashoffset = "0";
+    [mark].concat(caps).forEach(function(it){
+      it.path.style.strokeDasharray  = "none";
+      it.path.style.strokeDashoffset = "0px";
     });
     svg.style.opacity = "1";
     return;
   }
 
   svg.classList.add("on");
-  let prev = null;
-  for(let i=0; i<SPLASH_LINE.length; i++){
+  for(let i=0; i<3; i++){
     if(launchDone) return;
-    const cur = (i % 2 === 0) ? a : b;
-    spPrime(cur, SPLASH_LINE[i]);
-    await spFrame();
-    if(prev) spOff(prev, 340);   /* the one before starts leaving ... */
-    await spWait(140);
-    spOn(cur, 450);              /* ... while this one is still arriving */
-    await spWait(450 + 130);
-    prev = cur;
+    await spRun(S[i], S[i].len, 0, 400, SP_DRAW);   /* drawn */
+    if(launchDone) return;
+    await spWait(120);                              /* held, so it reads */
+    if(launchDone) return;
+    await spRun(S[i], 0, -S[i].len, 260, SP_OFF);   /* and run off the end */
   }
 
-  /* and the last of them runs off into the mark, which is one unbroken travel
-     from the foot of the first C through to the end of the last. It is a long
-     path, so it gets the time a pen would take rather than a UI duration --
-     this is a cold start, seen once, not a control the user is waiting on.
-     The curve is close to linear so the pen holds its speed, easing out only
-     as it lands; a strong ease-out would make it bolt and then crawl. */
+  /* then the mark: one unbroken travel from the foot of the first C through to
+     the end of the last. It is a long path, so it gets the time a pen would
+     take rather than a UI duration -- this is a cold start, seen once, not a
+     control anyone is waiting on. */
   if(launchDone) return;
-  spPrime(cg[0], SPLASH_MARK);
-  cg.slice(1).forEach((path,i)=> spPrime(path, SPLASH_MARK_CAPS[i]));
-  await spFrame();
-  if(prev) spOff(prev, 340);
-  await spWait(140);
-  cg[0].style.transition = "stroke-dashoffset 900ms cubic-bezier(.2,.4,.3,1)";
-  cg[0].style.strokeDashoffset = "0";
-  /* the two tops appear under the pen as it passes beneath them, not after */
-  setTimeout(()=>spOn(cg[1], 240), 430);
-  setTimeout(()=>spOn(cg[2], 240), 690);
+  spRun(mark, mark.len, 0, 860, SP_DRAW);
+  /* the two tops belong to the logo, not to the pen: they appear underneath it
+     as it passes, which is the only moment they would not read as an addition */
+  setTimeout(function(){ spRun(caps[0], caps[0].len, 0, 240, SP_DRAW); }, 430);
+  setTimeout(function(){ spRun(caps[1], caps[1].len, 0, 240, SP_DRAW); }, 690);
   await spWait(720);             /* the name rises before the pen finishes */
 }
 
