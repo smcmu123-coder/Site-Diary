@@ -513,8 +513,11 @@ body.isdemo .app{padding-top:76px}
 .splash.gone{opacity:0;pointer-events:none}
 .splash{transition:opacity .5s var(--ease)}
 /* the green rises from the foot of the screen as it loads */
-.sp-fill{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--green);
-  transition:height .55s var(--ease)}
+/* full height, scaled up from the foot: animating height would relayout on
+   every frame of the count, scaleY is composited */
+.sp-fill{position:absolute;left:0;right:0;bottom:0;height:100%;background:var(--green);
+  transform:scaleY(0);transform-origin:50% 100%;
+  transition:transform .55s var(--ease)}
 .sp-num{position:absolute;left:22px;right:22px;top:34%;font-size:23vw;line-height:.92;
   font-weight:var(--w-bold);letter-spacing:-.045em;color:var(--ink);
   transition:color .45s var(--ease);font-variant-numeric:tabular-nums}
@@ -600,8 +603,11 @@ body.isdemo .app{padding-top:76px}
 /* the mark is a dark-green PNG, which would be invisible on the green.
    brightness(0) flattens it to black, invert(1) lifts it to white, and the
    transparency is untouched — so it lands in the same white as the line. */
-.sp-done img{width:116px;opacity:0;transform:scale(.94) translateY(6px);
-  filter:brightness(0) invert(1)}
+/* the mark is drawn by the line itself now, so the bitmap is not needed */
+.sp-done img{display:none}
+/* and the name sits just under that drawn mark, not in the middle of it */
+.sp-done{inset:auto 0 auto 0;top:50%;display:block;text-align:center;
+  margin-top:calc(min(54vw,196px) * .22)}
 .sp-done.on img{animation:spMark .72s cubic-bezier(.16,1,.3,1) .04s forwards}
 @keyframes spMark{ to{ opacity:1;transform:none } }
 
@@ -628,11 +634,19 @@ body.isdemo .app{padding-top:76px}
 .sp-line.on{opacity:1}
 .sp-line path{fill:none;stroke:#fff;stroke-width:4.4;
   stroke-linecap:round;stroke-linejoin:round}
-@media (prefers-reduced-motion:reduce){ .sp-line{display:none} }
+/* the mark is drawn at the logo's own proportions: a lighter stroke than the
+   machines, and terminals cut square rather than rounded */
+.sp-line path.cgc{stroke-width:3.12;stroke-linecap:butt}
+/* the machines are motion; the mark is not — so the strokes that spell it
+   stay, and only the two that draw the machines are dropped */
+@media (prefers-reduced-motion:reduce){
+  .sp-line{opacity:1;transition:none}
+  .sp-line #spA,.sp-line #spB{display:none}
+}
 
 /* hairline, drawn out from the centre once the name has landed */
-.sp-rule{width:112px;height:1px;background:rgba(255,255,255,.34);
-  transform:scaleX(0);transform-origin:50% 50%}
+.sp-rule{display:block;width:112px;height:1px;margin:14px auto 0;
+  background:rgba(255,255,255,.34);transform:scaleX(0);transform-origin:50% 50%}
 .sp-done.on .sp-rule{animation:spRule .66s cubic-bezier(.16,1,.3,1) .62s forwards}
 @keyframes spRule{ to{ transform:scaleX(1) } }
 
@@ -1454,10 +1468,10 @@ html,body{ overscroll-behavior-y:none }
   <div class="sp-fill" id="spFill"></div>
   <div class="sp-num" id="spNum">0%</div>
   <div class="sp-cap" id="spCap">Starting up</div>
-  <svg class="sp-line" id="spLine" viewBox="0 0 100 100" aria-hidden="true"><path id="spLinePath" d=""></path></svg>
+  <svg class="sp-line" id="spLine" viewBox="0 0 100 100" aria-hidden="true"><path id="spA"></path><path id="spB"></path><path class="cgc" id="spG1"></path><path class="cgc" id="spG2"></path><path class="cgc" id="spG3"></path></svg>
   <div class="sp-done" id="spDone">
     <img id="splashLogo" alt="">
-    <div class="nm" id="spName" aria-label="CGC siteHUB"></div>
+    <div class="nm" id="spName" aria-label="siteHUB"></div>
     <span class="sp-rule"></span>
   </div>
 </div>
@@ -14957,7 +14971,7 @@ function launchShow(pct, caption){
   launchAt = pct;
   if(L.num){ L.num.textContent = pct + "%"; L.num.classList.toggle("on", pct >= 55); }
   if(L.cap){ L.cap.textContent = caption || ""; L.cap.classList.toggle("on", pct >= 28); }
-  if(L.fill) L.fill.style.height = pct + "%";
+  if(L.fill) L.fill.style.transform = "scaleY(" + (pct/100) + ")";
 }
 
 function startLaunch(){
@@ -14981,7 +14995,7 @@ function startLaunch(){
      has landed inside 600ms. */
   const nm = document.getElementById("spName");
   if(nm && !nm.childElementCount){
-    const parts = [["CGC", false], [" ", false], ["site", false], ["HUB", true]];
+    const parts = [["site", false], ["HUB", true]];
     let n = 0;
     parts.forEach(([text, accent])=>{
       [...text].forEach(ch=>{
@@ -15016,40 +15030,98 @@ const SPLASH_LINE = [
   'M58,8 C67,8 69,17 62,21 L55,21 L46,44 L38,66 L26,68 C21,77 26,87 37,93 C49,87 53,77 48,68 L38,66 L46,44 L55,21'
 ];
 
-function spWait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+/* The CGC mark, measured off the logo rather than approximated: three circles
+   of the same radius, centres evenly spaced, each letter covering the exact arc
+   the real mark covers. Because the circles are all but tangent, the strokes
+   run into one another -- which is what makes the letters interlock.
+   SPLASH_MARK is ONE stroke: it starts at the foot of the first C and does not
+   lift again until the last one. The two short arcs after it are the tops of
+   the G and the final C, which the logo itself leaves separate. */
+const SPLASH_MARK = 'M33.37,59.91A14.807,14.807 0 0,1 9.81,57.85A14.807,14.807 0 0,1 18.29,35.77A14.807,14.807 0 0,1 37.18,50.00A14.807,14.807 0 0,0 51.90,64.81A14.807,14.807 0 0,0 66.71,50.00L53.08,50.00L65.14,50.00A14.807,14.807 0 0,0 66.62,48.45A14.807,14.807 0 0,0 92.43,59.91';
+const SPLASH_MARK_CAPS = [
+  'M39.77,41.51A14.807,14.807 0 0,1 62.55,39.71',
+  'M67.35,45.42A14.807,14.807 0 0,1 92.43,40.09'
+];
 
-/* draw it on, hold, then run it off the far end so the next one can follow */
-async function spDrawShape(path, d, draw, hold, erase){
+function spWait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+/* two frames: one to take the reset, one to be sure it has painted, or the
+   browser folds the reset and the transition together and skips to the end */
+function spFrame(){
+  return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+}
+
+/* The stroke is never lifted: the shape leaving starts running off the far end
+   before the next has finished arriving, so a handover is a continuous travel
+   rather than a cut to nothing. Two paths take it in turns to do that. */
+function spPrime(path, d){
   path.style.transition = "none";
   path.setAttribute("d", d);
   const len = path.getTotalLength();
   path.style.strokeDasharray  = len;
   path.style.strokeDashoffset = len;
-  /* two frames: one to take the reset, one to be sure it has painted before
-     the transition is put back on, or the browser skips straight to the end */
-  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-  path.style.transition = "stroke-dashoffset " + draw + "ms cubic-bezier(.16,1,.3,1)";
+}
+function spOn(path, ms){
+  /* leads out and holds its pace: a pen that starts slowly reads as a
+     hesitation, and a strong ease-out would bolt and then crawl */
+  path.style.transition = "stroke-dashoffset " + ms + "ms cubic-bezier(.2,.5,.3,1)";
   path.style.strokeDashoffset = "0";
-  await spWait(draw + hold);
-  if(launchDone) return;
-  path.style.transition = "stroke-dashoffset " + erase + "ms cubic-bezier(.4,0,.75,1)";
+}
+function spOff(path, ms){
+  const len = path.getTotalLength();
+  path.style.transition = "stroke-dashoffset " + ms + "ms cubic-bezier(.45,.02,.55,1)";
   path.style.strokeDashoffset = (-len) + "";
-  await spWait(erase);
 }
 
 async function playSplashLine(){
-  const svg  = document.getElementById("spLine");
-  const path = document.getElementById("spLinePath");
-  if(!svg || !path || !path.getTotalLength) return;
+  const svg = document.getElementById("spLine");
+  const a   = document.getElementById("spA");
+  const b   = document.getElementById("spB");
+  const cg  = ["spG1","spG2","spG3"].map(id=>document.getElementById(id));
+  if(!svg || !a || !b || cg.some(x=>!x) || !a.getTotalLength) return;
+  /* with motion turned down there is no drawing: the mark is simply there */
   if(window.matchMedia &&
-     window.matchMedia("(prefers-reduced-motion:reduce)").matches) return;
-  svg.classList.add("on");
-  for(const d of SPLASH_LINE){
-    if(launchDone) break;
-    await spDrawShape(path, d, 430, 150, 250);
+     window.matchMedia("(prefers-reduced-motion:reduce)").matches){
+    [SPLASH_MARK].concat(SPLASH_MARK_CAPS).forEach((d,i)=>{
+      cg[i].setAttribute("d", d);
+      cg[i].style.strokeDasharray = "none";
+      cg[i].style.strokeDashoffset = "0";
+    });
+    svg.style.opacity = "1";
+    return;
   }
-  svg.classList.remove("on");
-  await spWait(70);
+
+  svg.classList.add("on");
+  let prev = null;
+  for(let i=0; i<SPLASH_LINE.length; i++){
+    if(launchDone) return;
+    const cur = (i % 2 === 0) ? a : b;
+    spPrime(cur, SPLASH_LINE[i]);
+    await spFrame();
+    if(prev) spOff(prev, 340);   /* the one before starts leaving ... */
+    await spWait(140);
+    spOn(cur, 450);              /* ... while this one is still arriving */
+    await spWait(450 + 130);
+    prev = cur;
+  }
+
+  /* and the last of them runs off into the mark, which is one unbroken travel
+     from the foot of the first C through to the end of the last. It is a long
+     path, so it gets the time a pen would take rather than a UI duration --
+     this is a cold start, seen once, not a control the user is waiting on.
+     The curve is close to linear so the pen holds its speed, easing out only
+     as it lands; a strong ease-out would make it bolt and then crawl. */
+  if(launchDone) return;
+  spPrime(cg[0], SPLASH_MARK);
+  cg.slice(1).forEach((path,i)=> spPrime(path, SPLASH_MARK_CAPS[i]));
+  await spFrame();
+  if(prev) spOff(prev, 340);
+  await spWait(140);
+  cg[0].style.transition = "stroke-dashoffset 900ms cubic-bezier(.2,.4,.3,1)";
+  cg[0].style.strokeDashoffset = "0";
+  /* the two tops appear under the pen as it passes beneath them, not after */
+  setTimeout(()=>spOn(cg[1], 240), 430);
+  setTimeout(()=>spOn(cg[2], 240), 690);
+  await spWait(720);             /* the name rises before the pen finishes */
 }
 
 /* called as each piece of startup finishes — never backwards, never skips */
@@ -15080,7 +15152,7 @@ async function finishLaunch(){
       L.wrap.classList.add("gone");
       setTimeout(()=>{ L.wrap.style.display = "none"; }, 520);
     }
-  }, 1500);
+  }, 1400);
 }
 
 /* ------------------------------------------------------------------- boot -- */
