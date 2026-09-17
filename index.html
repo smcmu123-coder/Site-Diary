@@ -6360,23 +6360,16 @@ function ramsShareDocs(target, what, onSent){
     });
 }
 
-/* ------------------------------------------------ texting and emailing --
-   A share sheet can carry the document but never the recipients, so picking
-   Messages from it left the "To" line empty. Texts and emails now go out as
-   links with the numbers and addresses already filled in; the share sheet is
-   kept as a separate choice for sending the file itself. */
-const isApplePhone = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
-  || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+/* --------------------------------------------- sending a RAMS out ------
+   Three ways out: the share sheet, which is the only one that can carry the
+   document itself; WhatsApp; and email. Texting was here too and has been
+   taken out — an iPad cannot text an Android at all, and a text can never
+   carry the document, so it promised something it could not do. Records of
+   texts already sent are still shown in the log.
 
-function cleanPhone(n){
-  const t = String(n||"").trim();
-  return (t.startsWith("+") ? "+" : "") + t.replace(/\D/g, "");
-}
-
-/* WhatsApp wants the number in full international form with nothing in front
+   WhatsApp wants the number in full international form with nothing in front
    of it. A number typed the way it is said on site — 07700 900123 — is a UK
-   one, so that is what it becomes. This is the way round an iPad, which
-   cannot text an Android at all. */
+   one, so that is what it becomes. */
 function waNumber(n){
   let t = String(n||"").replace(/[^\d+]/g, "");
   if(t.charAt(0) === "+") t = t.slice(1);
@@ -6387,19 +6380,6 @@ function waNumber(n){
 function waHref(phone, body){
   const n = waNumber(phone);
   return n ? "https://wa.me/" + n + "?text=" + encodeURIComponent(body) : "";
-}
-
-/* iPhone and Android read a list of numbers differently. */
-function smsHref(numbers, body){
-  const nums = [...new Set(numbers.map(cleanPhone).filter(x=>x.replace("+","").length >= 6))];
-  const b = encodeURIComponent(body);
-  if(!nums.length) return "";
-  if(isApplePhone()){
-    return nums.length > 1
-      ? "sms:/open?addresses=" + nums.join(",") + "&body=" + b
-      : "sms:" + nums[0] + "&body=" + b;
-  }
-  return "sms:" + nums.join(",") + "?body=" + b;
 }
 
 function openLink(href, newTab){
@@ -6469,9 +6449,7 @@ function ramsSendCopy(rev, add, person, kind){
       person.email ? { label:"Email " + first + " — message only", go: () => {
         openLink("mailto:" + encodeURIComponent(person.email) + "?subject=" + encodeURIComponent(subject)
           + "&body=" + encodeURIComponent(body), true);
-        log("email", false); } } : null,
-      smsHref([person.phone], text) ? { label:"Text " + first + " — message only", go: () => {
-        openLink(smsHref([person.phone], text)); log("sms", false); } } : null
+        log("email", false); } } : null
     ]);
 }
 
@@ -6495,7 +6473,6 @@ function ramsNotifyAll(rev, add){
   const subject = "Please sign — " + what + " — " + DB.job;
   const body = "The " + what + " for " + DB.job + " needs signing on site as soon as you can.";
   const text = body + " — " + cfg().company;
-  const texters = waiting.filter(p=>cleanPhone(p.phone).replace("+","").length >= 6);
   const emailers = waiting.filter(p=>p.email);
   const whats = waiting.filter(p=>waHref(p.phone, text));
 
@@ -6505,24 +6482,27 @@ function ramsNotifyAll(rev, add){
       to: list.map(p=>p.name).join(", "), docs:0 });
     save(); render();
     const missing = waiting.length - list.length;
-    const how = channel === "sms" ? "number" : channel === "email" ? "email" : "number";
     toast("Chasing " + peopleCount(list.length)
-      + (missing ? " — " + missing + " with no " + how + " on file" : ""));
+      + (missing ? " — " + missing + " with no " + (channel === "email" ? "email" : "number")
+          + " on file" : ""));
   };
+
+  /* One email reaches everybody at once; WhatsApp goes to one person at a
+     time, so each of them gets their own button. */
+  const waButtons = whats.slice(0, 6).map(p=>({
+    label:"WhatsApp " + (p.name||"Unnamed").split(" ")[0],
+    go: () => { openLink(waHref(p.phone, text), true); log("whatsapp", [p]); }
+  }));
 
   ramsPickChannel("Chase the signatures",
     peopleCount(waiting.length) + " still to sign: "
       + waiting.map(p=>(p.name||"Unnamed").split(" ")[0]).join(", "),
     [
-      whats.length === 1 ? { label:"WhatsApp " + (whats[0].name||"").split(" ")[0], go: () => {
-        openLink(waHref(whats[0].phone, text), true); log("whatsapp", whats); } } : null,
-      texters.length ? { label:"Text " + peopleCount(texters.length), go: () => {
-        openLink(smsHref(texters.map(p=>p.phone), text)); log("sms", texters); } } : null,
       emailers.length ? { label:"Email " + peopleCount(emailers.length), go: () => {
         openLink("mailto:?bcc=" + encodeURIComponent(emailers.map(p=>p.email).join(",")) + "&subject="
           + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body), true);
         log("email", emailers); } } : null
-    ]);
+    ].concat(waButtons));
 }
 
 function openRamsLog(list){
