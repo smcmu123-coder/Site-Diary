@@ -6257,6 +6257,13 @@ function ramsPromptContact(person, onDone){
     const phone = wrap.querySelector("#ramsCtPhone").value.trim();
     if(email) person.email = email;
     if(phone) person.phone = phone;
+    /* the person here may be a copy taken from the register, so put it back
+       on the register itself — that is where the labour screen reads from */
+    const onRegister = (DB.labour||[]).find(x=>x.id===person.id);
+    if(onRegister){
+      if(email) onRegister.email = email;
+      if(phone) onRegister.phone = phone;
+    }
     save();
     close();
     onDone();
@@ -10626,7 +10633,23 @@ const TRADES = ["Groundworker","Machine operator","Banksman","Pipelayer","Steel 
   "Concrete gang","Kerb layer","Traffic management","Supervisor","Apprentice","Other"];
 
 function blankLabour(){ return { name:"", trade:"Groundworker", company:"Cheltenham Green Civils",
-  onDate:todayISO(), offDate:"" }; }
+  phone:"", email:"", onDate:todayISO(), offDate:"" }; }
+
+/* A number or an email is all it takes to send somebody their RAMS, so the
+   register says plainly who is missing one. */
+const hasContact = l => !!(l && ((l.phone||"").trim() || (l.email||"").trim()));
+function labourContactLine(l){
+  const bits = [];
+  if((l.phone||"").trim()) bits.push(`<a href="tel:${esc(String(l.phone).replace(/[^\d+]/g,""))}"
+    style="color:var(--green-700);font-weight:620;white-space:nowrap">${esc(l.phone)}</a>`);
+  if((l.email||"").trim()) bits.push(`<a href="mailto:${esc(l.email)}"
+    style="color:var(--green-700);font-weight:620;overflow-wrap:anywhere">${esc(l.email)}</a>`);
+  if(bits.length)
+    return `<span style="display:block;font-size:13px;margin-top:5px;line-height:1.5">${bits.join(" · ")}</span>`;
+  return `<button type="button" data-lbedit="${l.id}" style="display:block;margin-top:5px;
+    font-size:12.5px;font-weight:640;color:var(--warn-700);text-align:left">
+    + Add a number or email &mdash; needed to send them the RAMS</button>`;
+}
 
 function labourFields(l, attr){
   return `
@@ -10640,8 +10663,17 @@ function labourFields(l, attr){
       <div class="f"><label>Company</label>
         <input class="in" ${attr}="company" value="${esc(l.company||"")}"></div>
     </div>
-    <div class="f" style="margin:0"><label>On site from</label>
-      <input class="in" type="date" ${attr}="onDate" value="${esc(l.onDate||"")}"></div>`;
+    <div class="f"><label>On site from</label>
+      <input class="in" type="date" ${attr}="onDate" value="${esc(l.onDate||"")}"></div>
+    <div class="f" style="margin:0"><label>Contact</label>
+      <div class="hint">Where their copy of the RAMS goes, and how they are chased for a
+        signature. Either one is enough.</div>
+      <div class="g2">
+        <input class="in" type="tel" inputmode="tel" ${attr}="phone" value="${esc(l.phone||"")}"
+          placeholder="Mobile" autocomplete="tel">
+        <input class="in" type="email" inputmode="email" ${attr}="email" value="${esc(l.email||"")}"
+          placeholder="Email" autocomplete="email" autocapitalize="off" spellcheck="false">
+      </div></div>`;
 }
 
 function labourView(){
@@ -10662,6 +10694,7 @@ function labourView(){
         <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:16.5px;font-weight:650;display:block">${esc(l.name||"Unnamed")}</b>
           <span style="font-size:13px;color:var(--ink-2)">${esc(l.trade)} · ${esc(l.company||"")}</span>
+          ${labourContactLine(l)}
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px">
@@ -10676,6 +10709,8 @@ function labourView(){
         <div style="flex:1 1 170px;min-width:0">
           <b style="font-size:15.5px;font-weight:620;display:block;color:var(--ink-2)">${esc(l.name||"Unnamed")}</b>
           <span style="font-size:13px;color:var(--ink-3)">${esc(l.trade)} · left ${l.offDate?shortDate(l.offDate):"—"}</span>
+          ${hasContact(l) ? `<span style="font-size:12.5px;color:var(--ink-3);display:block;margin-top:4px;
+            overflow-wrap:anywhere">${esc([l.phone, l.email].filter(x=>(x||"").trim()).join(" · "))}</span>` : ""}
         </div>
         <span class="pill grey">Off site</span>
       </div>
@@ -10698,6 +10733,17 @@ function labourView(){
     <div class="card" style="background:var(--green-50);box-shadow:none">
       <p>Everyone on this list appears in the diary each day. Tick who was on site, and anyone outside normal hours gets a start time, a finish time and a reason. The timesheet then builds itself.</p>
     </div>
+    ${(function(){
+      const missing = on.filter(l=>!hasContact(l));
+      if(!on.length || !missing.length) return "";
+      return `<div class="card" style="background:var(--warn-bg);box-shadow:none">
+        <b style="color:var(--warn-700);font-weight:660">${missing.length} of ${on.length}
+          ${missing.length===1?"has":"have"} no contact details</b>
+        <p style="margin-top:6px;color:var(--ink-2)">${
+          missing.map(l=>esc((l.name||"Unnamed").split(" ")[0])).join(", ")
+        } can't be sent the RAMS or chased for a signature until there is a number or an email
+        against them.</p></div>`;
+    })()}
     ${on.length ? `<div class="sect">On site (${on.length})</div><div class="reggrid">${rows}</div>`
       : `<div class="card"><h3>Nobody added yet</h3><p>Add the gang working on this job.</p></div>`}
     ${add}
