@@ -1124,7 +1124,13 @@ body.isdemo .app{padding-top:76px}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
   font-size:10px;display:flex;justify-content:space-between}
 @media print{
-  @page{size:A4;margin:14mm}
+  /* The browser draws its own header and footer -- the address, the date, the
+     page number -- in the page margin. There is no way for a document to turn
+     those off, but with no margin there is nowhere for them to go, and most
+     browsers drop them. The 14mm they were taking moves onto the pages
+     themselves, so nothing shifts on the paper and nothing lands at the edge
+     if the browser keeps printing them anyway. */
+  @page{size:A4;margin:0}
   body{background:#fff}
   /* Nothing belonging to the app itself goes on the paper: the navigation, the
      splash, messages and any overlay all live outside the page container. */
@@ -1137,7 +1143,7 @@ body.isdemo .app{padding-top:76px}
      where one page ends on screen. On paper the page break says that, and the
      14mm they take is enough on its own to tip a full-height block onto a
      second sheet -- which the break after it then leaves blank. */
-  .pk-page{padding:0;margin:0;border:0;page-break-after:always;break-after:page}
+  .pk-page{padding:11mm 14mm;margin:0;border:0;page-break-after:always;break-after:page}
   .pk-page:last-child{page-break-after:auto;break-after:auto}
   /* A section cover fills its page without being able to overflow it. At 225mm
      it sat within a few millimetres of what an A4 page can hold, so a section
@@ -3665,7 +3671,7 @@ function printWeeklyPlantSheet(plantId, ws){
         return `<tr><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]}</td>
           <td>${esc(r.by||"")}</td>
           <td>${shortDate(d)} ${timeOnly(r.submittedAt)}</td>
-          <td style="height:40px">${sig&&sig.src?`<img src="${sig.src}" style="height:32px">`:""}</td></tr>`;
+          <td style="height:40px">${sig&&sig.src?`<img src="${sig.src}" alt="Signature" style="display:block;width:40mm;height:11mm;object-fit:contain;object-position:left center">`:""}</td></tr>`;
       }).join("")}
     </table>
 
@@ -3769,12 +3775,37 @@ function openPackSheet(ws, draft){
         ${code?`<div style="font-size:10.5px;color:#555">${esc(code)}</div>`:""}</div>
     </div>
     ${meta ? tbl(null, meta, { cols:["19%","31%","19%","31%"] }) : ""}`;
-  const declaration = (rows, sig, cols) => `
+  /* A signature is drawn into a box of a stated size. Given only a height, the
+     width is worked out from the signature's own proportions, and a wide one
+     then runs past the cell it is meant to sit in. */
+  const sigImg = (sig, w, h) => (sig && sig.src)
+    ? `<img src="${sig.src}" alt="Signature" style="display:block;width:${w||44}mm;`
+      + `height:${h||13}mm;object-fit:contain;object-position:left center">`
+    : "";
+
+  /* The signature used to be put after the table, with the Signature row left
+     empty beside it. Anything after a table can fall to the next page on its
+     own -- which is how a declaration ended up with an empty Signature box and
+     the signature by itself at the top of the following sheet. It now goes in
+     the box, where it cannot be separated from what it is signing. */
+  const declaration = (rows, sig, cols) => {
+    let placed = false;
+    const filled = rows.map(r=>{
+      if(!placed && r.length === 2 && r[0] === "Signature" && !r[1]){
+        placed = true;
+        return [r[0], sigImg(sig)];
+      }
+      return r;
+    });
+    const opts = { raw:[1] };
+    if(cols) opts.cols = cols;
+    return `
     <div class="pk-h">Declaration</div>
     <p style="font-size:10px;color:#555;margin:0 0 6px"><i>Upon inspecting, I confirm that the
       inspection results are accurate and where deemed as safe are fit for purpose.</i></p>
-    ${tbl(null, rows, cols?{cols}:undefined)}
-    ${sig&&sig.src?`<img src="${sig.src}" alt="Signature" style="height:46px">`:""}`;
+    ${tbl(null, filled, opts)}
+    ${(sig && sig.src && !placed) ? `<div style="margin-top:6px">${sigImg(sig)}</div>` : ""}`;
+  };
 
   const metaFor = (rec, extra) => [
     ["Site / depot", rec.job, "Date", longDate(rec.date)],
@@ -3861,7 +3892,9 @@ function openPackSheet(ws, draft){
                "Scanned", shortDate(iso(new Date(sc.addedAt))) + " by " + esc(sc.by||"")]
             ])}
             <div class="pk-scanbox"><img src="${pg.src}" alt="Scanned sheet"
-              width="559" height="794"></div>
+              width="559" height="794"
+              style="display:inline-block;width:148mm;height:210mm;object-fit:contain;
+                object-position:top center;border:0;max-width:100%"></div>
           </div>`;
         });
       });
@@ -3918,7 +3951,7 @@ function openPackSheet(ws, draft){
           (i+1)+".",
           a.name || "",
           a.sig && a.sig.src
-            ? `<img src="${a.sig.src}" style="height:30px;display:block">`
+            ? `<img src="${a.sig.src}" alt="Signature" style="display:block;width:34mm;height:10mm;object-fit:contain;object-position:left center">`
             : "&mdash;"
         ]);
         html += page(
@@ -3972,7 +4005,7 @@ function openPackSheet(ws, draft){
           `<div class="pk-h">Attendees</div>` +
           tbl(["","Name","Signature"],
             att.length ? att.map((a,i)=>[(i+1)+".", a.name||"",
-              a.sig && a.sig.src ? `<img src="${a.sig.src}" style="height:30px;display:block">` : "&mdash;"])
+              a.sig && a.sig.src ? `<img src="${a.sig.src}" alt="Signature" style="display:block;width:34mm;height:10mm;object-fit:contain;object-position:left center">` : "&mdash;"])
               : [["","None recorded",""]],
             { raw:[2], widths:[0.07,0.45,0.48] }) +
           declaration([["Delivered by", d.deliveredBy||rec.by||""],
