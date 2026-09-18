@@ -2272,6 +2272,113 @@ function idbGet(key){
     rq.onerror = () => rej(rq.error);
   }));
 }
+/* Several records in one go, in small batches. A batch is kept short so that a
+   transaction never carries more than a few megabytes, whatever is in it. */
+function idbPutMany(pairs){
+  if(!pairs.length) return Promise.resolve(true);
+  const batch = pairs.slice(0, 8), rest = pairs.slice(8);
+  return idb().then(db => new Promise((res, rej)=>{
+    let tx;
+    try{
+      tx = db.transaction(IDB_STORE, "readwrite");
+      const st = tx.objectStore(IDB_STORE);
+      batch.forEach(([k,v])=>st.put(v, k));
+    }catch(e){ rej(e); return; }
+    tx.oncomplete = () => res(true);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error || new Error("the write was stopped"));
+  })).then(()=> idbPutMany(rest));
+}
+function idbGetMany(keys){
+  if(!keys.length) return Promise.resolve(new Map());
+  return idb().then(db => new Promise((res, rej)=>{
+    const out = new Map();
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const st = tx.objectStore(IDB_STORE);
+    keys.forEach(k=>{ const rq = st.get(k); rq.onsuccess = () => out.set(k, rq.result); });
+    tx.oncomplete = () => res(out);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error || new Error("the read was stopped"));
+  }));
+}
+function idbKeys(){
+  return idb().then(db => new Promise((res, rej)=>{
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const rq = tx.objectStore(IDB_STORE).getAllKeys();
+    rq.onsuccess = () => res(rq.result || []);
+    rq.onerror = () => rej(rq.error);
+  }));
+}
+function idbDelMany(keys){
+  if(!keys.length) return Promise.resolve(true);
+  return idb().then(db => new Promise((res, rej)=>{
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    const st = tx.objectStore(IDB_STORE);
+    keys.forEach(k=>st.delete(k));
+    tx.oncomplete = () => res(true);
+    tx.onerror = () => rej(tx.error);
+    tx.onabort = () => rej(tx.error || new Error("the delete was stopped"));
+  }));
+}
+
+/* ---- the images are kept in records of their own ------------------------
+   WebKit runs IndexedDB in a process of its own, and handing that process one
+   enormous value is what makes it give up with "connection to the Indexed
+   Database server lost". The whole store used to be a single record, so every
+   save rewrote every scan and photograph ever taken -- a hundred megabytes to
+   record a delivery. The records themselves are small; it is the images that
+   are not. So each image is written as a record of its own, only when it has
+   actually changed, and the record that refers to them stays a few hundred
+   kilobytes however many there are.
+
+   In memory nothing changes: the images sit on the objects exactly as before,
+   so everything that reads them is untouched. */
+const BLOB_MIN = 16 * 1024;
+let blobSeq = 0;
+const blobSig = new Map();          /* key -> what is already in the store */
+const blobPrefix = () => KEY + ".img.";
+const isImageData = v => typeof v === "string" && v.length >= BLOB_MIN
+  && v.lastIndexOf("data:image/", 0) === 0;
+const sigOf = v => v.length + "|" + v.slice(-40);
+function blobNewKey(){ return "i" + Date.now().toString(36) + "_" + (++blobSeq).toString(36); }
+
+/* a copy of the store with the images lifted out, and a list of what to write */
+function splitOut(node, jobs, live){
+  if(Array.isArray(node)) return node.map(v=>splitOut(v, jobs, live));
+  if(!node || typeof node !== "object" || node instanceof Date) return node;
+  let marks = node.__img;
+  const out = {};
+  for(const k in node){
+    if(k === "__img") continue;
+    const v = node[k];
+    if(isImageData(v)){
+      marks = marks || {};
+      if(!marks[k]) marks[k] = blobNewKey();
+      const key = marks[k];
+      live.add(key);
+      const sig = sigOf(v);
+      if(blobSig.get(key) !== sig) jobs.push([key, v, sig]);
+      out[k] = "";                       /* the record keeps only the pointer */
+    }else{
+      out[k] = splitOut(v, jobs, live);
+    }
+  }
+  if(marks){ node.__img = marks; out.__img = marks; }
+  return out;
+}
+function eachMark(node, fn){
+  if(Array.isArray(node)){ node.forEach(v=>eachMark(v, fn)); return; }
+  if(!node || typeof node !== "object") return;
+  if(node.__img) fn(node);
+  for(const k in node){ if(k !== "__img") eachMark(node[k], fn); }
+}
+/* markers from somebody else's device mean nothing here, so they are dropped
+   and fresh ones minted on the next save */
+function stripMarks(node){
+  eachMark(node, o=>{ delete o.__img; });
+  return node;
+}
+
 function idbSet(key, value){
   return idb().then(db => new Promise((res, rej)=>{
     let tx;
@@ -2293,12 +2400,49 @@ function blankDB(){
     deliveries:[], events:[], rams:[] };
 }
 
+/* Images that nothing points at any more -- a scan removed, a photograph taken
+   off -- are cleared out after the record has been written. Reading the list of
+   keys is cheap; nothing is deleted unless there is something to delete. */
+async function sweepBlobs(live){
+  try{
+    const pre = blobPrefix();
+    const all = await idbKeys();
+    const dead = all.filter(k => typeof k === "string" && k.lastIndexOf(pre,0) === 0
+      && !live.has(k.slice(pre.length)));
+    if(!dead.length) return;
+    await idbDelMany(dead);
+    dead.forEach(k=>blobSig.delete(k.slice(pre.length)));
+  }catch(e){ /* housekeeping: never worth failing a save over */ }
+}
+
+/* Put the images back onto the records they belong to. */
+async function joinBack(slim){
+  const want = new Set();
+  eachMark(slim, o=>{ for(const k in o.__img) want.add(o.__img[k]); });
+  if(!want.size) return slim;
+  const pre = blobPrefix();
+  const got = await idbGetMany([...want].map(k=>pre+k));
+  eachMark(slim, o=>{
+    for(const k in o.__img){
+      const key = o.__img[k];
+      const v = got.get(pre+key);
+      if(typeof v === "string"){
+        o[k] = v;
+        /* remember what is already in the store, so the first save after
+           opening does not rewrite every image over again */
+        blobSig.set(key, sigOf(v));
+      }
+    }
+  });
+  return slim;
+}
+
 /* Read what is there: IndexedDB first, then anything left in localStorage from
    before the change, then a fresh start. */
 async function loadDB(){
   try{
     const fromIdb = await idbGet(KEY);
-    if(fromIdb) return fromIdb;
+    if(fromIdb) return await joinBack(fromIdb);
   }catch(e){ /* fall through to the old store */ }
   try{
     const raw = localStorage.getItem(KEY);
@@ -2375,7 +2519,14 @@ async function writeDB(){
 
   for(let attempt = 0; attempt < 3; attempt++){
     try{
-      await idbSet(KEY, DB);
+      const jobs = [], live = new Set();
+      const slim = splitOut(DB, jobs, live);
+      /* images first: if one of them fails the record still points at what was
+         there before, so the store is never left referring to nothing */
+      await idbPutMany(jobs.map(j=>[blobPrefix() + j[0], j[1]]));
+      jobs.forEach(j=>blobSig.set(j[0], j[2]));
+      await idbSet(KEY, slim);
+      await sweepBlobs(live);
       saveTrouble = null;
       if(saveFailed){ saveFailed = false; warnBanner(false); }
       clearTimeout(saveRetry); saveRetry = null;
@@ -2388,7 +2539,11 @@ async function writeDB(){
          doing it coped, so fall back to that rather than lose the work. */
       if(e && e.name === "DataCloneError"){
         try{
-          await idbSet(KEY, JSON.parse(JSON.stringify(DB)));
+          const j2 = [], l2 = new Set();
+          const slim2 = splitOut(JSON.parse(JSON.stringify(DB)), j2, l2);
+          await idbPutMany(j2.map(x=>[blobPrefix() + x[0], x[1]]));
+          j2.forEach(x=>blobSig.set(x[0], x[2]));
+          await idbSet(KEY, slim2);
           saveTrouble = null;
           if(saveFailed){ saveFailed = false; warnBanner(false); }
           return true;
@@ -15083,6 +15238,7 @@ function importBackup(){
       let d;
       try{ d = JSON.parse(fr.result); }catch(e){ toast("That file could not be read."); return; }
       if(!d || !Array.isArray(d.records)){ toast("That is not a backup file."); return; }
+      stripMarks(d);
       const before = DB.records.length;
       askConfirm("Merge this backup?",
         "It has "+d.records.length+" diar"+(d.records.length===1?"y":"ies")+". Anything newer in the file wins; nothing on this device is deleted.",
@@ -15147,6 +15303,7 @@ function restoreBackup(){
           /* the token lives on this device and is deliberately never written
              into a backup, so it is carried across rather than wiped */
           const token = (DB.board && DB.board.token) || "";
+          stripMarks(d);
           const fresh = blankDB();
           Object.keys(fresh).forEach(k => { if(!(k in d)) d[k] = fresh[k]; });
           DB = d;
