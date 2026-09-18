@@ -1123,10 +1123,28 @@ body.isdemo .app{padding-top:76px}
   .sheetwrap{position:static;display:block!important;background:#fff;overflow:visible}
   /* paper gets the finished article, never a frame of the way it arrived */
   .sheetwrap, .sheetwrap *{animation:none!important;transition:none!important;opacity:1!important}
-  .pk-page{page-break-after:always;break-after:page}
+  /* The dashed rule, the padding and the gap between pages are there to show
+     where one page ends on screen. On paper the page break says that, and the
+     14mm they take is enough on its own to tip a full-height block onto a
+     second sheet -- which the break after it then leaves blank. */
+  .pk-page{padding:0;margin:0;border:0;page-break-after:always;break-after:page}
   .pk-page:last-child{page-break-after:auto;break-after:auto}
-  .pk-div{min-height:225mm}
-  .pk-page.pk-full{padding:0;margin:0;border:0}
+  /* A section cover fills its page without being able to overflow it. At 225mm
+     it sat within a few millimetres of what an A4 page can hold, so a section
+     name that wrapped to a second line -- or a printer applying margins of its
+     own -- pushed the last of it onto the next sheet, and the break after it
+     left that sheet empty. There is now 70mm in hand. */
+  .pk-div{min-height:195mm;break-inside:avoid;page-break-inside:avoid}
+  /* A sheet with six or seven headings on it spends 40mm on the gaps between
+     them, which was tipping a record that otherwise fits onto a second page
+     for the sake of the last centimetre. Screen keeps the looser rhythm. */
+  .sheet .pk-h{margin:9px 0 4px}
+  .sheet table.pk{margin-bottom:6px}
+  /* a millimetre off each row matters more than it sounds on a checklist with
+     a dozen of them, and it is not visible on the page */
+  .sheet table.pk th,.sheet table.pk td{padding:3.5px 7px}
+  /* and a table is never split across two sheets if it can be helped */
+  .sheet table.pk{break-inside:avoid;page-break-inside:avoid}
   .pk-docpg{width:auto;max-width:100%;max-height:256mm;margin:0 auto;border:0}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
@@ -5259,8 +5277,10 @@ function availablePlant(){
 const LEAVE_LABEL = { HOL:"Holiday", SICK:"Off sick", TRN:"Training", OFF:"Day off" };
 
 /* what an entry in the diary actually is — not everything is a visitor */
-const EVENT_KINDS = ["Appointment","Visitor","Meeting","Inspection","Audit","Survey",
-  "Training","Other"];
+/* The section is called "Add a reminder", so Reminder is the first thing on the
+   list and what a new one starts as. It was the one type you could not pick. */
+const EVENT_KINDS = ["Reminder","Appointment","Visitor","Meeting","Inspection","Audit",
+  "Survey","Training","Other"];
 
 const PLAN_KINDS = {
   delivery:    { label:"Delivery",      one:"delivery",       many:"deliveries",
@@ -5311,7 +5331,8 @@ function planItems(date){
 
   (DB.events||[]).filter(e=>e.job===DB.job && e.date===date).forEach(e=>{
     out.push({ kind:"appointment", time:e.time||"", sort:0,
-      text:e.title, sub:[e.kind && e.kind!=="Appointment" ? e.kind : "", e.notes||""]
+      text:e.title, sub:[e.kind && e.kind!=="Appointment" && e.kind!=="Reminder"
+        ? e.kind : "", e.notes||""]
         .filter(Boolean).join(" · "),
       go:{ name:"plan", date }, ref:{ type:"event", id:e.id } });
   });
@@ -6998,6 +7019,54 @@ function fitToA4(src, opts){
   const out = { src: cv.toDataURL("image/jpeg", opts.quality || 0.74), landscape };
   cv.width = cv.height = 0;
   return out;
+}
+
+/* Put every scan already saved through the same treatment. This is what
+   actually helps a store that is too big to write: shrinking what is on there
+   now, rather than only what is added from here on. It writes once at the end,
+   not once per sheet, so a failure leaves the store exactly as it was. */
+async function shrinkSavedScans(){
+  const scans = DB.scans || [];
+  const pages = scans.reduce((n,sc)=>n + (sc.pages||[]).length, 0);
+  if(!pages){ toast("There are no scans saved."); return; }
+  const before = measureDB().bytes;
+
+  toast("Working through " + pages + " sheet" + (pages===1?"":"s") + "…");
+  let done = 0;
+  for(const sc of scans){
+    for(const pg of (sc.pages||[])){
+      if(!pg || !pg.src || pg.shrunk) continue;
+      const small = await shrinkScan(pg.src);
+      /* only keep it if it actually came out smaller -- re-encoding something
+         already small enough would cost quality for nothing */
+      if(small.length < pg.src.length * 0.92){ pg.src = small; done++; }
+      pg.shrunk = true;
+    }
+  }
+  if(!done){ save(); toast("They are already as small as they usefully go."); return; }
+
+  const after = measureDB().bytes;
+  const ok = await flushSave();
+  const saved = Math.max(0, before - after);
+  if(ok) toast("Done — " + kb(saved) + " freed from " + done + " sheet" + (done===1?"":"s"));
+  else   toast("Shrunk, but the save still did not go through.");
+  render();
+}
+
+/* A scanned sheet onto A4 at the size the rest of the app uses. Paper with
+   writing on it survives this happily; what it does not survive is being kept
+   at camera resolution in a store that is rewritten from end to end every time
+   anything at all is saved. */
+function shrinkScan(src){
+  return new Promise(res=>{
+    const im = new Image();
+    im.onload = () => {
+      try{ res(fitToA4(im, { quality:0.66 }).src); }
+      catch(e){ res(src); }
+    };
+    im.onerror = () => res(src);   /* better the big one than none of it */
+    im.src = src;
+  });
 }
 
 /* A quarter turn clockwise, then back onto A4. */
@@ -9605,7 +9674,7 @@ function planView(){
       <div class="f"><label>Type</label>
         <select class="in" data-ev="kind">
           ${EVENT_KINDS.map(k=>`<option ${
-            (eventDraft.kind||"Appointment")===k?"selected":""}>${k}</option>`).join("")}
+            (eventDraft.kind||"Reminder")===k?"selected":""}>${k}</option>`).join("")}
         </select></div>
       <div class="g2">
         <div class="f"><label>Date</label>
@@ -11901,6 +11970,12 @@ function settingsView(){
             · ${shortDate(iso(new Date(saveTrouble.at)))} ${timeOnly(saveTrouble.at)}</p>
           <button class="btn line sm" style="margin:10px 0 0" data-savenow="1">Try saving again</button>
         </div>` : ""}
+        <button class="btn line sm" style="margin:12px 0 0" data-shrink="1">
+          Shrink the scans already saved</button>
+        <p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
+          Check sheets scanned before this were kept at camera size, about three times
+          bigger than they need to be. This puts them onto A4 like the rest. Nothing is
+          removed and they stay perfectly readable.</p>
         <button class="btn line sm" style="margin:12px 0 0" data-reclaim="1">
           Remove photographs older than a month</button>
         <p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
@@ -13372,7 +13447,7 @@ function bind(){
   if(lav) lav.onclick = ()=> printLookahead(view.from || todayISO(), planSpan());
   app.querySelectorAll("[data-planday]").forEach(el=>el.onclick=()=>{
     planPick = null;
-    eventDraft = { date: el.dataset.planday, title:"", kind:"Appointment", time:"", notes:"" };
+    eventDraft = { date: el.dataset.planday, title:"", kind:"Reminder", time:"", notes:"" };
     render();
   });
   app.querySelectorAll("[data-planpick]").forEach(el=>el.onclick=(e)=>{
@@ -13419,7 +13494,7 @@ function bind(){
 
   const eva = app.querySelector("[data-evadd]");
   if(eva) eva.onclick = ()=>{
-    eventDraft = { date: eva.dataset.evadd, title:"", kind:"Appointment", time:"", notes:"" };
+    eventDraft = { date: eva.dataset.evadd, title:"", kind:"Reminder", time:"", notes:"" };
     render();
   };
   app.querySelectorAll("[data-ev]").forEach(el=>{
@@ -13936,9 +14011,14 @@ function bind(){
   const sc = app.querySelector("[data-scancancel]");
   if(sc) sc.onclick = ()=>{ scanDraft = null; render(); };
   const sp = app.querySelector("[data-scanpage]");
-  if(sp) sp.onclick = ()=>openScanner(doc=>{
+  if(sp) sp.onclick = ()=>openScanner(async doc=>{
     if(!scanDraft) return;
-    scanDraft.pages.push({ src:doc.src, at:Date.now() });
+    /* The scanner hands back the straightened photograph at up to 1500px and
+       barely compressed -- about 850KB a sheet, where every other scan in the
+       app is put onto A4 first and comes in around 270KB. A week of dumper
+       checks was going in at 10MB, and all of it is rewritten on every single
+       save, because the whole store is one record. */
+    scanDraft.pages.push({ src: await shrinkScan(doc.src), at:Date.now() });
     render();
   });
   const su = app.querySelector("[data-scanup]");
@@ -13948,7 +14028,7 @@ function bind(){
     inp.onchange = async () => {
       try{
         const doc = await compressDoc(inp.files[0]);
-        scanDraft.pages.push({ src:doc.src, at:Date.now() });
+        scanDraft.pages.push({ src: await shrinkScan(doc.src), at:Date.now() });
         render();
       }catch(e){ toast("That file could not be read."); }
     };
@@ -13975,14 +14055,22 @@ function bind(){
     el.onchange = el.oninput;
   });
   const sv = app.querySelector("[data-scansave]");
-  if(sv) sv.onclick = ()=>{
+  if(sv) sv.onclick = async ()=>{
     if(!scanDraft.pages.length){ toast("Scan at least one page."); return; }
     const ws = view.week || weekStart(todayISO());
     DB.scans = DB.scans || [];
-    DB.scans.push({ id:"sc_"+Date.now(), job:DB.job, week:ws, kind:"plantcheck",
+    const entry = { id:"sc_"+Date.now(), job:DB.job, week:ws, kind:"plantcheck",
       plantId:scanDraft.plantId||"", title:scanDraft.title||"", pages:scanDraft.pages,
-      addedAt:Date.now(), by:cfg().user.name });
-    scanDraft = null; save(); boardMaybePush(); render(); toast("Filed with this week");
+      addedAt:Date.now(), by:cfg().user.name };
+    DB.scans.push(entry);
+    scanDraft = null; render();
+    /* It used to say "Filed with this week" the moment the button was pressed,
+       while the write was still a quarter of a second away -- so on a store too
+       big to write you were told it was filed and warned it had not saved, at
+       the same time. It now waits and says which of the two happened. */
+    const ok = await flushSave();
+    if(ok){ boardMaybePush(); toast("Filed with this week"); }
+    else   { toast("Scanned, but not saved yet — see Profile."); }
   };
   app.querySelectorAll("[data-scansgo]").forEach(el=>el.onclick=()=>
     go("scans", { week: el.getAttribute("data-scansgo") }));
@@ -14059,6 +14147,7 @@ function bind(){
   const ex = app.querySelector("[data-export]"); if(ex) ex.onclick = exportBackup;
   const im = app.querySelector("[data-import]"); if(im) im.onclick = importBackup;
   const rs = app.querySelector("[data-restore]"); if(rs) rs.onclick = restoreBackup;
+  const shr = app.querySelector("[data-shrink]"); if(shr) shr.onclick = shrinkSavedScans;
   const dm = app.querySelector("[data-demo]"); if(dm) dm.onclick = shareDemo;
   const bd = app.querySelector("[data-board]"); if(bd) bd.onclick = publishBoard;
   app.querySelectorAll("[data-bcfg]").forEach(el=>{
