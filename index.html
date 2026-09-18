@@ -1111,6 +1111,8 @@ body.isdemo .app{padding-top:76px}
 /* a page that is all document: nothing added below it to push it over */
 .pk-page.pk-full{break-inside:avoid}
 .pk-scanbox{display:block;margin-top:10px}
+/* the attributes on the tag say A5 in pixels as well, so the size holds even
+   somewhere the print rules never arrive; on screen these are overridden */
 .pk-scanbox img{display:block;width:100%;height:auto;border:1px solid #CBD3CD}
 .sheet .imgs img{width:100%;height:96px;object-fit:cover;border:1px solid #CBD3CD}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
@@ -1161,8 +1163,18 @@ body.isdemo .app{padding-top:76px}
      the sheet it belongs to on the one after. A block with a height in
      millimetres leaves nothing to work out. */
   .pk-scanpage{break-inside:avoid;page-break-inside:avoid}
-  .pk-scanbox{height:214mm;margin-top:8px}
-  .pk-scanbox img{width:100%;height:100%;object-fit:contain;border:0}
+  /* The scan is printed at A5 -- 148 by 210 millimetres, half a sheet -- and
+     BOTH of those are stated on the picture itself. Every earlier attempt left
+     one of them to be worked out: a height cap with the width free, then a
+     height of 100% of a box. Either way the browser has to derive the box from
+     the picture's own proportions, and Safari does that after it has already
+     decided where the pages break -- so the scan was measured at its full size,
+     found not to fit under the table, and moved whole to the next sheet.
+     With both sides given there is nothing to derive and nowhere to put it but
+     under the table. object-fit keeps the sheet itself undistorted inside. */
+  .pk-scanbox{margin-top:8px;text-align:center}
+  .pk-scanbox img{display:inline-block;width:148mm;height:210mm;
+    object-fit:contain;object-position:top center;border:0;max-width:none}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -3842,7 +3854,8 @@ function openPackSheet(ws, draft){
               ["Sheet", (i+1)+" of "+sc.pages.length,
                "Scanned", shortDate(iso(new Date(sc.addedAt))) + " by " + esc(sc.by||"")]
             ])}
-            <div class="pk-scanbox"><img src="${pg.src}" alt="Scanned sheet"></div>
+            <div class="pk-scanbox"><img src="${pg.src}" alt="Scanned sheet"
+              width="559" height="794"></div>
           </div>`;
         });
       });
