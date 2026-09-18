@@ -3698,6 +3698,14 @@ async function packImages(ws, secs){
   /* the toolbox talk sheet prints a page per page, so it needs to be legible */
   const pageSrcs = new Set();
   secs.forEach(sec=>sec.items.forEach(r=>((r.data||{}).sheet||[]).forEach(ph=>pageSrcs.add(ph.src))));
+  /* the paper check sheets, when the plant checks are being kept on paper.
+     They are the record itself, so they print a page each and have to be
+     legible rather than thumbnailed. */
+  if(checksOnPaper()){
+    scansFor(ws, "plantcheck").forEach(sc=>(sc.pages||[]).forEach(pg=>{
+      if(pg && pg.src){ wanted.add(pg.src); pageSrcs.add(pg.src); }
+    }));
+  }
 
   const map = new Map();
   for(const src of wanted){
@@ -4145,6 +4153,29 @@ async function buildPackPdf(ws, draft){
     divider(sec, si);
     starts.push(doc.pages.length);
     let first = false;
+
+    /* ---- plant, kept on paper: a page per scanned sheet ----
+       The contents page counted these and the divider announced them, but
+       nothing ever drew them, so a published pack said "2 scanned sheets" and
+       then did not contain them. Each one gets a page of its own, the machine
+       and which sheet it is along the top, and the scan filling what is left. */
+    if(sec.key === "plantcheck" && checksOnPaper()){
+      scansFor(ws, "plantcheck").forEach(sc=>{
+        const m = (DB.plant||[]).find(x=>x.id===sc.plantId) || {};
+        const machine = (m.item || "Plant") + (m.fleetNo ? " · " + m.fleetNo : "");
+        const total = (sc.pages||[]).length;
+        (sc.pages||[]).forEach((pg,i)=>{
+          const im = imgs.get(pg.src);
+          if(!im) return;
+          doc.newPage();
+          if(first){ starts.push(doc.pages.length); first = false; }
+          doc.fullPage(im,
+            machine + " — " + (sc.title || "Plant inspection"),
+            "Sheet " + (i+1) + " of " + total + "  ·  w/c " + shortDate(ws));
+        });
+      });
+      return;
+    }
 
     /* ---- plant: a page per machine, laid out like the paper sheet ---- */
     if(sec.key === "plantcheck"){
