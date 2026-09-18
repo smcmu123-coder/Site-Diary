@@ -1111,9 +1111,15 @@ body.isdemo .app{padding-top:76px}
 /* a page that is all document: nothing added below it to push it over */
 .pk-page.pk-full{break-inside:avoid}
 .pk-scanbox{display:block;margin-top:10px}
-/* the attributes on the tag say A5 in pixels as well, so the size holds even
-   somewhere the print rules never arrive; on screen these are overridden */
-.pk-scanbox img{display:block;width:100%;height:auto;border:1px solid #CBD3CD}
+/* The scan is A5 on screen as well as on paper. It used to be sized only inside
+   the print rules, so the pack you actually looked at still had it full width --
+   which is the document being judged, and it plainly had not shrunk.
+   148mm of the 182mm a page holds is 81%, so the same proportion on screen
+   shows the sheet at the size it will come out. The attributes on the tag say
+   A5 in pixels too, for anywhere the stylesheet never arrives. */
+.pk-scanbox{text-align:center}
+.pk-scanbox img{display:inline-block;width:81%;height:auto;max-width:100%;
+  border:1px solid #CBD3CD}
 .sheet .imgs img{width:100%;height:96px;object-fit:cover;border:1px solid #CBD3CD}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
   font-size:10px;display:flex;justify-content:space-between}
@@ -10100,10 +10106,10 @@ function packView(){
     </div>` : ""}
 
     <button class="btn" data-packview="${ws}">${pack?"Open the pack":"View the pack so far"}</button>
-    <button class="btn ghost" data-packshare="${ws}">Send it as a PDF</button>
+    <button class="btn ghost" data-packshare="${ws}">Print or save it as a PDF</button>
     <p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-top:-2px">
-      The same document you see on screen. Save it to Files or send it straight
-      on from the share button in the print options.</p>
+      Opens the pack you see here in the print options. The share button there
+      saves it to Files as a PDF, or sends it straight on.</p>
     ${pack ? "" : `
       <button class="btn line" data-packpub="${ws}" ${gaps.length?'style="color:var(--ink-3)"':""}>
         ${packWithdrawn(ws) ? "Publish it again" : "Publish the pack"}</button>
