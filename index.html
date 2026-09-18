@@ -1110,6 +1110,7 @@ body.isdemo .app{padding-top:76px}
 .pk-toc .r.tsub + .r:not(.tsub){border-top:1px solid #DCE2DE}
 /* a page that is all document: nothing added below it to push it over */
 .pk-page.pk-full{break-inside:avoid}
+.pk-scanpg{display:block;width:100%;border:1px solid #CBD3CD;margin-top:10px}
 .sheet .imgs img{width:100%;height:96px;object-fit:cover;border:1px solid #CBD3CD}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
   font-size:10px;display:flex;justify-content:space-between}
@@ -1146,6 +1147,11 @@ body.isdemo .app{padding-top:76px}
   /* and a table is never split across two sheets if it can be helped */
   .sheet table.pk{break-inside:avoid;page-break-inside:avoid}
   .pk-docpg{width:auto;max-width:100%;max-height:256mm;margin:0 auto;border:0}
+  /* A scanned check sheet is A4 shaped, so at the full width of the page it
+     stands taller than the page itself -- and with a heading and four rows of
+     detail above it, it went onto a second sheet every time. Held to what is
+     left after those, it sits on one page with its title. */
+  .pk-scanpg{width:auto;max-width:100%;max-height:216mm;margin:8px auto 0}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -3841,7 +3847,7 @@ function openPackSheet(ws, draft){
               ["Sheet", (i+1)+" of "+sc.pages.length],
               ["Scanned", shortDate(iso(new Date(sc.addedAt))) + " by " + esc(sc.by||"")]
             ])}
-            <img src="${pg.src}" style="width:100%;border:1px solid #CBD3CD;margin-top:10px">`);
+            <img class="pk-scanpg" src="${pg.src}">`);
         });
       });
       return;
@@ -6246,6 +6252,85 @@ function detectPage(img){
   return { corners: best.quad.map(c=>({ x:c.x*k, y:c.y*k })), found:true };
 }
 
+/* Anything dark that runs back to the edge of the page is the desk rather than
+   the sheet, so it is painted out. Two things stop it taking the page with it.
+   It is judged in blocks, not pixels: the desk is a solid mass, while a printed
+   border or a ruled line only ever darkens a fraction of the block it crosses,
+   so the flood cannot set off along one. And it has to stay within a band of
+   the edge, so nothing in the body of the sheet is ever reachable. */
+function cleanBorders(od, W, H){
+  const p = od.data;
+  const L = i => (p[i]*299 + p[i+1]*587 + p[i+2]*114) / 1000;
+
+  /* what the paper itself reads as, taken from the middle, where it is paper */
+  const mid = [];
+  for(let y=(H*0.25)|0; y<H*0.75; y+=4)
+    for(let x=(W*0.25)|0; x<W*0.75; x+=4) mid.push(L(((y*W)+x)*4));
+  if(mid.length < 20) return;
+  mid.sort((a,b)=>a-b);
+  const paper = mid[(mid.length*0.80)|0];
+  /* a photograph taken in the dark is not a sheet with a dark edge, and
+     scrubbing it would take the page with it */
+  if(paper < 95) return;
+
+  const dark = paper * 0.74;
+  /* big enough that a ruled line across it is a minority of it */
+  const B  = Math.max(6, Math.round(Math.min(W,H) / 80));
+  const bw = Math.ceil(W/B), bh = Math.ceil(H/B);
+  const frac = new Float32Array(bw*bh);
+  for(let by=0; by<bh; by++){
+    const y0 = by*B, y1 = Math.min(H, y0+B);
+    for(let bx=0; bx<bw; bx++){
+      const x0 = bx*B, x1 = Math.min(W, x0+B);
+      let n = 0, d = 0;
+      for(let y=y0; y<y1; y++){
+        for(let x=x0; x<x1; x++){ n++; if(L((y*W+x)*4) < dark) d++; }
+      }
+      frac[by*bw+bx] = n ? d/n : 0;
+    }
+  }
+
+  const bandB = Math.max(1, Math.round((Math.min(W,H)*0.085) / B));
+  const SOLID = 0.72;    /* a mass of desk */
+  const SOFT  = 0.34;    /* the gradient a curl leaves at the very edge */
+  const state = new Uint8Array(bw*bh);         /* 1 painted from a solid, 2 from a soft */
+  const q = new Int32Array(bw*bh*2);
+  let head = 0, tail = 0;
+  const near = (bx,by) => Math.min(bx, by, bw-1-bx, bh-1-by) <= bandB;
+  const push = (bx,by,fromSolid) => {
+    if(bx<0 || by<0 || bx>=bw || by>=bh) return;
+    const id = by*bw + bx;
+    if(state[id] || !near(bx,by)) return;
+    const f = frac[id];
+    if(f >= SOLID){ state[id] = 1; }
+    /* a soft block is only ever taken when the block it was reached from was a
+       solid one -- so a fringe beside the desk goes, and a printed line, which
+       is soft all the way along, cannot be walked down */
+    else if(f >= SOFT && fromSolid){ state[id] = 2; }
+    else return;
+    q[tail*2] = bx; q[tail*2+1] = by; tail++;
+  };
+  for(let bx=0; bx<bw; bx++){ push(bx,0,true); push(bx,bh-1,true); }
+  for(let by=0; by<bh; by++){ push(0,by,true); push(bw-1,by,true); }
+  while(head < tail){
+    const bx = q[head*2], by = q[head*2+1]; head++;
+    const solid = state[by*bw+bx] === 1;
+    push(bx+1,by,solid); push(bx-1,by,solid);
+    push(bx,by+1,solid); push(bx,by-1,solid);
+  }
+
+  for(let by=0; by<bh; by++){
+    const y0 = by*B, y1 = Math.min(H, y0+B);
+    for(let bx=0; bx<bw; bx++){
+      if(!state[by*bw+bx]) continue;
+      const x0 = bx*B, x1 = Math.min(W, x0+B);
+      for(let y=y0; y<y1; y++){
+        for(let x=x0; x<x1; x++){ const i=(y*W+x)*4; p[i]=p[i+1]=p[i+2]=255; }
+      }
+    }
+  }
+}
+
 function warpToPage(img, corners, enhance){
   const d = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
   let W = Math.round(Math.max(d(corners[0],corners[1]), d(corners[3],corners[2])));
@@ -6279,6 +6364,13 @@ function warpToPage(img, corners, enhance){
       od.data[o]=sd[i]; od.data[o+1]=sd[i+1]; od.data[o+2]=sd[i+2]; od.data[o+3]=255;
     }
   }
+
+  /* Before anything is measured off the page, take the desk off it. A corner
+     that has curled leaves a wedge of whatever the sheet was lying on inside
+     the straightened page, and the corner detection cannot help with that --
+     the quad is right, the paper is not flat. It also has to happen first,
+     because a dark wedge drags the contrast stretch below down with it. */
+  cleanBorders(od, W, H);
 
   if(enhance){                                   /* lift the paper, deepen the ink */
     const p = od.data;
