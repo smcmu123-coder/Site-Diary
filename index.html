@@ -3700,59 +3700,11 @@ function recordLines(doc, rec){
   });
 }
 
-/* Every image the pack needs, converted once up front so the pages can then be
-   drawn in one pass. */
-async function packImages(ws, secs){
-  const wanted = new Set([LOGO]);
-  secs.forEach(sec=>sec.items.forEach(r=>{
-    const d = r.data || {};
-    if(d.signature && d.signature.src) wanted.add(d.signature.src);
-    (d.entries||[]).forEach(e=>{ if(e.opSignature && e.opSignature.src) wanted.add(e.opSignature.src); });
-    (d.photos||[]).forEach(ph=>wanted.add(ph.src));
-    (d.boardPhoto||[]).forEach(ph=>wanted.add(ph.src));
-    (d.sheet||[]).forEach(ph=>wanted.add(ph.src));
-    /* every attendee's own signature */
-    (d.attendees||[]).forEach(a=>{
-      if(a && typeof a==="object" && a.sig && a.sig.src) wanted.add(a.sig.src);
-    });
-    Object.values(d).forEach(v=>{
-      if(v && typeof v==="object" && v.v===false) (v.photos||[]).forEach(ph=>wanted.add(ph.src));
-    });
-  }));
-  /* keep track of which are signatures */
-  const sigSrcs = new Set();
-  secs.forEach(sec=>sec.items.forEach(r=>{
-    const d = r.data || {};
-    if(d.signature && d.signature.src) sigSrcs.add(d.signature.src);
-    (d.attendees||[]).forEach(a=>{
-      if(a && typeof a==="object" && a.sig && a.sig.src) sigSrcs.add(a.sig.src);
-    });
-  }));
-
-  /* the toolbox talk sheet prints a page per page, so it needs to be legible */
-  const pageSrcs = new Set();
-  secs.forEach(sec=>sec.items.forEach(r=>((r.data||{}).sheet||[]).forEach(ph=>pageSrcs.add(ph.src))));
-  /* the paper check sheets, when the plant checks are being kept on paper.
-     They are the record itself, so they print a page each and have to be
-     legible rather than thumbnailed. */
-  if(checksOnPaper()){
-    scansFor(ws, "plantcheck").forEach(sc=>(sc.pages||[]).forEach(pg=>{
-      if(pg && pg.src){ wanted.add(pg.src); pageSrcs.add(pg.src); }
-    }));
-  }
-
-  const map = new Map();
-  for(const src of wanted){
-    /* in a pack a photograph is a thumbnail on a contact sheet, not a print,
-       so it is taken down hard — it keeps the file small enough to email */
-    const isSig = sigSrcs.has(src);
-    const isPage = pageSrcs.has(src);
-    try{ map.set(src, await jpegFromDataUrl(src,
-      src===LOGO ? 460 : isSig ? 520 : isPage ? 1754 : 340,
-      isSig ? 0.8 : isPage ? 0.62 : 0.55)); }catch(e){}
-  }
-  return map;
-}
+/* The pack used to be built a second time here, by hand, for sending. Two
+   renderers meant two different documents -- the one on screen and the one
+   the client actually got -- and the second drifted until its words
+   overlapped and the scanned sheets were left out of it altogether. It is
+   gone: the pack on screen is the only pack, and sending it prints that. */
 
 function yn(v){ return v===true ? "Yes" : v===false ? "No" : "—"; }
 function ckMark(v){
@@ -4104,388 +4056,6 @@ function openPackSheet(ws, draft){
   window.scrollTo(0,0);
 }
 
-async function buildPackPdf(ws, draft){
-  const c = cfg();
-  const secs = packSections(ws).filter(x=>x.items.length
-    || (x.key==="plantcheck" && checksOnPaper() && scansFor(ws,"plantcheck").length));
-  const gaps = packGaps(ws);
-  const existing = packFor(ws);
-  const ref = existing ? existing.ref : (draft ? "Not yet published" : nextPackRef(ws));
-  const doc = new PdfDoc();
-  const imgs = await packImages(ws, secs);
-  const logo = imgs.get(LOGO);
-  const wide = PdfDoc.W - PdfDoc.M*2;
-  const red = [.65,.17,.13];
-
-  /* ---------------- cover ---------------- */
-  if(logo) doc.image(logo, 170);
-  doc.y -= 26;
-  if(draft) doc.banner("DRAFT — NOT PUBLISHED");
-  doc.text("Weekly Health and Safety Pack", { size:24, bold:true, after:6 });
-  doc.text("Week commencing " + longDate(ws), { size:14, colour:[.35,.39,.36], after:14 });
-  doc.rule();
-  doc.pair("Site", DB.job);
-  doc.pair("Week", shortDate(ws) + " to " + shortDate(addDays(ws,6)));
-  doc.pair("Prepared by", c.user.name);
-  doc.pair("Produced", stamp(Date.now()));
-  doc.pair("Pack reference", ref);
-  doc.pair("Records enclosed", String(secs.reduce((n,x)=>n+x.items.length,0)));
-  if(gaps.length) doc.pair("Records outstanding", String(gaps.length), [.66,.42,0]);
-
-  /* ---------------- contents (filled in once page numbers are known) ------ */
-  doc.newPage();
-  doc.text("Contents", { size:18, bold:true, after:8 });
-  doc.rule();
-  const contentsAnchor = { page: doc.page, y: doc.y };
-  doc.y -= 18 * (secs.length + (gaps.length?2:0)) + 12;
-
-  /* ---------------- one sheet per record ---------------- */
-  const starts = [];
-  const meta = (rec, extra) => [
-    ["Site / depot", DB.job, "Date", longDate(rec.date)],
-    ["Completed by", rec.by || c.user.name, "Reference", rec.ref || ""]
-  ].concat(extra || []);
-
-  const countWords = sec => {
-    if(sec.key==="plantcheck" && checksOnPaper()){
-      const n = scansFor(ws,"plantcheck").reduce((t,x)=>t+x.pages.length,0);
-      return n + (n===1?" scanned sheet":" scanned sheets");
-    }
-    if(sec.key==="plantcheck"){
-      const n = [...new Set(sec.items.map(r=>r.plantId))].length;
-      return n + (n===1?" machine":" machines");
-    }
-    return sec.items.length + (sec.items.length===1?" record":" records");
-  };
-
-  /* A page of its own in front of every section, matching the one on screen:
-     the mark, the section number, the name on a tinted band, and what is in
-     it. The band is what makes the break survive a black-and-white copier. */
-  const divider = (sec, i) => {
-    doc.newPage();
-    if(logo) doc.image(logo, 118);
-    doc.y = PdfDoc.H * 0.56;
-    doc.text("SECTION " + (i+1) + " OF " + secs.length,
-      { size:9, bold:true, colour:[.29,.49,.35], after:12 });
-    /* the tinted band behind the title */
-    const bandH = 30;
-    const w = Math.min(wide, pdfWidth(sec.name, 26) + 24);
-    doc.page.ops.push(`0.894 0.929 0.906 rg ${PdfDoc.M} ${(doc.y-bandH+7).toFixed(1)} `
-      + `${w.toFixed(1)} ${bandH} re f`);
-    doc.page.ops.push(`BT 0.122 0.353 0.176 rg /F2 26 Tf 1 0 0 1 ${(PdfDoc.M+12)} `
-      + `${(doc.y-bandH+17).toFixed(1)} Tm (${pdfEsc(sec.name)}) Tj ET`);
-    doc.y -= bandH + 20;
-    doc.page.ops.push(`0.122 0.353 0.176 RG 1.6 w ${PdfDoc.M} ${doc.y.toFixed(1)} m `
-      + `${(PdfDoc.W-PdfDoc.M).toFixed(1)} ${doc.y.toFixed(1)} l S`);
-    doc.y -= 16;
-    doc.text(countWords(sec) + "     Week commencing " + shortDate(ws)
-      + "     Site " + DB.job, { size:10, colour:[.35,.39,.36], after:6 });
-    doc.y = PdfDoc.M + 24;
-    doc.text(c.company + " · Weekly Health and Safety Pack · " + ref,
-      { size:8, colour:[.5,.54,.51] });
-  };
-
-  secs.forEach((sec, si)=>{
-    divider(sec, si);
-    starts.push(doc.pages.length);
-    let first = false;
-
-    /* ---- plant, kept on paper: a page per scanned sheet ----
-       The contents page counted these and the divider announced them, but
-       nothing ever drew them, so a published pack said "2 scanned sheets" and
-       then did not contain them. Each one gets a page of its own, the machine
-       and which sheet it is along the top, and the scan filling what is left. */
-    if(sec.key === "plantcheck" && checksOnPaper()){
-      scansFor(ws, "plantcheck").forEach(sc=>{
-        const m = (DB.plant||[]).find(x=>x.id===sc.plantId) || {};
-        const machine = (m.item || "Plant") + (m.fleetNo ? " · " + m.fleetNo : "");
-        const total = (sc.pages||[]).length;
-        (sc.pages||[]).forEach((pg,i)=>{
-          const im = imgs.get(pg.src);
-          if(!im) return;
-          doc.newPage();
-          if(first){ starts.push(doc.pages.length); first = false; }
-          doc.fullPage(im,
-            machine + " — " + (sc.title || "Plant inspection"),
-            "Sheet " + (i+1) + " of " + total + "  ·  w/c " + shortDate(ws));
-        });
-      });
-      return;
-    }
-
-    /* ---- plant: a page per machine, laid out like the paper sheet ---- */
-    if(sec.key === "plantcheck"){
-      const DL = ["M","T","W","T","F","S","S"];
-      [...new Set(sec.items.map(r=>r.plantId))].forEach(pid=>{
-        const m = (DB.plant||[]).find(x=>x.id===pid) || {};
-        const sheet = sheetFor(m.type||"Excavator") || CHECKSHEETS.Excavator;
-        const { days, map } = weekChecks(pid, ws);
-        const doneDays = days.filter(d=>map[d]);
-        doc.newPage();
-        if(first){ starts.push(doc.pages.length); first = false; }
-
-        doc.sheetHead(logo, sheet.title || ((m.type||"Plant") + " Inspections"), sheet.code, [
-          ["Competent person", (doneDays.length && map[doneDays[0]].by) || c.user.name,
-           "Fleet number", m.fleetNo || "—"],
-          ["Week commencing", shortDate(ws), "Model", m.model || m.item || "—"],
-          ["Site / depot", DB.job, "Days recorded",
-            doneDays.length + " of " + days.filter(isWorking).length]
-        ]);
-
-        const mk = (rec, key) => {
-          if(!rec) return "";
-          const v = (rec.data||{})[key];
-          if(!v || v.v===undefined) return "";
-          return v.v===true ? "Y" : v.v==="na" ? "N/A" : "X";
-        };
-        const cols = [wide - 7*24].concat(new Array(7).fill(24));
-        const align = ["left","center","center","center","center","center","center","center"];
-        const colour = (r,ci,txt) => txt==="X" ? red : [0,0,0];
-
-        doc.text("Daily pre-use recorded checks", { bold:true, size:9.5, colour:[.12,.35,.18], after:1 });
-        doc.table(cols,
-          [["Check"].concat(days.map((d,i)=>DL[i]+" "+parse(d).getDate()))]
-            .concat(sheet.daily.map(t=>[t].concat(days.map(d=>mk(map[d], "d_"+slug(t)))))),
-          { header:true, align, colour, size:8, pad:1.6 });
-
-        const weeklyRec = days.map(d=>map[d]).find(r=>r && r.data && r.data.__weekly===true);
-        doc.text("Weekly recorded checks" + (weeklyRec ? " — completed " + shortDate(weeklyRec.date)
-          : " — not done this week"), { bold:true, size:9.5, colour:[.12,.35,.18], after:1 });
-        doc.table([wide-70, 70],
-          [["Check","Result"]].concat(sheet.weekly.map(t=>[t, mk(weeklyRec, "w_"+slug(t)) || "—"])),
-          { header:true, align:["left","center"], colour, size:8, pad:1.6 });
-
-        const defs = (DB.defects||[]).filter(x=>x.plantId===pid && days.includes(x.date));
-        doc.text("Fleet engineer to be advised of defects", { bold:true, size:9.5,
-          colour:[.12,.35,.18], after:1 });
-        doc.table([wide*0.28, wide*0.42, wide*0.30],
-          defs.length
-            ? [["Check","Defect","Response and date"]].concat(defs.map(x=>[x.item, x.description||"—",
-                x.status==="closed" ? (x.fixNote||"Fixed") + " — " + shortDate(iso(x.fixedAt)) : "Open"]))
-            : [["Check","Defect","Response and date"],["—","No defects recorded this week",""]],
-          { header:true, colour:(r,ci,txt)=> txt==="Open" ? red : [0,0,0], size:8, pad:1.6 });
-
-        doc.text("Declaration", { bold:true, size:9.5, colour:[.12,.35,.18], after:1 });
-        doc.text("Upon inspecting, I confirm that the inspection results are accurate and where "
-          + "deemed as safe are fit for purpose.", { size:8, colour:[.42,.46,.43], after:2 });
-        doc.table([wide*0.16, wide*0.34, wide*0.22, wide*0.28],
-          [["Day","Inspected by","Date and time","Signed"]].concat(doneDays.map(d=>[
-            ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)],
-            map[d].by || "", shortDate(d) + " " + timeOnly(map[d].submittedAt),
-            (map[d].data||{}).signature ? "Signed" : ""])),
-          { header:true, size:8, pad:1.6 });
-      });
-      return;
-    }
-
-    /* ---- everything else: a page per record ---- */
-    sec.items.forEach(rec=>{
-      const d = rec.data || {};
-      doc.newPage();
-      if(first){ starts.push(doc.pages.length); first = false; }
-
-      if(sec.key === "briefing"){
-        doc.sheetHead(logo, "Daily Activities Briefing", "", meta(rec, [
-          ["Delivered by", d.deliveredBy || rec.by || "", "Position", d.position || ""]
-        ]));
-        doc.table([wide/2, wide/2],
-          [["CGC activities","Other trades activities"],
-           [d.cgcActivities || "—", d.otherActivities || "—"]], { header:true });
-        doc.table([wide*0.25, wide*0.25, wide*0.25, wide*0.25],
-          [["Hot works","Excavation","Confined spaces","Other permit"],
-           [yn(d.permitHot), yn(d.permitExc), yn(d.permitConfined), d.permitOther || "—"]],
-          { header:true, align:["center","center","center","center"] });
-        doc.text("Hazards briefed", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-        doc.text((d.hazards||[]).length ? (d.hazards||[]).join(",  ") : "None recorded",
-          { size:9.5, after:4 });
-        doc.text("Pre-start checklist", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-        doc.table([wide-70, 70],
-          [["Check","Y / N / N/A"]].concat(BRIEFING_CHECKS.map(t=>
-            [t, ckMark(d["b_"+slug(t)])]))
-            .concat([["Any conflicting operations?", yn(d.b_conflicting)]]),
-          { header:true, align:["left","center"],
-            colour:(r,ci,txt)=> txt==="No" ? red : [0,0,0] });
-        if(d.conflictingDetail) doc.pair("Conflicting operations", d.conflictingDetail);
-        doc.text("Attendees", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-        const att = (d.attendees||[]).map(a => typeof a === "string" ? { name:a } : (a||{}));
-        doc.signRows(att.map(a=>({ name:a.name||"",
-          img: a.sig && a.sig.src ? imgs.get(a.sig.src) : null,
-          at: a.sig && a.sig.signedAt })));
-        if(d.otherAttendees) doc.pair("Others present", d.otherAttendees);
-        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
-        return;
-      }
-
-      if(sec.key === "toolboxtalk"){
-        doc.sheetHead(logo, "Toolbox Talk", "", meta(rec, [
-          ["Subject", d.subject || "", "Delivered by", d.deliveredBy || rec.by || ""]
-        ]));
-        doc.table([wide*0.45, wide*0.30, wide*0.25],
-          [["Subject","Delivered by","Position"],
-           [d.subject || "—", d.deliveredBy || rec.by || "—", d.position || "—"]], { header:true });
-        if(d.points) doc.pair("Raised on the day", d.points);
-        const talk = (d.sheet||[]).map(p2=>imgs.get(p2.src)).filter(Boolean);
-        if(talk.length) doc.text("The talk as given — " + talk.length
-          + (talk.length===1 ? " page, following this sheet" : " pages, following this sheet"),
-          { size:9.5, colour:[.42,.46,.43], after:4 });
-        doc.text("Attendees", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-        const att = (d.attendees||[]).map(a => typeof a === "string" ? { name:a } : (a||{}));
-        doc.signRows(att.map(a=>({ name:a.name||"",
-          img: a.sig && a.sig.src ? imgs.get(a.sig.src) : null,
-          at: a.sig && a.sig.signedAt })));
-        doc.signature(d.signature && imgs.get(d.signature.src), d.deliveredBy || rec.by, rec.submittedAt);
-        talk.forEach((im, i)=>{
-          doc.newPage();
-          doc.fullPage(im, "Toolbox Talk - " + (d.subject || ""),
-            (rec.ref ? rec.ref + "   " : "") + "page " + (i+1) + " of " + talk.length);
-        });
-        return;
-      }
-      if(sec.key === "havs"){
-        doc.sheetHead(logo, "Hand Arm Vibration (HAVs) Record Sheet", "CGCivils-006", meta(rec));
-        doc.text("HAVs record keeping log", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-        doc.table([wide*0.20, wide*0.20, wide*0.12, wide*0.14, wide*0.17, wide*0.17],
-          [["Operative","Tool used","m/s²","Trigger time","Points","A(8)"]].concat(
-            (d.entries||[]).map(e=>{
-              const pts = havsPoints(e.magnitude, durHours(e.triggerTime));
-              return [e.operative||"", (e.tool==="Other"? (e.toolOther||"Other") : (e.tool||"")),
-                String(e.magnitude||""), durText(e.triggerTime)||"—",
-                String(pts), String(havsA8(pts))];
-            })),
-          { header:true, align:["left","left","center","center","center","center"] });
-        doc.text("Actions to reduce exposure", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-        doc.table([wide*0.25, wide*0.75],
-          [["Operative","Usage limits / job rotation / operative rotation"]].concat(
-            (d.entries||[]).map(e=>[e.operative||"", e.actions||"—"])), { header:true });
-        const tot = havsTotals(d.entries);
-        doc.text("Daily totals", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-        doc.table([wide*0.34, wide*0.16, wide*0.16, wide*0.34],
-          [["Operative","Points","A(8)","Status"]].concat(tot.map(r=>
-            [r.name, String(r.points), String(r.a8), r.status.label])),
-          { header:true, align:["left","center","center","left"],
-            colour:(ri,ci,txt)=> /limit value/.test(txt) ? red
-              : /action value/.test(txt) ? [.66,.42,0] : [0,0,0] });
-        doc.pair("Supervisor", d.supervisor || rec.by || "");
-        doc.signature(d.signature && imgs.get(d.signature.src), d.supervisor || rec.by, rec.submittedAt);
-        return;
-      }
-
-      if(sec.key === "puwer"){
-        doc.sheetHead(logo, "PUWER Register", "CGCivils-013", meta(rec, [
-          ["Location", d.location || DB.job, "", ""]
-        ]));
-        doc.text("This weekly inspection schedule ensures tools and work equipment are inspected "
-          + "and confirmed as defect free and safe to use, in compliance with Regulations 5 and 6 "
-          + "of the Provision and Use of Work Equipment Regulations 1998.",
-          { size:8.5, colour:[.42,.46,.43], after:5 });
-        doc.table([wide*0.30, wide*0.16, wide*0.30, wide*0.24],
-          [["Tool / ID mark or number","Satisfactory","Details of found defects","Remedial action"]]
-            .concat((d.tools||[]).map(t=>[t.tool||"", yn(t.ok), t.defects||"—", t.action||"—"])),
-          { header:true, align:["left","center","left","left"],
-            colour:(ri,ci,txt)=> txt==="No" ? red : [0,0,0] });
-        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
-        return;
-      }
-
-      if(sec.key === "loler"){
-        doc.sheetHead(logo, "Register of Excavator Lifting Equipment", "CGCivils-007", meta(rec, [
-          ["Location", d.location || DB.job, "", ""]
-        ]));
-        doc.table([wide*0.24, wide*0.13, wide*0.15, wide*0.15, wide*0.13, wide*0.20],
-          [["Description","ID no","Cert start","Cert end","Satisfactory","Status"]]
-            .concat((d.items||[]).map(i=>[i.description||"", i.idNo||"",
-              i.certStart?shortDate(i.certStart):"—", i.certEnd?shortDate(i.certEnd):"—",
-              yn(i.ok), i.status||""])),
-          { header:true, align:["left","left","center","center","center","left"],
-            colour:(ri,ci,txt)=> (txt==="No"||txt==="Quarantined") ? red : [0,0,0] });
-        const bad = (d.items||[]).filter(i=>i.ok===false && i.defects);
-        if(bad.length){
-          doc.text("Details of found defects", { bold:true, size:10, colour:[.12,.35,.18], after:2 });
-          doc.table([wide*0.3, wide*0.7],
-            [["Item","Defect"]].concat(bad.map(i=>[i.description||"", i.defects])), { header:true });
-        }
-        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
-        return;
-      }
-
-      if(sec.key === "excavation"){
-        doc.sheetHead(logo, "Excavation Inspection", "", meta(rec, [
-          ["Excavation", d.ref || rec.excRef || "", "Location", d.location || ""],
-          ["Maximum depth", (d.depth!==undefined&&d.depth!=="") ? d.depth+" m" : "—",
-           "Support system", d.support || ""]
-        ]));
-        doc.table([wide-70, 70],
-          [["Inspection","Y / N / N/A"]].concat(EXCAVATION_CHECKS.map(t=>
-            [t, ckMark(d["e_"+slug(t)])])),
-          { header:true, align:["left","center"], colour:(r,ci,txt)=> txt==="No" ? red : [0,0,0] });
-        const faults = EXCAVATION_CHECKS.filter(t=>{
-          const v = d["e_"+slug(t)]; return v && v.v===false;
-        });
-        if(faults.length){
-          doc.table([wide*0.35, wide*0.65],
-            [["Check","What was found"]].concat(faults.map(t=>[t, (d["e_"+slug(t)].defect)||"—"])),
-            { header:true });
-        }
-        doc.table([wide*0.35, wide*0.65],
-          [["Safe for work to continue?", yn(d.safe)]].concat(d.action ? [["Action taken", d.action]] : []),
-          { colour:(r,ci,txt)=> txt==="No" ? red : [0,0,0] });
-        const shots = [];
-        (d.photos||[]).forEach(ph=>{
-          const im = imgs.get(ph.src);
-          if(im) shots.push({ img: im, caption: stamp(ph.takenAt) });
-        });
-        if(shots.length){
-          doc.text("Photographs", { bold:true, size:9.5, colour:[.12,.35,.18], after:2 });
-          doc.photoGrid(shots);
-        }
-        doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
-        return;
-      }
-
-      /* anything new falls back to a plain listing */
-      doc.sheetHead(logo, formDef(rec.form).name, "", meta(rec));
-      sectionsFor(rec.form).forEach(sc=>{
-        sc.fields.filter(f=>visible(f,d) && f.type!=="signature").forEach(f=>{
-          const v = d[f.id];
-          if(v===undefined || v==="") return;
-          doc.pair(f.label, Array.isArray(v) ? v.join(", ") : String(v));
-        });
-      });
-      doc.signature(d.signature && imgs.get(d.signature.src), rec.by, rec.submittedAt);
-    });
-  });
-
-  /* ---------------- outstanding ---------------- */
-  let gapsPage = null;
-  if(gaps.length){
-    doc.newPage();
-    gapsPage = doc.pages.length;
-    doc.sheetHead(logo, "Records outstanding", "", null);
-    doc.text("These were not completed for the week covered by this pack.",
-      { size:9.5, colour:[.42,.46,.43], after:4 });
-    doc.table([wide*0.6, wide*0.4],
-      [["Record","Day"]].concat(gaps.map(g=>[g.name, g.date ? longDate(g.date) : "Not done this week"])),
-      { header:true });
-  }
-
-  /* ---------------- contents ---------------- */
-  const total = doc.pages.length;
-  const saveTo = doc.page, saveY = doc.y;
-  doc.page = contentsAnchor.page; doc.y = contentsAnchor.y;
-  secs.forEach((sec, i)=>{
-    /* the page quoted is the section's divider, which is what someone
-       flicking through the printed pack will actually land on */
-    doc.pair((i+1) + ".  " + sec.name, countWords(sec) + "     page " + starts[i]);
-  });
-  if(gapsPage) doc.pair("Records outstanding", gaps.length + "     page " + gapsPage, [.66,.42,0]);
-  doc.pair("Total pages", String(total));
-  doc.page = saveTo; doc.y = saveY;
-
-  return { blob: doc.blob(), ref,
-    name: (draft ? "DRAFT " : "") + "Weekly HS Pack - " + DB.job.replace(/[^\w\- ]+/g,"")
-      + " - wc " + ws + ".pdf",
-    count: secs.reduce((n,x)=>n+x.items.length,0), gaps: gaps.length, total };
-}
 
 /* A printable report of everything currently outstanding on a machine. */
 function printDefectReport(plantId){
@@ -10518,6 +10088,9 @@ function packView(){
 
     <button class="btn" data-packview="${ws}">${pack?"Open the pack":"View the pack so far"}</button>
     <button class="btn ghost" data-packshare="${ws}">Send it as a PDF</button>
+    <p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3);margin-top:-2px">
+      The same document you see on screen. Save it to Files or send it straight
+      on from the share button in the print options.</p>
     ${pack ? "" : `
       <button class="btn line" data-packpub="${ws}" ${gaps.length?'style="color:var(--ink-3)"':""}>
         ${packWithdrawn(ws) ? "Publish it again" : "Publish the pack"}</button>
@@ -12678,19 +12251,6 @@ function bind(){
     const ws = view.week || weekStart(todayISO());
     go("pack", { week: addDays(ws, 7*Number(el.dataset.pw)) });
   });
-  const sendPack = async (out, title) => {
-    const file = new File([out.blob], out.name, { type:"application/pdf" });
-    if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
-      try{ await navigator.share({ files:[file], title }); }
-      catch(e){ /* cancelled */ }
-      return;
-    }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(file); a.download = file.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    toast("Saved — " + out.total + " pages");
-  };
-
   /* read it on screen, any day of the week */
   const pview = app.querySelector("[data-packview]");
   if(pview) pview.onclick = ()=>{
@@ -12698,15 +12258,21 @@ function bind(){
     openPackSheet(ws, !packFor(ws));
   };
 
-  /* or send the file */
+  /* or send it -- which is the same document, printed.
+     It used to be built a second time by hand, page by page, in a separate
+     renderer. Two renderers meant two different documents: the one that could
+     be read on screen, and the one that actually went to the client, which
+     drifted until the words overlapped. The pack on screen is now the only
+     pack there is, and sending it is that pack going through the printer,
+     where iOS offers Save to Files, Mail and the rest from the share button. */
   const pshare = app.querySelector("[data-packshare]");
-  if(pshare) pshare.onclick = async ()=>{
+  if(pshare) pshare.onclick = ()=>{
     const ws = pshare.dataset.packshare;
-    toast("Building the pack…");
-    try{
-      const out = await buildPackPdf(ws, !packFor(ws));
-      await sendPack(out, "Weekly Health and Safety Pack");
-    }catch(e){ toast("The pack could not be built."); }
+    openPackSheet(ws, !packFor(ws));
+    setTimeout(()=>{
+      window.print();
+      toast("Save to Files, or send it, from the share button.");
+    }, 400);
   };
 
   /* publishing needs the week to be complete */
