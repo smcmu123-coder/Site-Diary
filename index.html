@@ -1110,7 +1110,8 @@ body.isdemo .app{padding-top:76px}
 .pk-toc .r.tsub + .r:not(.tsub){border-top:1px solid #DCE2DE}
 /* a page that is all document: nothing added below it to push it over */
 .pk-page.pk-full{break-inside:avoid}
-.pk-scanpg{display:block;width:100%;border:1px solid #CBD3CD;margin-top:10px}
+.pk-scanbox{display:block;margin-top:10px}
+.pk-scanbox img{display:block;width:100%;height:auto;border:1px solid #CBD3CD}
 .sheet .imgs img{width:100%;height:96px;object-fit:cover;border:1px solid #CBD3CD}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
   font-size:10px;display:flex;justify-content:space-between}
@@ -1151,7 +1152,17 @@ body.isdemo .app{padding-top:76px}
      stands taller than the page itself -- and with a heading and four rows of
      detail above it, it went onto a second sheet every time. Held to what is
      left after those, it sits on one page with its title. */
-  .pk-scanpg{width:auto;max-width:100%;max-height:216mm;margin:8px auto 0}
+  /* The scan sits in a box of a stated height rather than being an image asked
+     to restrain itself. Telling an image to cap its own height leaves the
+     browser to work the box out from the picture's proportions, and where it
+     does that after deciding where the page breaks -- which Safari does -- the
+     picture is measured at its full width, found not to fit, and moved whole
+     to the next sheet. That is how the plant detail ended up on one page and
+     the sheet it belongs to on the one after. A block with a height in
+     millimetres leaves nothing to work out. */
+  .pk-scanpage{break-inside:avoid;page-break-inside:avoid}
+  .pk-scanbox{height:214mm;margin-top:8px}
+  .pk-scanbox img{width:100%;height:100%;object-fit:contain;border:0}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -3436,12 +3447,35 @@ function packGaps(ws){
   return out;
 }
 
-function packFor(ws){ return (DB.packs||[]).find(p=>p.job===DB.job && p.weekCommencing===ws) || null; }
+/* The pack that stands for a week. One that has been withdrawn is kept -- a
+   pack going out and being pulled back is itself worth a record -- but it is
+   not the published one any more. */
+function packFor(ws){
+  return (DB.packs||[]).find(p=>p.job===DB.job && p.weekCommencing===ws && !p.withdrawnAt) || null;
+}
+function packWithdrawn(ws){
+  return (DB.packs||[]).filter(p=>p.job===DB.job && p.weekCommencing===ws && p.withdrawnAt)
+    .sort((a,b)=>b.withdrawnAt - a.withdrawnAt)[0] || null;
+}
+/* A week keeps the reference it was first given. Publishing it again after a
+   correction is the same pack at a later issue, not a new one -- two different
+   documents sharing one reference number is the thing a reference is there to
+   prevent, and burning a number every time something is corrected leaves gaps
+   nobody can account for. */
 function nextPackRef(ws){
+  const prev = (DB.packs||[]).filter(p=>p.job===DB.job && p.weekCommencing===ws)
+    .sort((a,b)=>a.publishedAt - b.publishedAt)[0];
+  if(prev && prev.ref) return prev.ref;
   const yr = parse(ws).getFullYear();
-  const n = jobPacks().filter(p=>parse(p.weekCommencing).getFullYear()===yr).length + 1;
+  const n = jobPacks().filter(p=>!p.withdrawnAt
+    && parse(p.weekCommencing).getFullYear()===yr).length + 1;
   return "CGC-HSP-" + yr + "-" + String(n).padStart(3,"0");
 }
+function nextPackIssue(ws){
+  const n = (DB.packs||[]).filter(p=>p.job===DB.job && p.weekCommencing===ws).length;
+  return n + 1;
+}
+const packRefLine = p => p ? (p.ref + ((p.issue||1) > 1 ? " · issue " + p.issue : "")) : "";
 
 /* ------------------------------------------------------------- defects -- */
 /* A "No" on a check raises a defect that lives on its own until somebody closes
@@ -3848,14 +3882,16 @@ function openPackSheet(ws, draft){
       scansFor(ws, "plantcheck").forEach(sc=>{
         const m = (DB.plant||[]).find(x=>x.id===sc.plantId) || {};
         sc.pages.forEach((pg,i)=>{
-          html += page(`<div class="pk-h">${esc(sc.title || (m.item||"Plant inspection"))}</div>
-            ${tbl(["",""],[
-              ["Machine", (m.item||"—") + (m.fleetNo?" · "+m.fleetNo:"")],
-              ["Week commencing", shortDate(ws)],
-              ["Sheet", (i+1)+" of "+sc.pages.length],
-              ["Scanned", shortDate(iso(new Date(sc.addedAt))) + " by " + esc(sc.by||"")]
+          html += `<div class="pk-page pk-scanpage">
+            <div class="pk-h">${esc(sc.title || (m.item||"Plant inspection"))}</div>
+            ${tbl(null,[
+              ["Machine", (m.item||"—") + (m.fleetNo?" · "+m.fleetNo:""),
+               "Week commencing", shortDate(ws)],
+              ["Sheet", (i+1)+" of "+sc.pages.length,
+               "Scanned", shortDate(iso(new Date(sc.addedAt))) + " by " + esc(sc.by||"")]
             ])}
-            <img class="pk-scanpg" src="${pg.src}">`);
+            <div class="pk-scanbox"><img src="${pg.src}" alt="Scanned sheet"></div>
+          </div>`;
         });
       });
       return;
@@ -10467,15 +10503,24 @@ function packView(){
 
     ${pack ? `<div class="card" style="background:var(--ok-bg);box-shadow:none">
       <h3 style="color:var(--ok)">Published</h3>
-      <p>${esc(pack.ref)} · ${esc(pack.publishedBy)} · ${stamp(pack.publishedAt)}
+      <p>${esc(packRefLine(pack))} · ${esc(pack.publishedBy)} · ${stamp(pack.publishedAt)}
         · ${pack.count} record${pack.count===1?"":"s"}</p>
+      <button class="btn line sm" style="margin:12px 0 0" data-packpull="${ws}">
+        Withdraw this pack</button>
+    </div>` : ""}
+
+    ${(!pack && packWithdrawn(ws)) ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
+      <h3 style="color:var(--warn-700)">Withdrawn</h3>
+      <p>${esc(packRefLine(packWithdrawn(ws)))} was withdrawn by
+        ${esc(packWithdrawn(ws).withdrawnBy || "")} on ${stamp(packWithdrawn(ws).withdrawnAt)}.
+        Publishing again keeps the same reference at issue ${nextPackIssue(ws)}.</p>
     </div>` : ""}
 
     <button class="btn" data-packview="${ws}">${pack?"Open the pack":"View the pack so far"}</button>
     <button class="btn ghost" data-packshare="${ws}">Send it as a PDF</button>
     ${pack ? "" : `
       <button class="btn line" data-packpub="${ws}" ${gaps.length?'style="color:var(--ink-3)"':""}>
-        Publish the pack</button>
+        ${packWithdrawn(ws) ? "Publish it again" : "Publish the pack"}</button>
       <p class="sub" style="text-align:center;font-size:12.5px;color:var(--ink-3)">
         ${gaps.length
           ? "View it any day of the week. Publishing needs everything in."
@@ -12685,13 +12730,32 @@ function bind(){
     || (x.key==="plantcheck" && checksOnPaper() && scansFor(ws,"plantcheck").length));
     DB.packs = (DB.packs||[]).concat([{
       id:"pk_"+Date.now(), job:DB.job, weekCommencing:ws, ref: nextPackRef(ws),
+      issue: nextPackIssue(ws),
       publishedBy:cfg().user.name, publishedAt:Date.now(),
       count: secs.reduce((n,x)=>n+x.items.length,0), gaps:0
     }]);
     save();
     render();
     openPackSheet(ws, false);
-    toast("Published — " + packFor(ws).ref);
+    toast("Published — " + packRefLine(packFor(ws)));
+  };
+
+  const ppull = app.querySelector("[data-packpull]");
+  if(ppull) ppull.onclick = ()=>{
+    const ws = ppull.dataset.packpull;
+    const pk = packFor(ws);
+    if(!pk) return;
+    askConfirm("Withdraw " + packRefLine(pk) + "?",
+      "The week goes back to unpublished so it can be corrected and published "
+      + "again, keeping the same reference at issue " + (nextPackIssue(ws)) + ". "
+      + "Anyone already sent a copy still has it — withdrawing it here does not "
+      + "reach them, so tell them if it matters.",
+      "Withdraw", ()=>{
+        pk.withdrawnAt = Date.now();
+        pk.withdrawnBy = cfg().user.name;
+        save(); render();
+        toast("Withdrawn — the week can be published again");
+      });
   };
 
   const addd = app.querySelector("[data-adddel]");
