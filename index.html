@@ -1124,13 +1124,13 @@ body.isdemo .app{padding-top:76px}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
   font-size:10px;display:flex;justify-content:space-between}
 @media print{
-  /* The browser draws its own header and footer -- the address, the date, the
-     page number -- in the page margin. There is no way for a document to turn
-     those off, but with no margin there is nowhere for them to go, and most
-     browsers drop them. The 14mm they were taking moves onto the pages
-     themselves, so nothing shifts on the paper and nothing lands at the edge
-     if the browser keeps printing them anyway. */
-  @page{size:A4;margin:0}
+  /* This was briefly set to 0, to see whether the browser would then drop the
+     header and footer it draws in the margin. It did not, and moving that 14mm
+     onto the pages made each one a shade too tall for what Safari will actually
+     put on a sheet: every page spilled a millimetre onto the next, and the
+     break after it pushed the one following on again -- a blank sheet between
+     every page. The margin belongs to the page. */
+  @page{size:A4;margin:14mm}
   body{background:#fff}
   /* Nothing belonging to the app itself goes on the paper: the navigation, the
      splash, messages and any overlay all live outside the page container. */
@@ -1143,7 +1143,7 @@ body.isdemo .app{padding-top:76px}
      where one page ends on screen. On paper the page break says that, and the
      14mm they take is enough on its own to tip a full-height block onto a
      second sheet -- which the break after it then leaves blank. */
-  .pk-page{padding:11mm 14mm;margin:0;border:0;page-break-after:always;break-after:page}
+  .pk-page{padding:0;margin:0;border:0;page-break-after:always;break-after:page}
   .pk-page:last-child{page-break-after:auto;break-after:auto}
   /* A section cover fills its page without being able to overflow it. At 225mm
      it sat within a few millimetres of what an A4 page can hold, so a section
@@ -3736,6 +3736,21 @@ function ckMark(v){
   return v.v===true ? "Yes" : v.v==="na" ? "N/A" : "No";
 }
 
+/* The name the pack is saved or sent under. Safari names a printed PDF after
+   the page's title, so the title is what has to carry it.
+   A slash cannot go in a filename -- it separates folders -- so the date is
+   written with hyphens, and anything in the job name that a filesystem would
+   choke on is taken out rather than left for the save to fail on. */
+const APP_TITLE = document.title;
+const fileSafe = t => String(t||"").replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g," ").trim();
+function packDocName(ws){
+  const d = parse(ws);
+  const dd = String(d.getDate()).padStart(2,"0");
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  return "Weekly H&S Pack - " + fileSafe(DB.job)
+    + " - WC - " + dd + "-" + mm + "-" + d.getFullYear();
+}
+
 /* ---------------------------------------------- the pack, on screen --
    The same sheets as the PDF, rendered as pages you can read, print or save
    from the phone — no download needed.
@@ -4104,6 +4119,8 @@ function openPackSheet(ws, draft){
   document.getElementById("sheet").innerHTML = html;
   document.getElementById("sheetTitle").textContent =
     (draft ? "Draft pack — " : "H&S pack — ") + "w/c " + shortDate(ws);
+  /* what the file ends up called: a printed PDF is named after the page */
+  document.title = packDocName(ws);
   document.getElementById("sheetwrap").classList.add("open");
   window.scrollTo(0,0);
 }
@@ -14419,8 +14436,10 @@ function printRecord(id){
   document.getElementById("sheetwrap").classList.add("open");
   window.scrollTo(0,0);
 }
-document.getElementById("sheetClose").onclick = () =>
+document.getElementById("sheetClose").onclick = () => {
   document.getElementById("sheetwrap").classList.remove("open");
+  document.title = APP_TITLE;
+};
 document.getElementById("sheetPrint").onclick = () => {
   window.print();
   toast("Choose \u201cSave as PDF\u201d in the print options.");
