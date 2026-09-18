@@ -1118,7 +1118,7 @@ body.isdemo .app{padding-top:76px}
    shows the sheet at the size it will come out. The attributes on the tag say
    A5 in pixels too, for anywhere the stylesheet never arrives. */
 .pk-scanbox{text-align:center}
-.pk-scanbox img{display:inline-block;width:81%;height:auto;max-width:100%;
+.pk-scanbox img{display:inline-block;width:64%;height:auto;max-width:100%;
   border:1px solid #CBD3CD}
 .sheet .imgs img{width:100%;height:96px;object-fit:cover;border:1px solid #CBD3CD}
 .sheet .foot{margin-top:20px;padding-top:8px;border-top:1px solid #CBD3CD;color:#666;
@@ -1174,18 +1174,17 @@ body.isdemo .app{padding-top:76px}
      to the next sheet. That is how the plant detail ended up on one page and
      the sheet it belongs to on the one after. A block with a height in
      millimetres leaves nothing to work out. */
-  .pk-scanpage{break-inside:avoid;page-break-inside:avoid}
-  /* The scan is printed at A5 -- 148 by 210 millimetres, half a sheet -- and
-     BOTH of those are stated on the picture itself. Every earlier attempt left
-     one of them to be worked out: a height cap with the width free, then a
-     height of 100% of a box. Either way the browser has to derive the box from
-     the picture's own proportions, and Safari does that after it has already
-     decided where the pages break -- so the scan was measured at its full size,
-     found not to fit under the table, and moved whole to the next sheet.
-     With both sides given there is nothing to derive and nowhere to put it but
-     under the table. object-fit keeps the sheet itself undistorted inside. */
-  .pk-scanbox{margin-top:8px;text-align:center}
-  .pk-scanbox img{display:inline-block;width:148mm;height:210mm;
+  /* The scan is 117 by 165 millimetres, and both of those are stated on the
+     picture itself rather than left to be worked out from its proportions --
+     a browser that derives the box after it has decided where the pages break
+     measures the picture at its full size and moves it to the next sheet.
+     It was A5 until now. A5 left the page at 235mm, which is shorter than the
+     briefing sheets that print perfectly well, and it was still being pushed
+     off -- so the height was never really the point. At this size the whole
+     page comes to about 190mm: there is no page size, printer margin or
+     browser footer that leaves too little room for it. */
+  .pk-scanbox{margin-top:4px;text-align:center}
+  .pk-scanbox img{display:inline-block;width:117mm;height:165mm;
     object-fit:contain;object-position:top center;border:0;max-width:none}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
@@ -3907,8 +3906,8 @@ function openPackSheet(ws, draft){
                "Scanned", shortDate(iso(new Date(sc.addedAt))) + " by " + esc(sc.by||"")]
             ])}
             <div class="pk-scanbox"><img src="${pg.src}" alt="Scanned sheet"
-              width="559" height="794"
-              style="display:inline-block;width:148mm;height:210mm;object-fit:contain;
+              width="442" height="624"
+              style="display:inline-block;width:117mm;height:165mm;object-fit:contain;
                 object-position:top center;border:0;max-width:100%"></div>
           </div>`;
         });
