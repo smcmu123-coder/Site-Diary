@@ -2043,7 +2043,9 @@ function briefingSections(){
       { id:"deliveredBy", type:"text", label:"Delivered by", required:true },
       { id:"position", type:"text", label:"Position", required:true },
       { id:"cgcActivities", type:"textarea", label:"CGC activities", required:true },
-      { id:"otherActivities", type:"textarea", label:"Other trades activities" }
+      { id:"otherActivities", type:"textarea", label:"Other trades activities" },
+      { id:"pcActions", type:"textarea", label:"Principal Contractor actions", required:true, na:true,
+        hint:"What the Principal Contractor needs to do today, or N/A if nothing." }
     ]},
     { title:"Permits required", fields:[
       { id:"permitHot", type:"yesno", label:"Hot works", required:true },
@@ -3982,8 +3984,8 @@ function openPackSheet(ws, draft){
           head("Daily Activities Briefing", rec.ref||"", metaFor(rec, [
             ["Delivered by", d.deliveredBy||rec.by||"", "Position", d.position||""]])) +
           `<div class="pk-h">Activities</div>` +
-          tbl(["CGC activities","Other trades activities"],
-            [[d.cgcActivities||"—", d.otherActivities||"—"]]) +
+          tbl(["CGC activities","Other trades activities","Principal Contractor actions"],
+            [[d.cgcActivities||"—", d.otherActivities||"—", d.pcActions||"—"]]) +
           `<div class="pk-h">Permits required</div>` +
           tbl(["Hot works","Excavation","Confined spaces","Other permit"],
             [[yn(d.permitHot), yn(d.permitExc), yn(d.permitConfined), d.permitOther||"—"]],
@@ -7831,7 +7833,17 @@ function fieldHtml(f, v, err, path){
   const ec = err?" err":"";
   switch(f.type){
     case "text": c=`<input id="fl_${id}" class="in${ec}" data-f="${id}" value="${esc(val||"")}">`; break;
-    case "textarea": c=`<textarea id="fl_${id}" class="in${ec}" data-f="${id}">${esc(val||"")}</textarea>`; break;
+    case "textarea":
+      if(f.na){
+        /* a box that can be answered with N/A instead of text */
+        const isNa = val==="N/A";
+        c=`<textarea id="fl_${id}" class="in${ec}" data-f="${id}" ${isNa?'disabled placeholder="Not applicable" style="opacity:.55"':""}>${isNa?"":esc(val||"")}</textarea>
+          <div class="chk" style="border:0;padding:0;margin:8px 0 0;background:none"><div class="opts" style="grid-template-columns:1fr">
+            <button type="button" class="${isNa?"na":""}" data-tna="${id}" aria-pressed="${isNa}">${isNa?"N/A \u2014 tap to write something instead":"N/A"}</button>
+          </div></div>`;
+        break;
+      }
+      c=`<textarea id="fl_${id}" class="in${ec}" data-f="${id}">${esc(val||"")}</textarea>`; break;
     case "number":
       c=`<input id="fl_${id}" class="in${ec}" data-f="${id}" type="number" inputmode="decimal" step="any"
         value="${val===undefined||val===null?"":esc(val)}">`; break;
@@ -12572,6 +12584,11 @@ function bind(){
   });
   app.querySelectorAll("[data-attnone]").forEach(el=>el.onclick=()=>{
     setVal(el.dataset.attnone, []); after();
+  });
+  app.querySelectorAll("[data-tna]").forEach(el=>el.onclick=()=>{
+    const path = el.dataset.tna;
+    setVal(path, getVal(path)==="N/A" ? "" : "N/A");
+    after();
   });
   app.querySelectorAll("[data-chk3]").forEach(el=>el.onclick=()=>{
     const path = el.dataset.chk3;
