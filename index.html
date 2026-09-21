@@ -641,7 +641,7 @@ body.isdemo .app{padding-top:76px}
   stroke-linecap:round;stroke-linejoin:round}
 /* the mark is drawn at the logo's own proportions: a lighter stroke than the
    machines, and terminals cut square rather than rounded */
-.sp-line path.cgc{stroke-width:3.12;stroke-linecap:butt}
+.sp-line path.cgc{stroke-width:3.12;stroke-linecap:butt;stroke-linejoin:miter}
 /* the machines are motion; the mark is not — so the strokes that spell it
    stay, and only the two that draw the machines are dropped */
 @media (prefers-reduced-motion:reduce){
@@ -1097,6 +1097,16 @@ body.isdemo .app{padding-top:76px}
   display:table;white-space:normal;overflow:visible}
 .sheet th,.sheet td{border:1px solid #CBD3CD;padding:5px 7px;text-align:left;vertical-align:top}
 .sheet th{background:#EDF2EE;width:32%;font-weight:640}
+/* Timesheet tables: every day of the week and the total fit the page at any
+   width -- a phone's included -- rather than running off the right-hand side. */
+.sheet table.ts{table-layout:fixed;font-size:10px;line-height:1.35}
+.sheet table.ts th,.sheet table.ts td{width:auto;padding:4px 3px;overflow-wrap:break-word}
+.sheet table.ts th:first-child,.sheet table.ts td:first-child{padding-left:5px}
+.sheet table.ts .n{text-align:center}
+.sheet table.ts .r{text-align:right;padding-right:5px}
+.sheet table.ts .ts-trade{display:block;color:#666;font-size:9px;font-weight:400;margin:1px 0 0;text-align:left}
+.sheet table.ts th{font-size:9px;overflow-wrap:normal;word-break:keep-all;hyphens:none}
+.sheet table.ts tr{break-inside:avoid;page-break-inside:avoid}
 .sheet .imgs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 /* A document page (an unpacked PDF page or a scanned sheet) printed whole,
    sized to fit the paper, with a running line above it. */
@@ -14468,16 +14478,17 @@ function printTimesheet(ws){
       <tr><th>Week</th><td>${shortDate(ws)} to ${shortDate(addDays(ws,6))}</td></tr>
       <tr><th>Prepared by</th><td>${esc(c.user.name)} — ${stamp(Date.now())}</td></tr></table>
     <h2>Hours worked</h2>
-    <table>
-      <tr><th style="width:auto">Name</th><th style="width:auto">Trade</th>
-        ${days.map(d=>`<th style="width:auto;text-align:center">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]}<br>${parse(d).getDate()}</th>`).join("")}
-        <th style="width:auto;text-align:right">Total</th></tr>
-      ${people.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.trade||"")}</td>
+    <table class="ts">
+      <colgroup><col style="width:26%">${days.map(()=>`<col style="width:9%">`).join("")}<col style="width:11%"></colgroup>
+      <tr><th>Name</th>
+        ${days.map(d=>`<th class="n">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]}<br>${parse(d).getDate()}</th>`).join("")}
+        <th class="r">Total</th></tr>
+      ${people.map(p=>`<tr><td>${esc(p.name)}${p.trade?`<span class="ts-trade">${esc(p.trade)}</span>`:""}</td>
         ${days.map(d=>{ const c=p.days[d];
-          return `<td style="text-align:center">${c ? (c.leave||c.hours) : "—"}</td>`; }).join("")}
-        <td style="text-align:right"><b>${Math.round(p.total*100)/100}</b></td></tr>`).join("")}
-      <tr><td colspan="${days.length+2}"><b>Total hours</b></td>
-        <td style="text-align:right"><b>${Math.round(grand*100)/100}</b></td></tr>
+          return `<td class="n">${c ? (c.leave||c.hours) : "—"}</td>`; }).join("")}
+        <td class="r"><b>${Math.round(p.total*100)/100}</b></td></tr>`).join("")}
+      <tr><td colspan="${days.length+1}"><b>Total hours</b></td>
+        <td class="r"><b>${Math.round(grand*100)/100}</b></td></tr>
     </table>
     ${(function(){
       const rows=[];
@@ -14485,19 +14496,20 @@ function printTimesheet(ws){
         if(c&&c.leave) rows.push(`<tr><td>${esc(p.name)}</td>
           <td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d)}</td>
           <td>${esc(c.leave)}</td><td>${esc(leaveLabel(c.leave))}</td></tr>`); }));
-      return rows.length ? `<h2>Absence</h2><table>
+      return rows.length ? `<h2>Absence</h2><table class="ts">
         <tr><th style="width:auto">Name</th><th style="width:auto">Day</th>
         <th style="width:auto">Code</th><th style="width:auto">Reason</th></tr>${rows.join("")}</table>` : "";
     })()}
     <h2>Start and finish times</h2>
-    <table><tr><th style="width:auto">Name</th><th style="width:auto">Day</th>
-      <th style="width:auto">Start</th><th style="width:auto">Finish</th>
-      <th style="width:auto">Break</th><th style="width:auto">Hours</th>
-      <th style="width:auto">Reason if different</th></tr>
+    <table class="ts">
+      <colgroup><col style="width:21%"><col style="width:14%"><col style="width:11%"><col style="width:11%">
+        <col style="width:10%"><col style="width:10%"><col style="width:23%"></colgroup>
+      <tr><th>Name</th><th>Day</th><th>Start</th><th>Finish</th>
+      <th>Break</th><th>Hours</th><th>Reason if different</th></tr>
       ${people.map(p=>days.filter(d=>p.days[d]&&!p.days[d].leave).map(d=>`<tr>
-        <td>${esc(p.name)}</td><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d)}</td>
+        <td>${esc(p.name)}</td><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d).slice(0,5)}</td>
         <td>${esc(p.days[d].start)}</td><td>${esc(p.days[d].finish)}</td>
-        <td>${hoursFor(null, d).breakMins} min</td><td>${p.days[d].hours}</td>
+        <td>${hoursFor(null, d).breakMins}m</td><td>${p.days[d].hours}</td>
         <td>${esc(p.days[d].reason||"")}</td></tr>`).join("")).join("")}
     </table>
     <div class="foot"><span>${esc(c.company)} · timesheet w/c ${shortDate(ws)}</span>
@@ -15263,7 +15275,7 @@ const SPLASH_LINE = [
    SPLASH_MARK is ONE stroke: it starts at the foot of the first C and does not
    lift again until the last one. The two short arcs after it are the tops of
    the G and the final C, which the logo itself leaves separate. */
-const SPLASH_MARK = 'M33.37,59.91C28.60,65.21 20.72,66.35 14.63,62.63C8.55,58.90 5.99,51.36 8.54,44.69C11.10,38.03 18.05,34.14 25.07,35.44C32.08,36.74 37.18,42.86 37.18,50.00C37.09,58.18 43.72,64.81 51.90,64.81C60.08,64.81 66.71,58.18 66.71,50.00L53.08,50.00L65.14,50.00C66.71,49.48 66.68,48.97 66.62,48.45C66.03,54.83 69.55,60.92 75.41,63.53C81.27,66.14 88.14,64.68 92.43,59.91';
+const SPLASH_MARK = 'M33.37,59.91C28.60,65.21 20.72,66.35 14.63,62.63C8.55,58.90 5.99,51.36 8.54,44.69C11.10,38.03 18.05,34.14 25.07,35.44C32.08,36.74 37.18,42.86 37.18,50.00C37.09,58.18 43.72,64.81 51.90,64.81C60.08,64.81 66.71,58.18 66.71,50.00L53.08,50.00L66.62,50.00C66.62,55.85 70.07,61.15 75.41,63.53C81.27,66.14 88.14,64.68 92.43,59.91';
 const SPLASH_MARK_CAPS = [
   'M39.77,41.51C42.31,37.88 46.33,35.59 50.74,35.24C55.15,34.89 59.48,36.53 62.55,39.71',
   'M67.35,45.42C68.98,40.39 73.18,36.62 78.35,35.52C83.52,34.42 88.89,36.16 92.43,40.09'
