@@ -11595,16 +11595,26 @@ function timesheetRows(ws){
   return { rows, widths, count: week.people.length };
 }
 
+/* What the timesheet is saved, printed and shared as:
+   "DAMFIELD EXTRA CARE - TIMESHEET - W.C. 21.09.26" */
+function timesheetDocName(ws){
+  const d = parse(ws);
+  const dd = String(d.getDate()).padStart(2,"0");
+  const mm = String(d.getMonth()+1).padStart(2,"0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return fileSafe(DB.job).toUpperCase() + " - TIMESHEET - W.C. " + dd + "." + mm + "." + yy;
+}
+
 async function exportTimesheet(ws){
   const built = timesheetRows(ws);
   const blob = xlsxBlob("Timesheet " + shortDate(ws).replace(/\//g,"-"),
     built.rows, built.widths);
-  const name = "Timesheet - " + DB.job.replace(/[^\w\- ]+/g,"") + " - wc " + ws + ".xlsx";
+  const name = timesheetDocName(ws) + ".xlsx";
   const file = new File([blob], name,
     { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
   if(navigator.canShare && navigator.canShare({ files:[file] })){
-    try{ await navigator.share({ files:[file], title:"Timesheet" }); return; }
+    try{ await navigator.share({ files:[file], title:timesheetDocName(ws) }); return; }
     catch(e){ return; }
   }
   const url = URL.createObjectURL(blob);
@@ -14493,6 +14503,8 @@ function printTimesheet(ws){
     <div class="foot"><span>${esc(c.company)} · timesheet w/c ${shortDate(ws)}</span>
       <span>Built from the site diaries · ${stamp(Date.now())}</span></div>`;
   document.getElementById("sheetTitle").textContent = "Timesheet — w/c " + shortDate(ws);
+  /* what the file ends up called: a printed PDF is named after the page */
+  document.title = timesheetDocName(ws);
   document.getElementById("sheetwrap").classList.add("open");
   window.scrollTo(0,0);
 }
