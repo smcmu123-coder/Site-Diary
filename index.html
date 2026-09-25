@@ -57,9 +57,16 @@
   --sh:0 1px 2px rgba(15,21,18,.04), 0 8px 20px -16px rgba(15,21,18,.30);
   --sh-lift:0 2px 6px rgba(15,21,18,.06), 0 18px 40px -24px rgba(15,21,18,.42);
 
-  /* motion */
-  --ease:cubic-bezier(.32,.72,0,1);
-  --fast:.18s; --med:.32s; --slow:.52s;
+  /* solid fills that carry white text — buttons, badges, the active nav
+     pill, alert ticks. --green/--ok/--bad all turn paler in dark mode (see
+     below) so they still read as *text* against a dark surface; left as a
+     solid fill, that paler colour under white text is exactly the washed-out
+     dark mode this is fixing, so these stay the same deep colour in both
+     themes — a fill with white sat on it doesn't need to lighten with the
+     room. (Warn already had the right pattern — --warn-on flips to dark text
+     in dark mode instead — so its fills just needed to use that token too.) */
+  --green-fill:#1F5A2D; --green-fill-press:#123D1E;
+  --ok-fill:#1E6B36; --bad-fill:#8F2119;
 
   color-scheme:light;
 }
@@ -189,7 +196,7 @@ h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;
 .hero.late{background:#7A2019}
 .begin{margin-top:14px;background:#fff;color:#0C2A18;border-radius:999px;min-height:52px;
   padding:0 42px;font-size:16.5px;font-weight:660}
-.hero.calm .begin{background:var(--green);color:#fff}
+.hero.calm .begin{background:var(--green-fill);color:#fff}
 
 /* hero carousel */
 .carousel{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;
@@ -211,7 +218,7 @@ h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;
 .ctab{flex:none;display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;
   background:var(--canvas);color:var(--ink-2);font-size:13.5px;font-weight:640;
   border:1.5px solid transparent;transition:background .2s, color .2s, border-color .2s}
-.ctab.on{background:var(--green);color:#fff}
+.ctab.on{background:var(--green-fill);color:#fff}
 .ctab .tick{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;
   background:var(--ok-bg);color:var(--ok);font-size:10px;font-weight:800}
 .ctab.on .tick{background:rgba(255,255,255,.22);color:#fff}
@@ -245,14 +252,14 @@ h1.greet{text-align:center;font-size:28px;font-weight:640;letter-spacing:-.03em;
 
 /* buttons */
 .btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:56px;
-  border-radius:15px;background:var(--green);color:#fff;font-weight:660;font-size:16.5px;
+  border-radius:15px;background:var(--green-fill);color:#fff;font-weight:660;font-size:16.5px;
   padding:0 18px;margin-bottom:10px}
-.btn:active{background:var(--green-700)}
+.btn:active{background:var(--green-fill-press)}
 .btn[disabled]{background:#D3DAD5}
 .btn.ghost{background:var(--canvas);color:var(--ink)}
 .btn.line{background:none;box-shadow:inset 0 0 0 1.5px var(--line);color:var(--ink)}
 .btn.sm{min-height:44px;font-size:14.5px;width:auto;padding:0 16px;border-radius:12px}
-.btn.danger{background:var(--bad)}
+.btn.danger{background:var(--bad-fill)}
 /* anything that adds something looks the same, wherever it is */
 .btn.add{background:var(--green-50);color:var(--green-700);
   box-shadow:inset 0 0 0 1.5px var(--green);font-weight:660}
@@ -286,7 +293,7 @@ select.in{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xml
 .cb.on{border-color:var(--green);background:var(--green-50);color:var(--green-700)}
 .cb .b{width:22px;height:22px;border-radius:7px;border:2px solid var(--line);flex:none;
   display:grid;place-items:center;background:#fff;font-size:13px}
-.cb.on .b{background:var(--green);border-color:var(--green);color:#fff}
+.cb.on .b{background:var(--green-fill);border-color:var(--green-fill);color:#fff}
 .rep{border:1.5px solid var(--line-2);border-radius:14px;padding:14px;background:var(--canvas);
   margin-bottom:10px}
 .rep .rh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
@@ -316,7 +323,7 @@ select.in{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xml
   padding:10px 12px;margin-bottom:10px;min-height:56px;text-align:left;
   cursor:pointer;transition:background var(--d-1,.14s) ease,transform var(--d-1,.14s) ease}
 .repdone:active{background:#DCEBE0;transform:scale(.995)}
-.repdone .tick{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ok);
+.repdone .tick{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ok-fill);
   color:#fff;display:grid;place-items:center}
 .repdone .tick svg{width:18px;height:18px;display:block}
 .repdone .txt{flex:1;min-width:0}
@@ -370,7 +377,7 @@ input[type=date].in,input[type=time].in,
 .calday.out .dn{color:#D3DAD5}
 .calday.we .dn{color:var(--ink-3)}
 .calday.today{box-shadow:inset 0 0 0 1.5px var(--green)}
-.calday.on{background:var(--green);}
+.calday.on{background:var(--green-fill);}
 .calday.on .dn{color:#fff}
 .calday.on .dots i{box-shadow:0 0 0 1px rgba(255,255,255,.7)}
 .calkey{display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:12px;padding-top:12px;
@@ -462,7 +469,7 @@ input[type=date].in,input[type=time].in,
 .tile.red{background:var(--bad-bg);box-shadow:none}
 .tile.red .ic{background:rgba(167,43,34,.13);color:var(--bad)}
 .tile.red .tl,.tile.red .tv{color:var(--bad)}
-.tile.red .badge{background:var(--bad);color:#fff}
+.tile.red .badge{background:var(--bad-fill);color:#fff}
 @media(min-width:760px){
   .tiles{grid-template-columns:repeat(3,1fr)}
   .tile{min-height:146px;padding:18px}
@@ -491,7 +498,7 @@ body.isdemo .app{padding-top:76px}
 
 /* storage warning */
 .savewarn{position:fixed;left:0;right:0;top:0;z-index:110;display:none;
-  background:var(--bad);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background:var(--bad-fill);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
   font-size:13.5px;line-height:1.4;text-align:center}
 .savewarn.show{display:block}
 .savewarn b{font-weight:700}
@@ -517,7 +524,7 @@ body.isdemo .app{padding-top:76px}
 /* the green rises from the foot of the screen as it loads */
 /* full height, scaled up from the foot: animating height would relayout on
    every frame of the count, scaleY is composited */
-.sp-fill{position:absolute;left:0;right:0;bottom:0;height:100%;background:var(--green);
+.sp-fill{position:absolute;left:0;right:0;bottom:0;height:100%;background:var(--green-fill);
   transform:scaleY(0);transform-origin:50% 100%;
   transition:transform .55s var(--ease)}
 .sp-num{position:absolute;left:22px;right:22px;top:34%;font-size:23vw;line-height:.92;
@@ -542,7 +549,7 @@ body.isdemo .app{padding-top:76px}
 
 /* storage warning */
 .savewarn{position:fixed;left:0;right:0;top:0;z-index:110;display:none;
-  background:var(--bad);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background:var(--bad-fill);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
   font-size:13.5px;line-height:1.4;text-align:center}
 .savewarn.show{display:block}
 .savewarn b{font-weight:700}
@@ -678,7 +685,7 @@ body.isdemo .app{padding-top:76px}
   box-shadow:inset 0 0 0 1px var(--green-100);transition:background .18s ease}
 .jobpill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .jobpill i{font-style:normal;font-size:12px;opacity:.7;transition:transform .22s ease}
-.jobpick.open .jobpill{background:var(--green);color:#fff;box-shadow:none}
+.jobpick.open .jobpill{background:var(--green-fill);color:#fff;box-shadow:none}
 .jobpick.open .jobpill i{transform:rotate(180deg);opacity:.9}
 .jobmenu{position:absolute;left:20px;right:20px;top:calc(100% + 6px);z-index:30;
   background:var(--paper);border-radius:16px;box-shadow:0 2px 6px rgba(15,21,18,.06),
@@ -749,7 +756,7 @@ body.isdemo .app{padding-top:76px}
 .hm .task .tick{width:26px;height:26px;border-radius:var(--r-pill);flex:none;display:flex;
   align-items:center;justify-content:center;border:1.8px solid var(--line);
   color:transparent;font-size:13px}
-.hm .task.done .tick{background:var(--green);border-color:var(--green);color:#fff}
+.hm .task.done .tick{background:var(--green-fill);border-color:var(--green-fill);color:#fff}
 .hm .task .txt{flex:1;min-width:0}
 .hm .task .txt b{display:block;font-size:var(--t-body);font-weight:var(--w-med);
   letter-spacing:-.01em;color:var(--ink)}
@@ -797,7 +804,7 @@ body.isdemo .app{padding-top:76px}
 .navpill.hidden{opacity:0;pointer-events:none;transform:translate(-50%,20px)}
 .navslide{position:absolute;top:7px;left:7px;height:calc(100% - 14px);
   width:calc((100% - 14px) / 4);border-radius:999px;
-  background:linear-gradient(180deg,#2A7440 0%,var(--green) 55%,#194A26 100%);
+  background:linear-gradient(180deg,#2A7440 0%,var(--green-fill) 55%,#194A26 100%);
   box-shadow:0 6px 14px -6px rgba(31,90,45,.75), inset 0 1px 0 rgba(255,255,255,.22);
   transition:transform .38s cubic-bezier(.34,1.24,.42,1);
   will-change:transform;z-index:0}
@@ -980,7 +987,7 @@ body.isdemo .app{padding-top:76px}
 .scanbar .t{flex:1;text-align:center;font-size:14px;font-weight:600;color:rgba(255,255,255,.8)}
 .scanbar button{background:rgba(255,255,255,.16);color:#fff;border-radius:11px;padding:9px 15px;
   font-size:14.5px;font-weight:650}
-.scanbar [data-save]{background:var(--green);}
+.scanbar [data-save]{background:var(--green-fill);}
 .scanstage{flex:1;display:grid;place-items:center;min-height:0;padding:12px}
 .scanstage canvas{touch-action:none;max-width:100%;max-height:100%;border-radius:6px}
 .scanstage .scanshot{max-width:100%;max-height:100%;border-radius:6px;
@@ -1018,7 +1025,7 @@ body.isdemo .app{padding-top:76px}
 /* PDF preview — on screen first, then print or save */
 .sheetwrap{position:fixed;inset:0;background:#39413C;z-index:80;overflow:auto;display:none}
 .sheetwrap.open{display:block}
-.sheetbar{position:sticky;top:0;z-index:2;background:var(--green);color:#fff;
+.sheetbar{position:sticky;top:0;z-index:2;background:var(--green-fill);color:#fff;
   padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;gap:10px;align-items:center}
 .sheetbar .t{flex:1;font-size:14.5px;font-weight:640}
 .sheetbar button{background:rgba(255,255,255,.16);color:#fff;border-radius:10px;
@@ -1274,15 +1281,15 @@ body{font-size:17px;line-height:1.5}
   font-weight:var(--w-bold);display:flex;align-items:center;justify-content:center;
   gap:var(--s2);background:var(--green-50);color:var(--green-700);
   border:1.5px solid var(--green-200)}
-.hm .quickbar .qa.primary{background:var(--green);color:#fff;border-color:var(--green-deep)}
-.hm .quickbar .qa.primary:active{background:var(--green-700)}
+.hm .quickbar .qa.primary{background:var(--green-fill);color:#fff;border-color:var(--green-deep)}
+.hm .quickbar .qa.primary:active{background:var(--green-fill-press)}
 .hm .quickbar .qi{font-size:21px;line-height:1;font-weight:700}
 
 /* --- attention rows read as attention ------------------------------------ */
 .hm .task.alert{background:var(--bad-bg)}
 .hm .task.warn{background:var(--warn-bg)}
-.hm .task.alert .tick{background:var(--bad);border-color:var(--bad);color:#fff}
-.hm .task.warn .tick{background:var(--warn-700);border-color:var(--warn-700);color:#fff}
+.hm .task.alert .tick{background:var(--bad-fill);border-color:var(--bad-fill);color:#fff}
+.hm .task.warn .tick{background:var(--warn-700);border-color:var(--warn-700);color:var(--warn-on)}
 .hm .task.alert .txt span,.hm .task.warn .txt span{color:var(--ink-2)}
 
 /* --- planner chips: colour plus a left bar plus a label ------------------ */
@@ -1317,7 +1324,7 @@ html[data-theme="dark"] .navpill{background:var(--paper);border-color:var(--line
 .hm .task.started{background:var(--warn-bg);
   box-shadow:inset 4px 0 0 var(--warn-700)}
 .hm .task.started .tick{background:var(--warn-700);border-color:var(--warn-700);
-  color:#fff;font-size:12px}
+  color:var(--warn-on);font-size:12px}
 .hm .task.started .txt b{color:var(--ink)}
 .hm .task.started .txt span{color:var(--warn-700);font-weight:var(--w-med)}
 .hm .task.started .pill{flex:none}
@@ -3248,6 +3255,46 @@ function jpegFromDataUrl(src, maxPx, quality){
   });
 }
 
+/* Progress photos are stored at up to 1400px so they're sharp on their own
+   record. In the printed pack, though, a contact-sheet photo only ever
+   shows at stamp size (a few centimetres). Handing the browser dozens of
+   full-size originals to decode and squeeze down -- every photo, on every
+   form, for the whole week -- is what makes printing grind to a crawl once
+   it reaches the photo pages. Shrink each one, once, to roughly the size it
+   is actually printed at, and remember the result so re-opening or
+   re-printing the same pack doesn't redo the work. */
+const packThumbCache = new Map();
+function packThumb(src){
+  if(!src) return Promise.resolve(src);
+  if(packThumbCache.has(src)) return packThumbCache.get(src);
+  const p = new Promise(res=>{
+    const im = new Image();
+    im.onerror = () => res(src);   /* if it won't decode, print the original rather than nothing */
+    im.onload = () => {
+      const maxW = 360;
+      if(im.width <= maxW){ res(src); return; }
+      const cv = document.createElement("canvas");
+      cv.width = maxW;
+      cv.height = Math.round(im.height * (maxW / im.width));
+      cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+      res(cv.toDataURL("image/jpeg", 0.6));
+    };
+    im.src = src;
+  });
+  packThumbCache.set(src, p);
+  return p;
+}
+/* Resolves a batch of photo sources to their pack-sized thumbnails in one
+   go, keyed by the original src so the pack HTML can be built with a plain
+   lookup once every promise has settled. */
+async function packThumbs(srcs){
+  const uniq = [...new Set(srcs.filter(Boolean))];
+  const small = await Promise.all(uniq.map(packThumb));
+  const map = new Map();
+  uniq.forEach((s,i)=>map.set(s, small[i]));
+  return map;
+}
+
 /* Every sheet in the pack opens the same way: logo left, title right, then a
    header table. */
 PdfDoc.prototype.sheetHead = function(logo, title, code, meta){
@@ -3766,11 +3813,22 @@ function packDocName(ws){
    The same sheets as the PDF, rendered as pages you can read, print or save
    from the phone — no download needed.
    -------------------------------------------------------------------------*/
-function openPackSheet(ws, draft){
+async function openPackSheet(ws, draft){
   const c = cfg();
   const secs = packSections(ws).filter(x=>x.items.length
     || (x.key==="plantcheck" && checksOnPaper() && scansFor(ws,"plantcheck").length));
   const gaps = packGaps(ws);
+
+  /* every photo that will land in a contact-sheet grid this pack, shrunk to
+     print size before any HTML is built -- see packThumb() above */
+  const gridSrcs = [];
+  secs.forEach(sec=>sec.items.forEach(rec=>{
+    const d = rec.data || {};
+    (d.photos||[]).forEach(ph=>gridSrcs.push(ph.src));
+    (d.boardPhoto||[]).forEach(ph=>gridSrcs.push(ph.src));
+  }));
+  const thumbs = await packThumbs(gridSrcs);
+  const thumb = src => thumbs.get(src) || src;
   const pack = packFor(ws);
   const ref = pack ? pack.ref : (draft ? "Not yet published" : nextPackRef(ws));
   const count = secs.reduce((n,x)=>n+x.items.length,0)
@@ -4006,7 +4064,7 @@ function openPackSheet(ws, draft){
           ((d.boardPhoto||[]).length
             ? `<div class="pk-h">Briefing board</div>
                <div class="imgs">` + d.boardPhoto.map(p2=>
-                 `<img src="${p2.src}" alt="Briefing board">`).join("") + `</div>`
+                 `<img src="${thumb(p2.src)}" alt="Briefing board">`).join("") + `</div>`
             : "") +
           (d.otherAttendees?`<p style="font-size:10.5px">Also present: ${esc(d.otherAttendees)}</p>`:"") +
           declaration([["Delivered by", d.deliveredBy||rec.by||""],
@@ -4110,7 +4168,7 @@ function openPackSheet(ws, draft){
           tbl(null, [["Safe for work to continue?", d.safe===false?"NO":"Yes"]]
             .concat(d.safe===false?[["Action taken", d.action||""]]:[])) +
           ((d.photos||[]).length ? `<div class="pk-h">Photographs</div>
-            <div class="imgs">${(d.photos||[]).map(ph=>`<img src="${ph.src}" alt="">`).join("")}</div>` : "") +
+            <div class="imgs">${(d.photos||[]).map(ph=>`<img src="${thumb(ph.src)}" alt="">`).join("")}</div>` : "") +
           declaration([["Competent person", rec.by||""], ["Date", longDate(rec.date)],
             ["Signature",""]], d.signature));
         return;
@@ -12368,11 +12426,19 @@ function bind(){
   const pshare = app.querySelector("[data-packshare]");
   if(pshare) pshare.onclick = ()=>{
     const ws = pshare.dataset.packshare;
-    openPackSheet(ws, !packFor(ws));
-    setTimeout(()=>{
+    /* The fixed pause here used to just guess that the sheet would be laid
+       out by then — fine with a couple of photos, but a whole week's worth
+       across every form easily outran it, or made print sit and grind. Now
+       that thumbnails are pre-shrunk (packThumb), decoding is quick, but we
+       still wait for every image on the sheet to actually finish decoding
+       before printing, rather than hoping a timer was long enough. */
+    openPackSheet(ws, !packFor(ws)).then(async ()=>{
+      const imgs = [...document.querySelectorAll("#sheet img")];
+      await Promise.all(imgs.map(im =>
+        im.decode ? im.decode().catch(()=>{}) : Promise.resolve()));
       window.print();
       toast("Save to Files, or send it, from the share button.");
-    }, 400);
+    });
   };
 
   /* publishing needs the week to be complete */
@@ -12402,7 +12468,7 @@ function bind(){
     }]);
     save();
     render();
-    openPackSheet(ws, false);
+    await openPackSheet(ws, false);
     toast("Published — " + packRefLine(packFor(ws)));
   };
 
@@ -14409,6 +14475,23 @@ function printRecord(id){
       }
       if(f.type==="planttable"||f.type==="labourtable"){
         body += tableRows(f, r.data[f.id]);
+        return;
+      }
+      if(f.type==="attendsign"){
+        /* a list of {name, sig} objects — older records just hold plain
+           name strings. Fed to the generic branch below, an array of
+           objects prints as "[object Object]" once each; this is a real
+           table instead, name against signature. */
+        const att = (r.data[f.id]||[]).map(a => typeof a === "string" ? { name:a } : a);
+        body += `<div style="font-weight:600;margin:6px 0 3px">${esc(f.label)}</div>`;
+        body += att.length
+          ? `<table><tr><th style="width:auto">Name</th><th style="width:auto">Signature</th></tr>`+
+            att.map(a=>`<tr><td>${esc(a.name||"")}</td><td>${
+              a.sig && a.sig.src
+                ? `<img src="${a.sig.src}" alt="Signature" style="display:block;width:34mm;height:10mm;object-fit:contain;object-position:left center">`
+                : "&mdash;"
+            }</td></tr>`).join("")+`</table>`
+          : `<div style="color:#666;margin-bottom:6px">None recorded</div>`;
         return;
       }
       if(f.type==="repeater"){
