@@ -5801,7 +5801,7 @@ function go(name, opts){
   if(name!=="tools"){ toolDraft = null; }
   if(name!=="deliveries"){ delDraft = null; }
   if(name!=="delivery"){ dropDraft = null; }
-  if(name!=="plan"){ eventDraft = null; hireDraft = null; planPick = null; exchPick = false; }
+  if(name!=="plan"){ eventDraft = null; hireDraft = null; planPick = null; exchPick = false; exchDraft = null; }
   if(name!=="scans"){ scanDraft = null; }
   if(name!=="newjob"){ newJob = null; }
   if(name!=="project"){ jobMenuOpen = false; }
@@ -13125,6 +13125,19 @@ function bind(){
     exchDraft = { kind, id, date: todayISO(), note:"" };
     render();
   });
+  /* from the Plan: open the picker, pick an item, close */
+  const exo = app.querySelector("[data-exchopen]");
+  if(exo) exo.onclick = ()=>{ exchPick = true; exchDraft = null; render(); };
+  app.querySelectorAll("[data-exchpickitem]").forEach(el=>el.onclick=()=>{
+    const [kind,id] = el.getAttribute("data-exchpickitem").split(":");
+    const reg = HIRE_REGISTERS.find(r=>r.kind===kind);
+    const it = reg && reg.list().find(x=>x.id===id);
+    exchDraft = { kind, id, date: (it && it.exchangeDate) || todayISO(),
+      note: (it && it.exchangeNote) || "" };
+    render();
+  });
+  const exx = app.querySelector("[data-exchclose]");
+  if(exx) exx.onclick = ()=>{ exchPick = false; exchDraft = null; render(); };
   const exd1 = app.querySelector("[data-exchdate]");
   if(exd1) exd1.oninput = ()=>{ if(exchDraft) exchDraft.date = exd1.value; };
   const exn = app.querySelector("[data-exchnote]");
@@ -13140,7 +13153,7 @@ function bind(){
     it.exchangeDate = exchDraft.date;
     it.exchangeNote = exchDraft.note || "";
     const when = it.exchangeDate;
-    exchDraft = null; save(); render();
+    exchDraft = null; exchPick = false; save(); render();
     toast("Booked for " + shortDate(when));
   };
   app.querySelectorAll("[data-exchclear]").forEach(el=>el.onclick=()=>{
