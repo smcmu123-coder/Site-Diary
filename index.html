@@ -1120,12 +1120,6 @@ body.isdemo .app{padding-top:76px}
 .pk-pgcap{display:flex;justify-content:space-between;gap:12px;font-size:9.5px;color:#555;
   font-weight:600;margin:0 0 6px}
 .pk-docpg{display:block;width:100%;height:auto;border:1px solid #D8DFDA;break-inside:avoid}
-.pk-certbox{margin-top:8px;text-align:center}
-.pk-certbox img{display:inline-block;width:100%;height:auto;max-width:100%;
-  object-fit:contain;object-position:top center;border:1px solid #D8DFDA}
-.pk-run{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:#555;
-  border-bottom:1px solid #CBD3CD;padding-bottom:6px;margin-bottom:8px}
-.pk-run b{color:#111}
 .pk-toc .r.tsub{padding:4px 2px;border-bottom:0}
 .pk-toc .r.tsub .nm{font-size:12px;font-weight:500;color:#333}
 .pk-toc .r.tsub.tl1 .nm{padding-left:14px;color:#555}
@@ -1209,11 +1203,6 @@ body.isdemo .app{padding-top:76px}
   .pk-scanbox{margin-top:4px;text-align:center}
   .pk-scanbox img{display:inline-block;width:117mm;height:165mm;
     object-fit:contain;object-position:top center;border:0;max-width:none}
-  /* A certificate in the register pack gets the page to itself under a
-     two-line running head, so it can be held to a stated box as tall as A4
-     allows -- same reason as the scan box above. */
-  .pk-certbox img{width:180mm;height:228mm}
-  .pk-regcover{min-height:230mm}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -3077,6 +3066,13 @@ PdfDoc.prototype.room = function(h){
   return false;
 };
 function pdfEsc(t){ return String(t==null?"":t).replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)"); }
+/* The fonts are WinAnsi, which has its own code points for dashes and curly
+   quotes. Written as they are, an em dash came out as a control character
+   and simply vanished from the page. */
+const PDF_ANSI = { "\u2014":"\x97", "\u2013":"\x96", "\u2018":"\x91", "\u2019":"\x92",
+  "\u201C":"\x93", "\u201D":"\x94", "\u2022":"\x95", "\u2026":"\x85", "\u20AC":"\x80" };
+const pdfEscRaw = pdfEsc;
+pdfEsc = t => pdfEscRaw(String(t==null?"":t).replace(/[\u2014\u2013\u2018\u2019\u201C\u201D\u2022\u2026\u20AC]/g, ch=>PDF_ANSI[ch]));
 /* Helvetica is close enough to half the point size per character for wrapping */
 function pdfWidth(t, size){ return String(t).length * size * 0.5; }
 
@@ -4576,12 +4572,17 @@ function printRegister(kind){
 /* ------------------------------------------ the full register pack ----
    What is on site on the day it is issued, and the paperwork behind it:
    a cover, the register itself, then each machine in turn with its
-   certificates on the pages after it. Anything that has come off site
-   is left out altogether -- this is the register as it stands today. */
+   certificates on the pages after it. Anything already off site is left out.
+
+   Built as a PDF here rather than printed from the sheet viewer. A pack of
+   full-size certificate scans is exactly what the browser's own printing
+   copes worst with: a page a millimetre too tall spills onto a blank sheet,
+   and on a long pack the printer gives up somewhere around page twenty.
+   Laid out here, every page is placed by hand -- nothing can spill, and
+   the page count is whatever the pack is. */
 function regCerts(it){
   /* certificates only -- hire agreements and manuals are not what is asked
-     for. Latest scan of each type, so a renewed certificate replaces the
-     old one rather than printing both. */
+     for. Latest scan of each, so a renewal replaces the old one. */
   const certs = (it.docs||[]).filter(d=>/certificate|examination/i.test(d.type||"") && d.src)
     .slice().sort((a,b)=>(b.scannedAt||b.addedAt||0)-(a.scannedAt||a.addedAt||0));
   const seen = new Set();
@@ -4592,7 +4593,7 @@ function regCerts(it){
   });
 }
 
-function printPlantRegisterPack(){
+async function registerPackPdf(onStep){
   const c = cfg();
   const issued = todayISO();
   const pc = (typeof jobInfo === "function" && jobInfo().pc) || "";
@@ -4601,148 +4602,254 @@ function printPlantRegisterPack(){
   const ownerOf = x => (x.owner||"Hired")==="Owned" ? "Owned" : (x.hireCompany || x.owner || "Hired");
   const certsOf = new Map(items.map(p=>[p.id, regCerts(p)]));
   const certTotal = items.reduce((n,p)=>n + certsOf.get(p.id).length, 0);
-  const colourOf = cls => cls==="red" ? "#A72B22" : cls==="amber" ? "#A86B00" : "#111";
 
-  /* ---- cover ---- */
-  let html = regPage(`<div class="pk-regcover"><div class="pk-cover">
-      <img src="${LOGO}" alt="${esc(c.company)}" style="width:190px">
-      <div class="over">${esc(c.company)}</div>
-      <h1>Plant Register</h1>
-      <div class="wc">Issue date ${longDate(issued)}</div>
-      <div class="rule"></div>
-    </div>
-    ${regTbl(null, [
-      ["Site", DB.job, "Issue date", shortDate(issued)],
-      ["Issued by", c.user.name, "Produced", stamp(Date.now())],
+  const doc = new PdfDoc();
+  const M = PdfDoc.M, W = PdfDoc.W, H = PdfDoc.H, wide = W - M*2;
+  const FOOT = 22;                         /* kept clear at the bottom of every page */
+  const red = [.65,.17,.13], amber = [.66,.42,0], grey = [.42,.46,.43], green = [.12,.35,.18];
+  const stCol = k => k==="expired" ? red : k==="soon" ? amber : [0,0,0];
+  const dsCol = cls => cls==="red" ? red : cls==="amber" ? amber : [0,0,0];
+  const put = op => doc.page.ops.push(op);
+  const bw = (t, size) => String(t).length * size * 0.56;     /* bold is wider */
+  const centre = (t, y, size, bold, col) => {
+    col = col || [0,0,0];
+    const x = (W - (bold ? bw(t,size) : pdfWidth(t,size))) / 2;
+    put(`BT ${col[0]} ${col[1]} ${col[2]} rg /${bold?"F2":"F1"} ${size} Tf 1 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)} Tm (${pdfEsc(t)}) Tj ET`);
+  };
+  const placeImage = (img, x, y, w, h) => {
+    const name = "Im" + (doc.page.images.length + 1);
+    doc.page.images.push(Object.assign({ name }, img));
+    put(`q ${w.toFixed(1)} 0 0 ${h.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)} cm /${name} Do Q`);
+  };
+  /* keep the footer strip clear: new page before anything would run into it */
+  const room = doc.room.bind(doc);
+  doc.room = h => room(h + FOOT);
+
+  let logo = null;
+  try{ logo = await jpegFromDataUrl(LOGO, 600); }catch(e){}
+
+  /* logo on the left, title and form code on the right, then the header table */
+  const head = (title, code, meta) => {
+    const top = H - M;
+    let lh = 0;
+    if(logo){
+      const lw = 92; lh = lw * (logo.h / logo.w);
+      placeImage(logo, M, top - lh, lw, lh);
+    }
+    const tw = bw(title, 14);
+    put(`BT 0 0 0 rg /F2 14 Tf 1 0 0 1 ${(W - M - tw).toFixed(1)} ${(top - 14).toFixed(1)} Tm (${pdfEsc(title)}) Tj ET`);
+    if(code) put(`BT 0.42 0.46 0.43 rg /F1 8.5 Tf 1 0 0 1 ${(W - M - pdfWidth(code, 8.5)).toFixed(1)} ${(top - 27).toFixed(1)} Tm (${pdfEsc(code)}) Tj ET`);
+    doc.y = top - Math.max(lh, 30) - 6;
+    doc.rule();
+    doc.table([wide*0.22, wide*0.28, wide*0.22, wide*0.28],
+      meta.map(r=>r.map((v,ci)=>pdfFit(v, [wide*0.22, wide*0.28, wide*0.22, wide*0.28][ci], 8.5))),
+      { size:8.5, pad:2, colour:(r,ci)=> (ci%2===0) ? [.35,.39,.36] : [0,0,0] });
+  };
+
+  /* ---------------- cover ---------------- */
+  let y = H - 190;
+  if(logo){
+    const lw = 190, lh = lw * (logo.h / logo.w);
+    placeImage(logo, (W - lw)/2, y - lh + 90, lw, lh);
+    y -= lh - 60;
+  }
+  centre(String(c.company||"").toUpperCase(), y - 20, 9, true, [.29,.49,.35]);
+  centre("Plant Register", y - 62, 32, true, [.07,.24,.12]);
+  centre("Issue date " + longDate(issued), y - 90, 13, false, [.33,.33,.33]);
+  put(`0.12 0.35 0.18 rg ${(W/2-48).toFixed(1)} ${(y-110).toFixed(1)} 96 2 re f`);
+  doc.y = y - 140;
+  doc.table([wide*0.22, wide*0.28, wide*0.22, wide*0.28], [
+      ["Site", pdfFit(DB.job, wide*0.28, 9), "Issue date", shortDate(issued)],
+      ["Issued by", pdfFit(c.user.name, wide*0.28, 9), "Produced", stamp(Date.now())],
       ["Items on site", String(items.length), "Certificates enclosed", String(certTotal)]
-    ].concat(pc ? [["Principal Contractor", pc, "", ""]] : []),
-      { cols:["19%","31%","19%","31%"] })}</div>`);
+    ].concat(pc ? [["Principal Contractor", pdfFit(pc, wide*0.28, 9), "", ""]] : []),
+    { size:9, pad:3.5, colour:(r,ci)=> ci%2===0 ? [.35,.39,.36] : [0,0,0] });
 
-  /* ---- the register ---- */
-  let reg = regHead("Plant Register", "CGCivils-013", [
-      ["Site / depot", DB.job, "Issue date", longDate(issued)],
-      ["Issued by", c.user.name, "Items on site", String(items.length)]
-    ]) +
-    `<div class="pk-h">On site at ${shortDate(issued)} (${items.length})</div>` +
-    (items.length
-      ? regTbl(["No.","Plant item","Type","Fleet no.","Owner / supplier","On site","Exam due","Status","Certs"],
-          items.map((x,i)=>{
-            const st = lolerState(x);
-            const n = certsOf.get(x.id).length;
-            return [String(i+1), x.item||"Unnamed item", x.type||"Excavator", x.fleetNo||"—",
-              ownerOf(x), x.onDate?shortDate(x.onDate):"—",
-              examDateOf(x)?shortDate(examDateOf(x)):"—",
-              regState(Object.assign({}, st, { label: st.short || st.label })),
-              n ? String(n) : `<span style="color:#A86B00;font-weight:700">None</span>`];
-          }),
-          { raw:[7,8], centre:[0,8], widths:[.05,.20,.11,.10,.15,.09,.09,.14,.07] })
-      : `<p style="font-size:10.5px;color:#555">Nothing on site on the issue date.</p>`);
+  /* ---------------- the register ---------------- */
+  doc.newPage();
+  head("Plant Register", "CGCivils-013", [
+    ["Site / depot", DB.job, "Issue date", longDate(issued)],
+    ["Issued by", c.user.name, "Items on site", String(items.length)]
+  ]);
+  doc.heading("On site at " + shortDate(issued) + " (" + items.length + ")");
+  if(items.length){
+    const cols = [22, 110, 60, 50, 80, 46, 46, 67, 30];
+    const head = ["No.","Plant item","Type","Fleet no.","Owner / supplier","On site","Exam due","Status","Certs"];
+    const states = items.map(x=>lolerState(x));
+    const body = items.map((x,i)=>{
+      const st = states[i], n = certsOf.get(x.id).length;
+      return [String(i+1), x.item||"Unnamed item", x.type||"Excavator", x.fleetNo||"—",
+        ownerOf(x), x.onDate?shortDate(x.onDate):"—",
+        examDateOf(x)?shortDate(examDateOf(x)):"—", st.short||st.label, n ? String(n) : "None"]
+        .map((cell,ci)=>pdfFit(cell, cols[ci], 7.5));
+    });
+    doc.table(cols, [head].concat(body), { header:true, size:7.5, pad:2.6,
+      align:["center","left","left","left","left","left","left","left","center"],
+      colour:(r,ci)=>{
+        if(r===0) return [0,0,0];
+        if(ci===6 || ci===7) return stCol(states[r-1].key);
+        if(ci===8 && !certsOf.get(items[r-1].id).length) return amber;
+        return [0,0,0];
+      } });
+  } else doc.text("Nothing on site on the issue date.", { size:9, colour:grey, after:6 });
 
   const flagged = items.map(x=>({ x, st:lolerState(x) }))
     .filter(o=>o.st.key==="expired" || o.st.key==="soon");
   if(flagged.length){
-    reg += `<div class="pk-h">Examinations due or overdue</div>` +
-      regTbl(["Item","Fleet no.","Exam due","Status"],
-        flagged.map(o=>[o.x.item||"Unnamed item", o.x.fleetNo||"—",
-          examDateOf(o.x)?shortDate(examDateOf(o.x)):"—", regState(o.st)]),
-        { raw:[3], widths:[.40,.22,.18,.20] });
+    doc.heading("Examinations due or overdue");
+    doc.table([wide*0.40, wide*0.22, wide*0.18, wide*0.20],
+      [["Item","Fleet no.","Exam due","Status"]].concat(flagged.map(o=>[
+        pdfFit(o.x.item||"Unnamed item", wide*0.40, 8), o.x.fleetNo||"—",
+        examDateOf(o.x)?shortDate(examDateOf(o.x)):"—", pdfFit(o.st.short||o.st.label, wide*0.20, 8)])),
+      { header:true, size:8, pad:2.6, colour:(r)=> r===0 ? [0,0,0] : stCol(flagged[r-1].st.key) });
   }
   const missing = items.filter(x=>!certsOf.get(x.id).length);
   if(missing.length){
-    reg += `<div class="pk-h">No certificate held</div>` +
-      regTbl(["Item","Fleet no.","Owner / supplier"],
-        missing.map(x=>[x.item||"Unnamed item", x.fleetNo||"—", ownerOf(x)]),
-        { widths:[.45,.22,.33] });
+    doc.heading("No certificate held");
+    doc.table([wide*0.45, wide*0.22, wide*0.33],
+      [["Item","Fleet no.","Owner / supplier"]].concat(missing.map(x=>[
+        pdfFit(x.item||"Unnamed item", wide*0.45, 8), x.fleetNo||"—", pdfFit(ownerOf(x), wide*0.33, 8)])),
+      { header:true, size:8, pad:2.6 });
   }
   const wd = items.map(p=>({ p, df:defectsFor(p.id) })).filter(o=>o.df);
   if(wd.length){
-    reg += `<div class="pk-h">Open defects</div>` +
-      regTbl(["Machine","Fleet no.","Defects","Reported to"],
-        wd.map(o=>[o.p.item||"Unnamed item", o.p.fleetNo||"—",
-          `<span style="color:#A72B22;font-weight:700">${o.df.items.length}${
-            o.df.unsafe?" · not fit for use":""}</span>`,
-          recipientFor(o.p).name || "Our fitter"]),
-        { raw:[2], widths:[.34,.18,.20,.28] });
+    doc.heading("Open defects");
+    doc.table([wide*0.34, wide*0.18, wide*0.20, wide*0.28],
+      [["Machine","Fleet no.","Defects","Reported to"]].concat(wd.map(o=>[
+        pdfFit(o.p.item||"Unnamed item", wide*0.34, 8), o.p.fleetNo||"—",
+        o.df.items.length + (o.df.unsafe ? " · not fit for use" : ""),
+        pdfFit(recipientFor(o.p).name || "Our fitter", wide*0.28, 8)])),
+      { header:true, size:8, pad:2.6, colour:(r)=> r===0 ? [0,0,0] : red });
   }
-  reg += `<p style="font-size:10px;color:#555;margin-top:12px"><i>Plant on site on the issue
-    date only. Each item follows in the order above with its certificates on the pages after it.
-    Thorough examination under LOLER for lifting equipment, PUWER inspection for everything else.</i></p>`
-    + regFoot("plant register · issued " + shortDate(issued));
-  html += regPage(reg);
+  doc.text("Plant on site on the issue date only. Each item follows in the order above, with its "
+    + "certificates on the pages after it. Thorough examination under LOLER for lifting equipment, "
+    + "PUWER inspection for everything else.", { size:8, colour:grey, after:4 });
 
-  /* ---- each machine, then its certificates ---- */
-  items.forEach((it,i)=>{
+  /* ---------------- each machine, then its certificates ---------------- */
+  for(let i=0;i<items.length;i++){
+    const it = items[i];
     const st = lolerState(it);
     const certs = certsOf.get(it.id);
     const ref = "Item " + (i+1) + " of " + items.length;
-    const rows = [
-      ["Plant item", esc(it.item||"Unnamed item")],
-      ["Type", esc(it.type||"Excavator")],
-      ["Fleet number", esc(it.fleetNo||"—")],
-      ["Model", esc(it.model||"—")],
-      ["Owned or hired", esc(it.owner||"—")]
-    ];
-    if((it.owner||"")!=="Owned"){
-      rows.push(["Supplier", esc(it.hireCompany||"—")]);
-      if(it.hireRef) rows.push(["Hire reference", esc(it.hireRef)]);
-    }
-    rows.push(["On site from", it.onDate?longDate(it.onDate):"—"]);
-    rows.push(["Next examination", examDateOf(it)
-      ? `<span style="color:${colourOf(st.cls)};font-weight:${st.cls==="ok"?"400":"700"}">${
-          longDate(examDateOf(it))} — ${esc(st.label)}</span>` : "Not set"]);
+    if(onStep) onStep(i+1, items.length);
 
-    let pg = regHead("Plant Record", "CGCivils-013", [
+    doc.newPage();
+    head("Plant Record", "CGCivils-013", [
       ["Site / depot", DB.job, "Issue date", shortDate(issued)],
       ["Register ref.", ref, "Certificates", String(certs.length)]
     ]);
-    if(st.key==="expired") pg += `<div style="border:2px solid #A72B22;color:#A72B22;font-weight:700;
-      padding:8px 10px;margin-bottom:12px;border-radius:3px">EXAMINATION OVERDUE</div>`;
-    pg += `<div class="pk-h">Details</div>` + regTbl(null, rows, { raw:[1], cols:["32%","68%"] });
+    doc.text(it.item || "Unnamed item", { size:15, bold:true, after:1 });
+    doc.text([it.type||"Excavator", it.fleetNo].filter(Boolean).join("  ·  "),
+      { size:10, colour:grey, after:6 });
+    if(st.key === "expired") doc.banner("EXAMINATION OVERDUE");
+
+    doc.heading("Details");
+    doc.pair("Fleet number", it.fleetNo || "—");
+    doc.pair("Model", it.model || "—");
+    doc.pair("Owned or hired", it.owner || "—");
+    if((it.owner||"") !== "Owned"){
+      doc.pair("Supplier", it.hireCompany || "—");
+      if(it.hireRef) doc.pair("Hire reference", it.hireRef);
+    }
+    doc.pair("On site from", it.onDate ? longDate(it.onDate) : "—");
+    doc.pair("Next examination", examDateOf(it)
+      ? longDate(examDateOf(it)) + (st.key==="ok" ? "" : " — " + (st.short||st.label)) : "Not set",
+      stCol(st.key));
 
     const exams = (it.exams||[]).slice();
     if(exams.length){
-      pg += `<div class="pk-h">Examination history</div>` +
-        regTbl(["Examined","Next due","Examined by"],
-          exams.map(e=>[e.done?shortDate(e.done):"—", e.next?shortDate(e.next):"—", e.by||"—"]),
-          { widths:[.30,.30,.40] });
+      doc.heading("Examination history");
+      doc.table([wide*0.30, wide*0.30, wide*0.40],
+        [["Examined","Next due","Examined by"]].concat(exams.map(e=>[
+          e.done?shortDate(e.done):"—", e.next?shortDate(e.next):"—", pdfFit(e.by||"—", wide*0.40, 8)])),
+        { header:true, size:8, pad:2.6 });
     }
     const df = defectsFor(it.id);
     if(df){
-      pg += `<div class="pk-h">Open defects${df.unsafe?" — not fit for use":""}</div>` +
-        regTbl(["Check","Defect","Reported"],
-          df.items.map(x=>[x.item||"—", x.description||"—", x.date?shortDate(x.date):"—"]),
-          { widths:[.32,.46,.22] });
+      doc.heading("Open defects" + (df.unsafe ? " — not fit for use" : ""));
+      doc.table([wide*0.32, wide*0.46, wide*0.22],
+        [["Check","Defect","Reported"]].concat(df.items.map(x=>[
+          pdfFit(x.item||"—", wide*0.32, 8), pdfFit(x.description||"—", wide*0.46, 8),
+          x.date ? shortDate(x.date) : "—"])),
+        { header:true, size:8, pad:2.6, colour:(r)=> r===0 ? [0,0,0] : red });
     }
-    pg += `<div class="pk-h">Certificates enclosed${certs.length?" ("+certs.length+")":""}</div>`;
-    pg += certs.length
-      ? regTbl(["Page","Certificate","Reference","Expires"],
-          certs.map((d,k)=>{
-            const ds = docState(d);
-            return [String(k+1), d.type||"Certificate", d.title||"—",
-              d.expires ? `<span style="color:${colourOf(ds.cls)};font-weight:${ds.cls==="ok"?"400":"700"}">${
-                shortDate(d.expires)}${ds.cls==="red"?" — expired":""}</span>` : "—"];
-          }), { raw:[3], centre:[0], widths:[.08,.40,.30,.22] })
-      : `<p style="font-size:10.5px;color:#A86B00"><b>No certificate has been scanned against
-         this machine.</b></p>`;
-    pg += regFoot(ref + (it.fleetNo ? " · " + it.fleetNo : ""));
-    html += regPage(pg);
+    doc.heading("Certificates enclosed" + (certs.length ? " (" + certs.length + ")" : ""));
+    if(certs.length){
+      doc.table([wide*0.08, wide*0.40, wide*0.30, wide*0.22],
+        [["No.","Certificate","Reference","Expires"]].concat(certs.map((d,k)=>{
+          const ds = docState(d);
+          return [String(k+1), pdfFit(d.type||"Certificate", wide*0.40, 8),
+            pdfFit(d.title||"—", wide*0.30, 8),
+            d.expires ? shortDate(d.expires) + (ds.cls==="red" ? " — expired" : "") : "—"];
+        })),
+        { header:true, size:8, pad:2.6, align:["center"],
+          colour:(r,ci)=> r===0 || ci!==3 ? [0,0,0] : dsCol(docState(certs[r-1]).cls) });
+    } else {
+      doc.text("No certificate has been scanned against this machine.",
+        { size:9.5, colour:amber, bold:true, after:4 });
+    }
 
-    certs.forEach((d,k)=>{
-      const ds = docState(d);
-      html += regPage(`<div class="pk-run">
-          <span><b>${esc(it.item||"Unnamed item")}${it.fleetNo?" · "+esc(it.fleetNo):""}</b>
-            · ${esc(d.type||"Certificate")}${d.title?" · "+esc(d.title):""}</span>
-          <span>${esc(ref)} · certificate ${k+1} of ${certs.length}${
-            ds.label ? ` · <b style="color:${colourOf(ds.cls)}">${esc(ds.label)}</b>` : ""}</span>
-        </div>
-        <div class="pk-certbox"><img src="${d.src}" alt="${esc(d.type||"Certificate")}"></div>`);
-    });
+    /* one page per certificate: a two-line head, then the scan as large as
+       the page allows, centred */
+    for(let k=0;k<certs.length;k++){
+      const d = certs[k], ds = docState(d);
+      doc.newPage();
+      doc.text((it.item||"Unnamed item") + (it.fleetNo ? "  ·  " + it.fleetNo : "")
+        + "  —  " + (d.type||"Certificate"), { size:11, bold:true, after:0 });
+      doc.text(ref + "  ·  certificate " + (k+1) + " of " + certs.length
+        + (d.title ? "  ·  ref " + d.title : "") + (ds.label ? "  ·  " + ds.label : ""),
+        { size:9, colour: ds.cls==="red" ? red : ds.cls==="amber" ? amber : grey, after:2 });
+      doc.rule();
+      try{
+        const img = await jpegFromDataUrl(d.src, 1700, 0.8);
+        const boxW = wide, boxH = doc.y - M - FOOT - 4;
+        const s = Math.min(boxW / img.w, boxH / img.h);
+        const w = img.w * s, h = img.h * s;
+        placeImage(img, M + (boxW - w)/2, doc.y - h, w, h);
+        put(`0.8 0.83 0.81 RG 0.6 w ${(M+(boxW-w)/2).toFixed(1)} ${(doc.y-h).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)} re S`);
+        doc.y -= h;
+      }catch(e){
+        doc.text("This scan could not be included.", { size:9.5, colour:grey });
+      }
+    }
+  }
+
+  /* ---------------- footer and page numbers on every page ---------------- */
+  const total = doc.pages.length;
+  const left = c.company + " · " + DB.job + " · Plant Register issued " + shortDate(issued);
+  doc.pages.forEach((pg,n)=>{
+    const right = "Page " + (n+1) + " of " + total;
+    pg.ops.push(`0.8 0.83 0.81 RG 0.6 w ${M} ${M} m ${W-M} ${M} l S`);
+    pg.ops.push(`BT 0.42 0.46 0.43 rg /F1 7.5 Tf 1 0 0 1 ${M} ${M-11} Tm (${pdfEsc(pdfFit(left, wide-80, 7.5))}) Tj ET`);
+    pg.ops.push(`BT 0.42 0.46 0.43 rg /F1 7.5 Tf 1 0 0 1 ${(W-M-pdfWidth(right,7.5)).toFixed(1)} ${M-11} Tm (${pdfEsc(right)}) Tj ET`);
   });
 
-  document.getElementById("sheet").innerHTML = html;
-  document.getElementById("sheetTitle").textContent = "Plant Register — issued " + shortDate(issued);
-  document.getElementById("sheetwrap").classList.add("open");
-  window.scrollTo(0,0);
+  const clean = s => String(s||"").replace(/[^\w\- ]+/g,"").trim();
+  return { blob: doc.blob(),
+    name: "Plant Register - " + clean(DB.job) + " - issued " + issued + ".pdf",
+    pages: total, items: items.length, certs: certTotal };
+}
+
+/* Build it, then open it where it can be printed: the share sheet on a
+   phone or tablet (Print is on it), a download anywhere else. */
+async function printRegisterPack(){
+  if(!onSitePlant(todayISO()).length){ toast("Nothing on site to put in the register."); return; }
+  toast("Building the register…");
+  let out = null;
+  try{
+    out = await registerPackPdf((n,of)=>{ if(of > 3) toast("Building the register — item " + n + " of " + of); });
+  }catch(e){ toast("Could not build the register."); return; }
+
+  const file = new File([out.blob], out.name, { type:"application/pdf" });
+  if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+    try{ await navigator.share({ files:[file], title:"Plant Register" }); return; }
+    catch(e){ return; }   /* cancelled */
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast("Saved — " + out.pages + " pages, " + out.items + " item" + (out.items===1?"":"s")
+    + ", " + out.certs + " certificate" + (out.certs===1?"":"s"));
 }
 
 /* ------------------------------------- one item and its certificates ---- */
@@ -9376,7 +9483,7 @@ function plantView(){
       <h3>Full plant register with certificates</h3>
       <p>Everything on site today, issued as a pack: a Plant Register cover with today&rsquo;s
       issue date, the register, then each machine followed by its scanned certificates.
-      Print it or save it as a PDF from the preview.</p>
+      It opens as a PDF, ready to print, save or send.</p>
       <button class="btn line" style="margin:14px 0 0" data-regpack="plant">Print full register</button>
     </div>`;
 }
@@ -13180,7 +13287,7 @@ function bind(){
 
   app.querySelectorAll("[data-regpack]").forEach(el=>el.onclick=(e)=>{
     e.stopPropagation();
-    printPlantRegisterPack();
+    printRegisterPack();
   });
 
   app.querySelectorAll("[data-regview]").forEach(el=>el.onclick=(e)=>{
