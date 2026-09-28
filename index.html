@@ -1120,6 +1120,12 @@ body.isdemo .app{padding-top:76px}
 .pk-pgcap{display:flex;justify-content:space-between;gap:12px;font-size:9.5px;color:#555;
   font-weight:600;margin:0 0 6px}
 .pk-docpg{display:block;width:100%;height:auto;border:1px solid #D8DFDA;break-inside:avoid}
+.pk-certbox{margin-top:8px;text-align:center}
+.pk-certbox img{display:inline-block;width:100%;height:auto;max-width:100%;
+  object-fit:contain;object-position:top center;border:1px solid #D8DFDA}
+.pk-run{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:#555;
+  border-bottom:1px solid #CBD3CD;padding-bottom:6px;margin-bottom:8px}
+.pk-run b{color:#111}
 .pk-toc .r.tsub{padding:4px 2px;border-bottom:0}
 .pk-toc .r.tsub .nm{font-size:12px;font-weight:500;color:#333}
 .pk-toc .r.tsub.tl1 .nm{padding-left:14px;color:#555}
@@ -1203,6 +1209,11 @@ body.isdemo .app{padding-top:76px}
   .pk-scanbox{margin-top:4px;text-align:center}
   .pk-scanbox img{display:inline-block;width:117mm;height:165mm;
     object-fit:contain;object-position:top center;border:0;max-width:none}
+  /* A certificate in the register pack gets the page to itself under a
+     two-line running head, so it can be held to a stated box as tall as A4
+     allows -- same reason as the scan box above. */
+  .pk-certbox img{width:180mm;height:228mm}
+  .pk-regcover{min-height:230mm}
   .sheetbar{display:none!important}
   .sheet{width:auto;margin:0;padding:0}
 }
@@ -4558,6 +4569,178 @@ function printRegister(kind){
 
   document.getElementById("sheet").innerHTML = html;
   document.getElementById("sheetTitle").textContent = title + " — " + shortDate(todayISO());
+  document.getElementById("sheetwrap").classList.add("open");
+  window.scrollTo(0,0);
+}
+
+/* ------------------------------------------ the full register pack ----
+   What is on site on the day it is issued, and the paperwork behind it:
+   a cover, the register itself, then each machine in turn with its
+   certificates on the pages after it. Anything that has come off site
+   is left out altogether -- this is the register as it stands today. */
+function regCerts(it){
+  /* certificates only -- hire agreements and manuals are not what is asked
+     for. Latest scan of each type, so a renewed certificate replaces the
+     old one rather than printing both. */
+  const certs = (it.docs||[]).filter(d=>/certificate|examination/i.test(d.type||"") && d.src)
+    .slice().sort((a,b)=>(b.scannedAt||b.addedAt||0)-(a.scannedAt||a.addedAt||0));
+  const seen = new Set();
+  return certs.filter(d=>{
+    const k = (d.type||"") + "|" + (d.title||"");
+    if(seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
+
+function printPlantRegisterPack(){
+  const c = cfg();
+  const issued = todayISO();
+  const pc = (typeof jobInfo === "function" && jobInfo().pc) || "";
+  const items = onSitePlant(issued).slice()
+    .sort((a,b)=>(a.fleetNo||a.item||"").localeCompare(b.fleetNo||b.item||"", undefined, { numeric:true }));
+  const ownerOf = x => (x.owner||"Hired")==="Owned" ? "Owned" : (x.hireCompany || x.owner || "Hired");
+  const certsOf = new Map(items.map(p=>[p.id, regCerts(p)]));
+  const certTotal = items.reduce((n,p)=>n + certsOf.get(p.id).length, 0);
+  const colourOf = cls => cls==="red" ? "#A72B22" : cls==="amber" ? "#A86B00" : "#111";
+
+  /* ---- cover ---- */
+  let html = regPage(`<div class="pk-regcover"><div class="pk-cover">
+      <img src="${LOGO}" alt="${esc(c.company)}" style="width:190px">
+      <div class="over">${esc(c.company)}</div>
+      <h1>Plant Register</h1>
+      <div class="wc">Issue date ${longDate(issued)}</div>
+      <div class="rule"></div>
+    </div>
+    ${regTbl(null, [
+      ["Site", DB.job, "Issue date", shortDate(issued)],
+      ["Issued by", c.user.name, "Produced", stamp(Date.now())],
+      ["Items on site", String(items.length), "Certificates enclosed", String(certTotal)]
+    ].concat(pc ? [["Principal Contractor", pc, "", ""]] : []),
+      { cols:["19%","31%","19%","31%"] })}</div>`);
+
+  /* ---- the register ---- */
+  let reg = regHead("Plant Register", "CGCivils-013", [
+      ["Site / depot", DB.job, "Issue date", longDate(issued)],
+      ["Issued by", c.user.name, "Items on site", String(items.length)]
+    ]) +
+    `<div class="pk-h">On site at ${shortDate(issued)} (${items.length})</div>` +
+    (items.length
+      ? regTbl(["No.","Plant item","Type","Fleet no.","Owner / supplier","On site","Exam due","Status","Certs"],
+          items.map((x,i)=>{
+            const st = lolerState(x);
+            const n = certsOf.get(x.id).length;
+            return [String(i+1), x.item||"Unnamed item", x.type||"Excavator", x.fleetNo||"—",
+              ownerOf(x), x.onDate?shortDate(x.onDate):"—",
+              examDateOf(x)?shortDate(examDateOf(x)):"—",
+              regState(Object.assign({}, st, { label: st.short || st.label })),
+              n ? String(n) : `<span style="color:#A86B00;font-weight:700">None</span>`];
+          }),
+          { raw:[7,8], centre:[0,8], widths:[.05,.20,.11,.10,.15,.09,.09,.14,.07] })
+      : `<p style="font-size:10.5px;color:#555">Nothing on site on the issue date.</p>`);
+
+  const flagged = items.map(x=>({ x, st:lolerState(x) }))
+    .filter(o=>o.st.key==="expired" || o.st.key==="soon");
+  if(flagged.length){
+    reg += `<div class="pk-h">Examinations due or overdue</div>` +
+      regTbl(["Item","Fleet no.","Exam due","Status"],
+        flagged.map(o=>[o.x.item||"Unnamed item", o.x.fleetNo||"—",
+          examDateOf(o.x)?shortDate(examDateOf(o.x)):"—", regState(o.st)]),
+        { raw:[3], widths:[.40,.22,.18,.20] });
+  }
+  const missing = items.filter(x=>!certsOf.get(x.id).length);
+  if(missing.length){
+    reg += `<div class="pk-h">No certificate held</div>` +
+      regTbl(["Item","Fleet no.","Owner / supplier"],
+        missing.map(x=>[x.item||"Unnamed item", x.fleetNo||"—", ownerOf(x)]),
+        { widths:[.45,.22,.33] });
+  }
+  const wd = items.map(p=>({ p, df:defectsFor(p.id) })).filter(o=>o.df);
+  if(wd.length){
+    reg += `<div class="pk-h">Open defects</div>` +
+      regTbl(["Machine","Fleet no.","Defects","Reported to"],
+        wd.map(o=>[o.p.item||"Unnamed item", o.p.fleetNo||"—",
+          `<span style="color:#A72B22;font-weight:700">${o.df.items.length}${
+            o.df.unsafe?" · not fit for use":""}</span>`,
+          recipientFor(o.p).name || "Our fitter"]),
+        { raw:[2], widths:[.34,.18,.20,.28] });
+  }
+  reg += `<p style="font-size:10px;color:#555;margin-top:12px"><i>Plant on site on the issue
+    date only. Each item follows in the order above with its certificates on the pages after it.
+    Thorough examination under LOLER for lifting equipment, PUWER inspection for everything else.</i></p>`
+    + regFoot("plant register · issued " + shortDate(issued));
+  html += regPage(reg);
+
+  /* ---- each machine, then its certificates ---- */
+  items.forEach((it,i)=>{
+    const st = lolerState(it);
+    const certs = certsOf.get(it.id);
+    const ref = "Item " + (i+1) + " of " + items.length;
+    const rows = [
+      ["Plant item", esc(it.item||"Unnamed item")],
+      ["Type", esc(it.type||"Excavator")],
+      ["Fleet number", esc(it.fleetNo||"—")],
+      ["Model", esc(it.model||"—")],
+      ["Owned or hired", esc(it.owner||"—")]
+    ];
+    if((it.owner||"")!=="Owned"){
+      rows.push(["Supplier", esc(it.hireCompany||"—")]);
+      if(it.hireRef) rows.push(["Hire reference", esc(it.hireRef)]);
+    }
+    rows.push(["On site from", it.onDate?longDate(it.onDate):"—"]);
+    rows.push(["Next examination", examDateOf(it)
+      ? `<span style="color:${colourOf(st.cls)};font-weight:${st.cls==="ok"?"400":"700"}">${
+          longDate(examDateOf(it))} — ${esc(st.label)}</span>` : "Not set"]);
+
+    let pg = regHead("Plant Record", "CGCivils-013", [
+      ["Site / depot", DB.job, "Issue date", shortDate(issued)],
+      ["Register ref.", ref, "Certificates", String(certs.length)]
+    ]);
+    if(st.key==="expired") pg += `<div style="border:2px solid #A72B22;color:#A72B22;font-weight:700;
+      padding:8px 10px;margin-bottom:12px;border-radius:3px">EXAMINATION OVERDUE</div>`;
+    pg += `<div class="pk-h">Details</div>` + regTbl(null, rows, { raw:[1], cols:["32%","68%"] });
+
+    const exams = (it.exams||[]).slice();
+    if(exams.length){
+      pg += `<div class="pk-h">Examination history</div>` +
+        regTbl(["Examined","Next due","Examined by"],
+          exams.map(e=>[e.done?shortDate(e.done):"—", e.next?shortDate(e.next):"—", e.by||"—"]),
+          { widths:[.30,.30,.40] });
+    }
+    const df = defectsFor(it.id);
+    if(df){
+      pg += `<div class="pk-h">Open defects${df.unsafe?" — not fit for use":""}</div>` +
+        regTbl(["Check","Defect","Reported"],
+          df.items.map(x=>[x.item||"—", x.description||"—", x.date?shortDate(x.date):"—"]),
+          { widths:[.32,.46,.22] });
+    }
+    pg += `<div class="pk-h">Certificates enclosed${certs.length?" ("+certs.length+")":""}</div>`;
+    pg += certs.length
+      ? regTbl(["Page","Certificate","Reference","Expires"],
+          certs.map((d,k)=>{
+            const ds = docState(d);
+            return [String(k+1), d.type||"Certificate", d.title||"—",
+              d.expires ? `<span style="color:${colourOf(ds.cls)};font-weight:${ds.cls==="ok"?"400":"700"}">${
+                shortDate(d.expires)}${ds.cls==="red"?" — expired":""}</span>` : "—"];
+          }), { raw:[3], centre:[0], widths:[.08,.40,.30,.22] })
+      : `<p style="font-size:10.5px;color:#A86B00"><b>No certificate has been scanned against
+         this machine.</b></p>`;
+    pg += regFoot(ref + (it.fleetNo ? " · " + it.fleetNo : ""));
+    html += regPage(pg);
+
+    certs.forEach((d,k)=>{
+      const ds = docState(d);
+      html += regPage(`<div class="pk-run">
+          <span><b>${esc(it.item||"Unnamed item")}${it.fleetNo?" · "+esc(it.fleetNo):""}</b>
+            · ${esc(d.type||"Certificate")}${d.title?" · "+esc(d.title):""}</span>
+          <span>${esc(ref)} · certificate ${k+1} of ${certs.length}${
+            ds.label ? ` · <b style="color:${colourOf(ds.cls)}">${esc(ds.label)}</b>` : ""}</span>
+        </div>
+        <div class="pk-certbox"><img src="${d.src}" alt="${esc(d.type||"Certificate")}"></div>`);
+    });
+  });
+
+  document.getElementById("sheet").innerHTML = html;
+  document.getElementById("sheetTitle").textContent = "Plant Register — issued " + shortDate(issued);
   document.getElementById("sheetwrap").classList.add("open");
   window.scrollTo(0,0);
 }
@@ -9188,6 +9371,13 @@ function plantView(){
       and any open defects. Preview it first, then print it or save it as a PDF.</p>
       <button class="btn line" style="margin:14px 0 0" data-regview="plant">Preview register</button>
       <button class="btn ghost" style="margin:8px 0 0" data-regpdf="plant">Share as a file</button>
+    </div>
+    <div class="card">
+      <h3>Full plant register with certificates</h3>
+      <p>Everything on site today, issued as a pack: a Plant Register cover with today&rsquo;s
+      issue date, the register, then each machine followed by its scanned certificates.
+      Print it or save it as a PDF from the preview.</p>
+      <button class="btn line" style="margin:14px 0 0" data-regpack="plant">Print full register</button>
     </div>`;
 }
 
@@ -12986,6 +13176,11 @@ function bind(){
   app.querySelectorAll("[data-regpdf]").forEach(el=>el.onclick=(e)=>{
     e.stopPropagation();
     publishRegister(el.getAttribute("data-regpdf"));
+  });
+
+  app.querySelectorAll("[data-regpack]").forEach(el=>el.onclick=(e)=>{
+    e.stopPropagation();
+    printPlantRegisterPack();
   });
 
   app.querySelectorAll("[data-regview]").forEach(el=>el.onclick=(e)=>{
