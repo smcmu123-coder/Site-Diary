@@ -12001,7 +12001,23 @@ async function exportTimesheet(ws){
   toast("Saved as " + name);
 }
 
-function timesheetWeek(ws){
+/* Hours put straight onto the timesheet, for a day with no diary behind it --
+   a Saturday or Sunday worked, say. Kept apart from the diaries, and only ever
+   used where no submitted diary has that person on site that day: once there
+   is one, the diary is the record and wins. */
+function tsEntries(){ return (DB.tsHours||[]).filter(e=>e.job===DB.job); }
+function tsEntryFor(date, key){ return tsEntries().find(e=>e.date===date && e.key===key) || null; }
+function tsEntryHours(e){
+  const a = toMins(e.start), b = toMins(e.finish);
+  if(a==null || b==null) return 0;
+  let mins = b - a; if(mins < 0) mins += 24*60;
+  const brk = Number(e.breakMins);
+  mins -= Number.isFinite(brk) ? brk : 0;
+  return mins > 0 ? Math.round((mins/60)*100)/100 : 0;
+}
+
+function timesheetWeek(ws, opts){
+  opts = opts || {};
   const days = weekDays(ws);
   const people = {};
   days.forEach(d=>{
@@ -12023,6 +12039,27 @@ function timesheetWeek(ws){
       people[key].total += h;
     });
   });
+
+  /* then anything added on the timesheet, for days the diaries do not cover */
+  tsEntries().filter(e=>days.includes(e.date)).forEach(e=>{
+    if(people[e.key] && people[e.key].days[e.date]) return;      /* the diary has it */
+    if(!people[e.key]) people[e.key] = { name:e.name, trade:e.trade, key:e.key, days:{}, total:0 };
+    const h = tsEntryHours(e);
+    const std = hoursFor(null, e.date);
+    const normal = !!std.working && e.start===std.start && e.finish===std.finish
+      && Number(e.breakMins)===Number(std.breakMins);
+    people[e.key].days[e.date] = { hours:h, start:e.start, finish:e.finish, normal,
+      reason: e.reason || (std.working ? "" : "Weekend working"), breakMins:e.breakMins,
+      manual:true, tsId:e.id };
+    people[e.key].total += h;
+  });
+
+  /* on screen, everyone on the register is listed so a blank day can be filled */
+  if(opts.register){
+    (DB.labour||[]).filter(l=>l.job===DB.job
+      && (!l.onDate || l.onDate<=days[6]) && (!l.offDate || l.offDate>=days[0]))
+      .forEach(l=>{ if(!people[l.id]) people[l.id] = { name:l.name, trade:l.trade, key:l.id, days:{}, total:0 }; });
+  }
   return { days, people:Object.values(people) };
 }
 
@@ -12031,10 +12068,11 @@ function timesheetWeek(ws){
 function editTimesheetDay(date, personKey){
   const rec = DB.records.find(r=>r.date===date && r.job===DB.job
     && (r.form||"diary")==="diary" && r.status==="submitted");
-  if(!rec){ toast("There is no submitted diary for that day."); return; }
-  const rows = rec.data.labourTable || [];
-  const row = rows.find(r=>(r.id||r.name)===personKey);
-  if(!row){ toast("That person is not on that day\u2019s diary."); return; }
+  const row = rec ? (rec.data.labourTable || []).find(r=>(r.id||r.name)===personKey) : null;
+  /* no diary for the day, or they are not on it: hours go on the timesheet itself */
+  if(!rec || !row || (row.onSite!==true && !row.leave && tsEntryFor(date, personKey))){
+    editTimesheetEntry(date, personKey); return;
+  }
 
   const h = hoursFor(null, date);
   const draft = {
@@ -12113,6 +12151,86 @@ function editTimesheetDay(date, personKey){
   wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
 }
 
+/* Hours for one person on one day, straight onto the timesheet. */
+function editTimesheetEntry(date, personKey){
+  const existing = tsEntryFor(date, personKey);
+  const person = (DB.labour||[]).find(l=>l.id===personKey)
+    || (existing ? { name:existing.name, trade:existing.trade } : { name:personKey, trade:"" });
+  const std = hoursFor(null, date);
+  const lv = leaveOn(personKey, date);
+  const draft = existing ? Object.assign({}, existing) : {
+    start: std.start, finish: std.finish,
+    breakMins: Number.isFinite(Number(std.breakMins)) ? Number(std.breakMins) : 30,
+    reason: std.working ? "" : "Weekend working"
+  };
+
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  const paint = () => {
+    const hrs = tsEntryHours(draft);
+    wrap.innerHTML = `<div class="dlg">
+      <h3>${esc(person.name || "This person")}</h3>
+      <p>${longDate(date)} &middot; no diary for this day</p>
+      ${lv ? `<div class="card" style="background:var(--info-bg);box-shadow:none">
+        <p>Booked off as ${esc(lv.type)} on this day.</p></div>` : ""}
+      <div class="g2">
+        <div class="f"><label>Start</label>
+          <input class="in" type="time" data-tf="start" value="${esc(draft.start||"")}"></div>
+        <div class="f"><label>Finish</label>
+          <input class="in" type="time" data-tf="finish" value="${esc(draft.finish||"")}"></div>
+      </div>
+      <div class="f"><label>Break (minutes)</label>
+        <input class="in" type="number" inputmode="numeric" min="0" step="5" data-tf="breakMins"
+          value="${esc(draft.breakMins)}"></div>
+      <div class="f"><label>Reason</label>
+        <input class="in" data-tf="reason" value="${esc(draft.reason||"")}"
+          placeholder="Weekend working, overtime"></div>
+      <div class="card" style="background:var(--green-50);box-shadow:none;margin-bottom:16px">
+        <div class="spread"><span>Hours for the day</span><b style="font-size:17px" data-hrs>${hrs}</b></div>
+      </div>
+      <p style="font-size:12.5px;color:var(--ink-3);margin:-4px 0 14px">Goes on the timesheet only.
+        If a diary is submitted for this day with them on it, the diary takes over.</p>
+      <button class="btn" data-save ${hrs>0?"":"disabled"}>${existing?"Save the change":"Add the hours"}</button>
+      ${existing ? `<button class="btn line" style="margin:0 0 8px;color:var(--bad)" data-rm>Remove these hours</button>` : ""}
+      <button class="btn ghost" style="margin:0" data-x>Cancel</button>
+    </div>`;
+    wire();
+  };
+  const wire = () => {
+    wrap.querySelectorAll("[data-tf]").forEach(el=>{
+      /* update the figure in place -- redrawing the dialog as a box loses focus
+         would swallow the tap on Save that caused it */
+      el.oninput = () => {
+        draft[el.dataset.tf] = el.dataset.tf==="breakMins" ? Number(el.value)||0 : el.value;
+        const h = tsEntryHours(draft);
+        wrap.querySelector("[data-hrs]").textContent = h;
+        wrap.querySelector("[data-save]").disabled = !(h > 0);
+      };
+      el.onchange = el.oninput;
+    });
+    wrap.querySelector("[data-x]").onclick = () => wrap.remove();
+    const rm = wrap.querySelector("[data-rm]");
+    if(rm) rm.onclick = () => {
+      DB.tsHours = (DB.tsHours||[]).filter(e=>e.id!==existing.id);
+      save(); wrap.remove(); render(); toast("Hours removed — " + shortDate(date));
+    };
+    const sv = wrap.querySelector("[data-save]");
+    if(sv) sv.onclick = () => {
+      if(!(tsEntryHours(draft) > 0)){ toast("Put in a start and finish time."); return; }
+      const entry = { id: existing ? existing.id : "ts_"+Date.now(), job:DB.job, date, key:personKey,
+        name: person.name||"", trade: person.trade||"", start:draft.start, finish:draft.finish,
+        breakMins: Number(draft.breakMins)||0, reason:(draft.reason||"").trim(),
+        by: cfg().user.name, at: Date.now() };
+      DB.tsHours = (DB.tsHours||[]).filter(e=>e.id!==entry.id).concat([entry]);
+      save(); wrap.remove(); render();
+      toast((existing ? "Hours updated — " : "Hours added — ") + shortDate(date));
+    };
+  };
+  document.body.appendChild(wrap);
+  paint();
+  wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
+}
+
 /* When the week looks empty, say why rather than showing a blank grid. */
 function timesheetReason(ws){
   const days = weekDays(ws);
@@ -12145,7 +12263,7 @@ function timesheetReason(ws){
 
 function timesheetView(){
   const ws = view.week || weekStart(todayISO());
-  const { days, people } = timesheetWeek(ws);
+  const { days, people } = timesheetWeek(ws, { register:true });
   const why = people.length ? null : timesheetReason(ws);
   const grand = people.reduce((n,p)=>n+p.total,0);
   const round = n => Math.round(n*100)/100;
@@ -12157,7 +12275,8 @@ function timesheetView(){
     let cls = "none", val = "–";
     if(c && c.leave){ cls = "hol"; val = c.leave; }
     else if(c){ cls = c.normal ? "norm" : "extra"; val = round(c.hours); }
-    return `<button class="tsday ${cls}${weekend?" we":""}" data-tsedit="${d}|${esc(p.key)}">
+    return `<button class="tsday ${cls}${weekend?" we":""}" data-tsedit="${d}|${esc(p.key)}"
+      ${c && c.manual ? `title="Added on the timesheet" style="box-shadow:inset 0 -3px 0 var(--green)"` : ""}>
       <span class="dl">${LETTERS[i]}</span><span class="dv">${esc(val)}</span></button>`;
   };
 
@@ -12197,15 +12316,18 @@ function timesheetView(){
         <span><i style="background:var(--canvas);box-shadow:inset 0 0 0 1px var(--line)"></i>Normal hours</span>
         <span><i style="background:var(--warn-bg)"></i>Outside normal hours</span>
         <span><i style="background:var(--info-bg)"></i>Booked off</span>
+        <span><i style="background:var(--canvas);box-shadow:inset 0 -3px 0 var(--green)"></i>Added on the timesheet</span>
       </div>
       <p style="font-size:12.5px;color:var(--ink-3);padding:8px 4px 0">
         Hours are finish minus start, less that day&rsquo;s break.
-        Tap any day to correct it — the change goes back into that day&rsquo;s diary.</p>
+        Tap any day to correct it — the change goes back into that day&rsquo;s diary.
+        Tap a day with no diary, like a Saturday or Sunday, to add hours straight onto the timesheet.</p>
 
       <button class="btn" style="margin-top:16px" data-tsprint="${ws}">Open timesheet PDF</button>
       <button class="btn line" style="margin:0" data-tsxl="${ws}">Export to Excel</button>`
     : `<div class="card"><h3>No hours this week</h3>
-        <p>${esc(why || "Submit a diary with labour on it and the timesheet appears here.")}</p>
+        <p>${esc(why || "Submit a diary with labour on it and the timesheet appears here.")}
+        Add people to the labour register to put hours straight onto the timesheet.</p>
         <button class="btn line sm" style="margin:14px 0 0" data-go="list">Look at the records</button>
       </div>`}`;
 }
@@ -14378,7 +14500,7 @@ function bind(){
         if(DB.jobStart && DB.jobStart[from]){ DB.jobStart[to] = DB.jobStart[from]; delete DB.jobStart[from]; }
         if(DB.jobHours && DB.jobHours[from]){ DB.jobHours[to] = DB.jobHours[from]; }
         ["records","plant","labour","lifting","tools","deliveries","events","vos","packs"]
-          .concat(["leave","defects","scans"])
+          .concat(["leave","defects","scans","tsHours"])
           .forEach(list=>(DB[list]||[]).forEach(x=>{ if(x.job===from) x.job = to; }));
         if(!(DB.config.jobs||[]).includes(to)){
           DB.config.jobs = (DB.config.jobs||[]).map(j=>j===from?to:j);
@@ -14924,11 +15046,12 @@ function printTimesheet(ws){
       ${people.map(p=>days.filter(d=>p.days[d]&&!p.days[d].leave).map(d=>`<tr>
         <td>${esc(p.name)}</td><td>${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][days.indexOf(d)]} ${shortDate(d).slice(0,5)}</td>
         <td>${esc(p.days[d].start)}</td><td>${esc(p.days[d].finish)}</td>
-        <td>${hoursFor(null, d).breakMins}m</td><td>${p.days[d].hours}</td>
+        <td>${p.days[d].breakMins!=null ? p.days[d].breakMins : hoursFor(null, d).breakMins}m</td><td>${p.days[d].hours}</td>
         <td>${esc(p.days[d].reason||"")}</td></tr>`).join("")).join("")}
     </table>
     <div class="foot"><span>${esc(c.company)} · timesheet w/c ${shortDate(ws)}</span>
-      <span>Built from the site diaries · ${stamp(Date.now())}</span></div>`;
+      <span>Built from the site diaries${people.some(p=>Object.values(p.days).some(x=>x.manual))
+        ? " and hours added on the timesheet" : ""} · ${stamp(Date.now())}</span></div>`;
   document.getElementById("sheetTitle").textContent = "Timesheet — w/c " + shortDate(ws);
   /* what the file ends up called: a printed PDF is named after the page */
   document.title = timesheetDocName(ws);
@@ -15286,6 +15409,7 @@ function syncMerge(d){
   DB.vos        = mergeInto(DB.vos||[],        d.vos||[],        "id");
   DB.packs      = mergeInto(DB.packs||[],      d.packs||[],      "id");
   DB.scans      = mergeInto(DB.scans||[],      d.scans||[],      "id");
+  DB.tsHours    = mergeInto(DB.tsHours||[],    d.tsHours||[],    "id");
   /* counters only ever go up, or two devices start issuing the same reference */
   DB.counter = Math.max(DB.counter||0, d.counter||0);
   if(d.counters){
