@@ -1127,6 +1127,15 @@ body.isdemo .app{padding-top:76px}
 .pk-toc .r.tsub + .r:not(.tsub){border-top:1px solid #DCE2DE}
 /* a page that is all document: nothing added below it to push it over */
 .pk-page.pk-full{break-inside:avoid}
+.pk-signs{border:1px solid #CBD3CD;border-bottom:0;margin:0 0 8px;font-size:10.5px}
+.pk-signrow{display:flex;align-items:center;min-height:11mm;border-bottom:1px solid #CBD3CD;
+  break-inside:avoid;page-break-inside:avoid}
+.pk-signrow.hd{min-height:0;background:#EEF3EF;font-weight:700;padding:3px 0}
+.pk-signrow .n{flex:0 0 7%;padding:0 6px;color:#555}
+.pk-signrow .nm{flex:0 0 45%;padding:0 6px}
+.pk-signrow .sg{flex:1;padding:2px 6px;border-left:1px solid #CBD3CD;align-self:stretch;
+  display:flex;align-items:center}
+.pk-signrow .sg img{display:block;width:34mm;height:10mm;object-fit:contain;object-position:left center}
 .pk-scanbox{display:block;margin-top:10px}
 /* The scan is A5 on screen as well as on paper. It used to be sized only inside
    the print rules, so the pack you actually looked at still had it full width --
@@ -1179,6 +1188,14 @@ body.isdemo .app{padding-top:76px}
   /* and a table is never split across two sheets if it can be helped */
   .sheet table.pk{break-inside:avoid;page-break-inside:avoid}
   .pk-docpg{width:auto;max-width:100%;max-height:256mm;margin:0 auto;border:0}
+  /* A page of an uploaded document gets a box of a stated size, well inside
+     what any printer leaves of an A4 sheet. Held only to a maximum, the page
+     came out a whisker too tall on a phone, spilled onto the next sheet, and
+     the break after it left that sheet blank. */
+  .pk-page.pk-full .pk-docpg{display:block;width:100%;height:228mm;max-height:none;
+    max-width:100%;object-fit:contain;object-position:top center}
+  /* nothing in a table row is left on one sheet with the rest on the next */
+  .sheet tr{break-inside:avoid;page-break-inside:avoid}
   /* A scanned check sheet is A4 shaped, so at the full width of the page it
      stands taller than the page itself -- and with a heading and four rows of
      detail above it, it went onto a second sheet every time. Held to what is
@@ -3807,6 +3824,21 @@ function ckMark(v){
    written with hyphens, and anything in the job name that a filesystem would
    choke on is taken out rather than left for the save to fail on. */
 const APP_TITLE = document.title;
+/* Who attended, name against signature, as rows that cannot be split across
+   two sheets. Printed as table rows, Safari would happily put a name at the
+   foot of one page and its signature at the top of the next; a block row it
+   keeps whole. */
+function signListHtml(att){
+  const list = (att||[]).map(a => typeof a === "string" ? { name:a } : a);
+  if(!list.length) return `<div class="pk-signs"><div class="pk-signrow"><span class="n">&nbsp;</span>
+    <span class="nm" style="color:#666">None recorded</span><span class="sg"></span></div></div>`;
+  return `<div class="pk-signs"><div class="pk-signrow hd"><span class="n"></span>
+      <span class="nm">Name</span><span class="sg">Signature</span></div>` +
+    list.map((a,i)=>`<div class="pk-signrow"><span class="n">${i+1}.</span>
+      <span class="nm">${esc(a.name||"")}</span>
+      <span class="sg">${a.sig && a.sig.src
+        ? `<img src="${a.sig.src}" alt="Signature">` : "&mdash;"}</span></div>`).join("") + `</div>`;
+}
 const fileSafe = t => String(t||"").replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g," ").trim();
 function packDocName(ws){
   const d = parse(ws);
@@ -4066,8 +4098,7 @@ async function openPackSheet(ws, draft){
             }).concat([["Any conflicting operations?", yn(d.b_conflicting)]]), { centre:[1] }) +
           (d.conflictingDetail?`<p style="font-size:10.5px">${esc(d.conflictingDetail)}</p>`:"") +
           `<div class="pk-h">Attendees of the daily activity briefing</div>` +
-          tbl(["","Name","Signature"], signRows.length ? signRows : [["","None recorded",""]],
-            { raw:[2], widths:[0.07,0.45,0.48] }) +
+          signListHtml(att) +
           ((d.boardPhoto||[]).length
             ? `<div class="pk-h">Briefing board</div>
                <div class="imgs">` + d.boardPhoto.map(p2=>
@@ -4094,11 +4125,7 @@ async function openPackSheet(ws, draft){
                  d.sheet.length===1?"":"s"}, following this sheet.</p>`
             : "") +
           `<div class="pk-h">Attendees</div>` +
-          tbl(["","Name","Signature"],
-            att.length ? att.map((a,i)=>[(i+1)+".", a.name||"",
-              a.sig && a.sig.src ? `<img src="${a.sig.src}" alt="Signature" style="display:block;width:34mm;height:10mm;object-fit:contain;object-position:left center">` : "&mdash;"])
-              : [["","None recorded",""]],
-            { raw:[2], widths:[0.07,0.45,0.48] }) +
+          signListHtml(att) +
           declaration([["Delivered by", d.deliveredBy||rec.by||""],
             ["Date", longDate(rec.date)], ["Signature",""]], d.signature));
         /* each page of the talk on a page of its own, sized to the paper */
@@ -14919,16 +14946,8 @@ function printRecord(id){
            name strings. Fed to the generic branch below, an array of
            objects prints as "[object Object]" once each; this is a real
            table instead, name against signature. */
-        const att = (r.data[f.id]||[]).map(a => typeof a === "string" ? { name:a } : a);
         body += `<div style="font-weight:600;margin:6px 0 3px">${esc(f.label)}</div>`;
-        body += att.length
-          ? `<table><tr><th style="width:auto">Name</th><th style="width:auto">Signature</th></tr>`+
-            att.map(a=>`<tr><td>${esc(a.name||"")}</td><td>${
-              a.sig && a.sig.src
-                ? `<img src="${a.sig.src}" alt="Signature" style="display:block;width:34mm;height:10mm;object-fit:contain;object-position:left center">`
-                : "&mdash;"
-            }</td></tr>`).join("")+`</table>`
-          : `<div style="color:#666;margin-bottom:6px">None recorded</div>`;
+        body += signListHtml(r.data[f.id]);
         return;
       }
       if(f.type==="repeater"){
