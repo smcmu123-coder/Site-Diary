@@ -14958,6 +14958,22 @@ function printRecord(id){
       photos.map((p,i)=>`<figure style="margin:0"><img src="${p.src}">
         <figcaption style="font-size:9.5px;color:#555">Photo ${i+1} · ${stamp(p.takenAt)}</figcaption></figure>`).join("")+`</div>`;
   }
+  /* scanned sheets -- a toolbox talk's material, say -- are the document
+     itself, not photographs of it: each goes on a page of its own after the
+     record, the same as in the weekly pack */
+  let docPages = "";
+  sectionsFor(r.form).forEach(s=>s.fields.forEach(f=>{
+    if(f.type!=="photos" || !f.scan) return;
+    const pgs = (r.data[f.id]||[]).filter(x=>x && x.src);
+    const what = r.form==="toolboxtalk" ? "Toolbox Talk — " + (r.data.subject||"") : f.label;
+    pgs.forEach((p2,i)=>{
+      docPages += `<div class="pk-page pk-full"><div class="pk-pgcap"><span>${esc(what)}</span>
+          <span>${esc(r.ref||"")} · page ${i+1} of ${pgs.length}</span></div>
+        <img class="pk-docpg" src="${p2.src}" alt="${esc(f.label)} page ${i+1}"></div>`;
+    });
+    if(pgs.length) body += `<h2>${esc(f.label)}</h2><p style="margin:0 0 6px">${pgs.length} page${
+      pgs.length===1?"":"s"}, following this sheet.</p>`;
+  }));
   const sig = r.data.signature;
   if(sig){
     body += `<h2>Declaration</h2><p style="margin:0 0 6px">${r.form==="plantcheck"
@@ -14965,7 +14981,7 @@ function printRecord(id){
       : "I confirm this is a true account of activity on site on "+longDate(r.date)+"."}</p><img src="${sig.src}" style="height:58px;border:1px solid #CBD3CD;padding:3px">
       <div style="font-size:10px;color:#555;margin-top:3px">${esc(r.by)} · ${esc(r.byEmail||"")} · ${stamp(r.submittedAt)}</div>`;
   }
-  document.getElementById("sheet").innerHTML = `
+  document.getElementById("sheet").innerHTML = `<div class="pk-page">
     <div class="ph-head">
       <img src="${LOGO}" alt="${esc(c.company)}">
       <div style="text-align:right"><h1>${esc(sheetTitleFor(r))}</h1>
@@ -14987,8 +15003,15 @@ function printRecord(id){
     </table>
     ${body}
     <div class="foot"><span>${esc(c.company)} · ${esc(r.ref||"")}</span>
-      <span>Printed ${stamp(Date.now())}</span></div>`;
+      <span>Printed ${stamp(Date.now())}</span></div></div>${docPages}`;
   document.getElementById("sheetTitle").textContent = sheetTitleFor(r) + " — " + shortDate(r.date);
+  /* a printed PDF is named after the page: "TBT - Buried services - 30.09.26" */
+  if(r.form === "toolboxtalk"){
+    const d = parse(r.date);
+    document.title = "TBT - " + (fileSafe(r.data.subject) || "Toolbox talk") + " - "
+      + String(d.getDate()).padStart(2,"0") + "." + String(d.getMonth()+1).padStart(2,"0")
+      + "." + String(d.getFullYear()).slice(-2);
+  }
   document.getElementById("sheetwrap").classList.add("open");
   window.scrollTo(0,0);
 }
