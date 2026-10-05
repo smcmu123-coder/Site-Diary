@@ -7610,12 +7610,12 @@ function askConfirm(title, message, confirmLabel, onYes){
   document.body.appendChild(wrap);
 }
 
-function toast(msg){
+function toast(msg, ms){
   const old = document.querySelector(".toast"); if(old) old.remove();
   const el = document.createElement("div"); el.className="toast"; el.textContent=msg;
   document.body.appendChild(el);
   /* out faster than in — a message that lingers on the way out feels slow */
-  setTimeout(()=>{ el.classList.add("out"); setTimeout(()=>el.remove(), 220); }, 2600);
+  setTimeout(()=>{ el.classList.add("out"); setTimeout(()=>el.remove(), 220); }, ms || 2600);
 }
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c =>
   ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -12684,18 +12684,31 @@ function nextRef(prefix, peek){
 /* ------------------------------------------------------------------ photos -- */
 /* Pages for a scanned-sheet field. Photos are straightened when a page edge
    can be found; a PDF is opened up page by page. Every page ends up A4. */
+/* A talk can run to a fair few pages once the handout and the sign sheet are
+   in. It was held to 20 and anything over was dropped without a word, while
+   the message still counted every page as added -- so a long talk went in
+   short and nobody knew until it was printed. The limit is now generous, and
+   if it is ever reached the message says exactly what was left out. */
+const SHEET_PAGE_LIMIT = 80;
 function addSheetPages(fieldId, pages){
   if(!pages.length) return;
   const cur = formState.values[fieldId] || [];
-  formState.values[fieldId] = cur.concat(pages).slice(0, 20);
+  const room = Math.max(0, SHEET_PAGE_LIMIT - cur.length);
+  const taken = pages.slice(0, room);
+  formState.values[fieldId] = cur.concat(taken);
   render();
-  toast(pages.length + " page" + (pages.length===1?"":"s") + " added");
+  if(taken.length < pages.length)
+    toast(taken.length + " of " + pages.length + " pages added — the sheet holds "
+      + SHEET_PAGE_LIMIT + " pages. The last " + (pages.length - taken.length) + " were not added.", 6000);
+  else
+    toast(taken.length + " page" + (taken.length===1?"":"s") + " added — "
+      + formState.values[fieldId].length + " in total");
 }
 function pickSheetPages(fieldId){
   const inp = document.createElement("input");
   inp.type = "file"; inp.accept = "image/*,application/pdf"; inp.multiple = true;
   inp.onchange = async () => {
-    const files = Array.from(inp.files || []).slice(0, 10);
+    const files = Array.from(inp.files || []);
     if(!files.length) return;
     toast("Sizing the pages…");
     const out = []; let failed = 0;
