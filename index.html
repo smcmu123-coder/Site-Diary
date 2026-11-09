@@ -1633,6 +1633,12 @@ html{ overscroll-behavior-y:none }
   align-items:center;justify-content:center;margin-top:-1px}
 #authGate .ag-ico{display:inline-block;vertical-align:-5px;width:22px;height:22px;margin:0 2px;color:var(--info)}
 #authGate .ag-small{color:var(--ink-2);font-size:var(--t-sub);margin:-8px 4px 18px;line-height:1.45}
+#authGate .ag-rules{list-style:none;padding:0;margin:0 4px 16px;font-size:var(--t-sub);color:var(--ink-3)}
+#authGate .ag-rules li{display:flex;align-items:center;gap:8px;line-height:1.7}
+#authGate .ag-rules li::before{content:"";width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line);flex:none;box-sizing:border-box}
+#authGate .ag-rules li.ok{color:var(--ok)}
+#authGate .ag-rules li.ok::before{background:var(--ok);border-color:var(--ok);
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'><path d='M3.5 7.2l2.2 2.2 4.8-4.8' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-size:14px}
 #authUser{margin-top:18px;font-size:13px;color:var(--ink-2);text-align:center}
 #authUser button{background:none;border:none;color:var(--green);font-weight:600;cursor:pointer;
   font-size:13px;padding:4px 6px}
@@ -1742,33 +1748,75 @@ html{ overscroll-behavior-y:none }
     };
   }
 
-  function setPasswordScreen(session, done){
+  /* Password rules — the same on the welcome screen and when resetting. */
+  const PW_RULES = [
+    { id:"len",   text:"Minimum 8 characters",      test:v => v.length >= 8 },
+    { id:"upper", text:"Contains a capital letter", test:v => /[A-Z]/.test(v) },
+    { id:"num",   text:"Contains a number",         test:v => /[0-9]/.test(v) }
+  ];
+
+  async function setPasswordScreen(session, done){
     const invite = linkType === "invite";
+
+    /* the name they were invited under, for the greeting and to fill the boxes */
+    let first = "", last = "";
+    if(invite){
+      try{
+        const { data } = await client.from("profiles").select("full_name").eq("id", session.user.id).maybeSingle();
+        const parts = ((data && data.full_name) || "").trim().split(/\s+/).filter(Boolean);
+        first = parts.shift() || ""; last = parts.join(" ");
+      }catch(e){}
+    }
+
     screen(`
-      <h1>${invite ? "welcome" : "new password"}</h1>
-      <p class="ag-sub">${invite ? "set up your account" : "choose a new password"}</p>
+      <h1>${invite
+        ? (first ? esc(first) + ", you have been invited to join SiteHUB" : "You have been invited to join SiteHUB")
+        : "new password"}</h1>
+      <p class="ag-sub">${invite ? "check your name and choose a password" : "choose a new password"}</p>
       <form id="agForm" novalidate>
-        ${invite ? `<label for="agName">Full name</label>
-        <input class="in" id="agName" autocomplete="name">` : ""}
+        ${invite ? `
+        <label for="agFirst">First name</label>
+        <input class="in" id="agFirst" autocomplete="given-name" value="${esc(first)}">
+        <label for="agLast">Last name</label>
+        <input class="in" id="agLast" autocomplete="family-name" value="${esc(last)}">` : ""}
         <label for="agPw">Password</label>
-        <input class="in" id="agPw" type="password" autocomplete="new-password">
+        <input class="in" id="agPw" type="password" autocomplete="new-password" style="margin-bottom:8px">
+        <ul class="ag-rules" id="agRules">
+          ${PW_RULES.map(r => `<li data-rule="${r.id}">${r.text}</li>`).join("")}
+        </ul>
         <label for="agPw2">Confirm password</label>
         <input class="in" id="agPw2" type="password" autocomplete="new-password">
         <p class="ag-err" id="agErr" hidden></p>
-        <button class="btn" id="agGo" type="submit">Continue</button>
+        <button class="btn" id="agGo" type="submit">${invite ? "Join SiteHUB" : "Save password"}</button>
       </form>`);
     const err = t => { const e = document.getElementById("agErr"); e.textContent = t; e.hidden = !t; };
+    const pwBox = document.getElementById("agPw");
+
+    /* the rules tick off as they're met */
+    const paint = () => PW_RULES.forEach(r => {
+      const li = document.querySelector(`#agRules [data-rule="${r.id}"]`);
+      if(li) li.classList.toggle("ok", r.test(pwBox.value));
+    });
+    pwBox.oninput = paint;
+    (invite && !first ? document.getElementById("agFirst") : pwBox).focus();
 
     document.getElementById("agForm").onsubmit = async ev => {
       ev.preventDefault(); err("");
-      const pw = document.getElementById("agPw").value, pw2 = document.getElementById("agPw2").value;
-      if(pw.length < 8) return err("use at least 8 characters");
+      const pw = pwBox.value, pw2 = document.getElementById("agPw2").value;
+      let fullName = "";
+      if(invite){
+        const f = document.getElementById("agFirst").value.trim(), l = document.getElementById("agLast").value.trim();
+        if(!f) return err("enter your first name");
+        if(!l) return err("enter your last name");
+        fullName = f + " " + l;
+      }
+      const broken = PW_RULES.find(r => !r.test(pw));
+      if(broken){ paint(); return err("your password needs: " + broken.text.toLowerCase()); }
       if(pw !== pw2) return err("passwords don't match");
       const go = document.getElementById("agGo"); go.disabled = true;
       const { error } = await client.auth.updateUser({ password:pw });
       if(error){ go.disabled = false; return err(error.message); }
-      const name = invite ? (document.getElementById("agName").value || "").trim() : "";
-      if(name) await client.from("profiles").update({ full_name:name }).eq("id", session.user.id);
+      if(fullName) await client.from("profiles").update({ full_name:fullName }).eq("id", session.user.id);
       cleanUrl();
       afterSession(session, done);
     };
