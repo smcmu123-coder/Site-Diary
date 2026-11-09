@@ -1869,7 +1869,8 @@ html{ overscroll-behavior-y:none }
     const u = {
       id:p.id, name:p.full_name || session.user.email, email:p.email || session.user.email,
       role:p.role ? p.role.key : null, roleName:p.role ? p.role.name : null, rank:p.role ? p.role.rank : 0,
-      company:p.company ? p.company.name : null, companySlug:p.company ? p.company.slug : null
+      company:p.company ? p.company.name : null, companySlug:p.company ? p.company.slug : null,
+      companyId:p.company_id
     };
     writeCache(u);
     A.user = u;
@@ -1927,7 +1928,7 @@ html{ overscroll-behavior-y:none }
 /* Bumped whenever the file is rebuilt, so it is possible to tell at a glance
    on the settings screen whether a device is running the latest copy or a
    cached one. */
-const APP_BUILD = "2026-11-09-login";
+const APP_BUILD = "2026-11-09-cloud";
 
 const LOGO = "data:image/png;base64,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";
 
@@ -12874,26 +12875,23 @@ function settingsView(){
       </div>
     </div>
 
-    <div class="sect">Sync between devices</div>
+    <div class="sect">Sync</div>
     ${(function(){
-      const b = boardCfg(), y = syncCfg();
-      const ready = !!(b.repo && b.token);
+      const y = syncCfg();
       const when = t => t ? shortDate(iso(new Date(t))) + " at " + timeOnly(t) : "";
+      const signedIn = !!(window.sitehubAuth && sitehubAuth.user);
+      const jobs = Object.keys(y.jobs || {});
       return `<div class="card">
-        <p style="margin-bottom:14px">Keeps the phone and the laptop on the same set of
-        records, through the same repository the office board uses. It pulls when you open
-        the app and pushes a few seconds after anything is saved. Nothing waits on a signal
-        &mdash; if you are out of range it goes up next time you are back on.</p>
+        <p style="margin-bottom:14px">Records and photos are kept in siteHUB&rsquo;s secure
+        cloud, filed by job, so everyone on a job works from the same set. Anything saved goes
+        up a few seconds later, and other people&rsquo;s work comes in when you open the app.
+        No signal? It catches up when you&rsquo;re back on.</p>
 
-        ${!ready ? `<div class="card" style="background:var(--warn-bg);box-shadow:none;margin:0">
-            <p style="color:var(--warn-700)"><b style="font-weight:650">Set the repository up
-            first.</b> The office board settings below take a repository and an access token.
-            Fill those in and this can use them.</p>
-          </div>`
-        : `<div class="spread" style="margin-bottom:4px">
+        ${!signedIn ? `<p class="sub">Sign in to sync.</p>` : `
+          <div class="spread" style="margin-bottom:4px">
             <span><b style="font-weight:650">Keep this device in step</b>
               <span style="display:block;font-size:12.5px;color:var(--ink-2)">
-                Pull on opening, push after each save</span></span>
+                Bring in on opening, send after each save</span></span>
             <span class="yn" style="width:118px;flex:none">
               <button type="button" class="${y.on?"y":""}" data-syncon="1">On</button>
               <button type="button" class="${y.on?"":"n"}" data-syncon="0">Off</button>
@@ -12901,29 +12899,26 @@ function settingsView(){
           </div>
 
           ${y.on ? `
+            <div class="kv"><span class="k">Jobs</span>
+              <span class="v">${jobs.length ? esc(jobs.join(", ")) : "none yet"}</span></div>
             <div class="kv"><span class="k">Last brought in</span>
               <span class="v">${y.lastPull ? esc(when(y.lastPull)) : "not yet"}</span></div>
             <div class="kv"><span class="k">Last sent up</span>
               <span class="v">${y.lastPush ? esc(when(y.lastPush)) : "not yet"}</span></div>
-            <div class="kv"><span class="k">File</span>
-              <span class="v">${esc(y.file)}</span></div>
             ${y.lastError ? `<p class="sub" style="margin-top:8px;color:var(--bad)">
               Last try failed &mdash; ${esc(y.lastError)}.</p>` : ""}
             <div class="g2" style="margin-top:14px">
               <button class="btn line" style="margin:0" data-syncnow="1">Sync now</button>
               <button class="btn line" style="margin:0" data-syncpull="1">Bring in changes</button>
-            </div>
-            <p class="hint" style="margin-top:12px">Per record, whichever copy was edited last
-            wins. That is the right rule for one person on two devices. If a crew ever starts
-            filling forms in at the same time, this needs replacing with something built for
-            it &mdash; it is not a limitation you want to find out about on a Friday.</p>`
-          : ""}`}
+            </div>`
+          : `<p class="sub" style="margin-top:8px;color:var(--warn-700)">This device is on its own &mdash;
+              nothing here is being saved to the cloud.</p>`}`}
       </div>`;
     })()}
 
     <div class="sect">Your data</div>
     <div class="card">
-      <p style="margin-bottom:14px">A copy you hold yourself, separate from the sync above.
+      <p style="margin-bottom:14px">A copy you hold yourself, separate from the cloud.
       Worth taking one now and again regardless &mdash; it is the only version that survives
       a mistake being synced everywhere.</p>
       <button class="btn" data-share="1">Send a copy to OneDrive</button>
@@ -15517,6 +15512,7 @@ function backupFile(){
   /* the GitHub token stays on this device, so it is taken out of the backup */
   const copy = JSON.parse(JSON.stringify(DB));
   if(copy.board) delete copy.board.token;
+  delete copy.cloud; delete copy.sync;
   return new File([JSON.stringify(copy,null,2)], name, { type:"application/json" });
 }
 function exportBackup(){
@@ -15555,6 +15551,7 @@ async function buildDemo(){
   delete snapshot.__movedFromLocalStorage;
   delete snapshot.__fromSnapshot;
   if(snapshot.board) delete snapshot.board.token;   /* never leaves this device */
+  delete snapshot.cloud; delete snapshot.sync;
 
   const head = TAG
     + "window.__DEMO__ = true;window.__DEMO_AT__ = " + Date.now() + ";"
@@ -15740,173 +15737,467 @@ async function pushBoard(quiet){
   }
 }
 
-/* ==================================================== sync between devices ==
-   The whole record set lives in one file in the same repository the office
-   board uses, so there is nothing new to set up and nothing to pay for.
+/* ======================================================= siteHUB cloud sync ==
+   Records and photos are kept in Supabase, behind the sign-in, filed by job.
+   Everyone on a job works from the same set; the database decides who can see
+   which job (QS and above: all of them; everyone else: the jobs they are on).
 
-   How it behaves, and why:
-     - On opening, the app pulls the file and merges it in. Merging, never
-       overwriting, so nothing typed on this device while it was offline is
-       lost to a copy someone saved earlier elsewhere.
-     - On saving, it waits a few seconds for the dust to settle, pulls again,
-       merges, and pushes the combined set back. The pull-before-push is what
-       stops the laptop flattening something entered on the phone five minutes
-       earlier.
-     - Per record, whichever copy was edited last wins. That is the right rule
-       for one person on two devices; it would not be for a crew all writing
-       at once, which is a different problem and a different answer.
-     - Everything is queued if there is no signal. The app already works
-       offline and this changes nothing about that. */
+   How it behaves:
+     - The app still works from what is on the device. Nothing waits on signal.
+     - A few seconds after anything is saved, whatever changed goes up: one row
+       per diary / plant item / delivery…, photos once each into storage.
+     - On opening (and on coming back to the app) it brings in what anyone else
+       on the same jobs has changed since this device last looked.
+     - Something changed here and not sent yet always wins over the copy coming
+       in, so an edit made with no signal is never lost to an older one.
+     - Deleting something here deletes it for everyone on the job. Restoring a
+       backup never deletes anything from the cloud.
+   ------------------------------------------------------------------------- */
+
+const CLOUD_KINDS = ["records","plant","labour","lifting","tools","deliveries","events",
+  "defects","leave","vos","packs","scans","tsHours","rams"];
+const CLOUD_BUCKET = "job-photos";
+const CLOUD_IMG_MIN = 16 * 1024;     /* smaller pictures, e.g. signatures, ride inside the record */
 
 function syncCfg(){
-  DB.sync = DB.sync || { on:false, file:"sitehub-data.json",
-    lastPull:0, lastPush:0, lastError:"", sha:null };
-  return DB.sync;
+  DB.cloud = DB.cloud || { on:true, lastPull:0, lastPush:0, lastError:"" };
+  const c = DB.cloud;
+  c.jobs = c.jobs || {};       /* job name -> job id */
+  c.cursor = c.cursor || {};   /* job id -> newest change seen (server time) */
+  c.known = c.known || {};     /* "job|kind|id" -> fingerprint of what the cloud holds */
+  c.imgs = c.imgs || {};       /* photo paths already in storage */
+  return c;
 }
 
-function unb64(b64str){
-  const bin = atob(String(b64str).replace(/\s/g,""));
-  const bytes = new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
-  return new TextDecoder().decode(bytes);
-}
-
-/* What actually travels. The token never leaves the device it was typed on,
-   and the board settings are per-device too — the laptop may well not be the
-   machine that publishes the wall screen. */
-function syncPayload(){
-  const copy = JSON.parse(JSON.stringify(DB));
-  delete copy.board;
-  delete copy.sync;
-  delete copy.__fromSnapshot;
-  return copy;
-}
-
-/* Fold an incoming copy into what is already here. */
-function syncMerge(d){
-  if(!d || typeof d !== "object") return 0;
-  const before = (DB.records||[]).length;
-  DB.records    = mergeInto(DB.records||[],    d.records||[],    "updatedAt");
-  DB.plant      = mergeInto(DB.plant||[],      d.plant||[],      "id");
-  DB.labour     = mergeInto(DB.labour||[],     d.labour||[],     "id");
-  DB.lifting    = mergeInto(DB.lifting||[],    d.lifting||[],    "id");
-  DB.tools      = mergeInto(DB.tools||[],      d.tools||[],      "id");
-  DB.deliveries = mergeInto(DB.deliveries||[], d.deliveries||[], "id");
-  DB.events     = mergeInto(DB.events||[],     d.events||[],     "id");
-  DB.defects    = mergeInto(DB.defects||[],    d.defects||[],    "id");
-  DB.leave      = mergeInto(DB.leave||[],      d.leave||[],      "id");
-  DB.vos        = mergeInto(DB.vos||[],        d.vos||[],        "id");
-  DB.packs      = mergeInto(DB.packs||[],      d.packs||[],      "id");
-  DB.scans      = mergeInto(DB.scans||[],      d.scans||[],      "id");
-  DB.tsHours    = mergeInto(DB.tsHours||[],    d.tsHours||[],    "id");
-  /* counters only ever go up, or two devices start issuing the same reference */
-  DB.counter = Math.max(DB.counter||0, d.counter||0);
-  if(d.counters){
-    DB.counters = DB.counters || {};
-    Object.keys(d.counters).forEach(k=>{
-      DB.counters[k] = Math.max(DB.counters[k]||0, d.counters[k]||0);
-    });
-  }
-  if(d.job && !DB.job) DB.job = d.job;
-  if(d.config && !DB.config) DB.config = d.config;
-  return (DB.records||[]).length - before;
-}
-
-function syncUrl(){
-  const b = boardCfg(), c = syncCfg();
-  return "https://api.github.com/repos/" + b.repo.trim() + "/contents/" + c.file;
-}
-function syncHead(){
-  return { "Authorization":"Bearer " + boardCfg().token.trim(),
-    "Accept":"application/vnd.github+json" };
+function cloudClient(){
+  const a = window.sitehubAuth;
+  return a && a.client && a.user ? a.client : null;
 }
 function syncReady(){
-  const b = boardCfg(), c = syncCfg();
-  return !!(c.on && b.repo && b.token);
+  return !IS_DEMO && !!cloudClient() && syncCfg().on && navigator.onLine !== false;
+}
+
+/* --------------------------------------------------------------- helpers -- */
+
+/* the same object always gives the same text, whatever order its keys are in */
+function cloudStable(v){
+  if(Array.isArray(v)) return "[" + v.map(cloudStable).join(",") + "]";
+  if(v && typeof v === "object"){
+    return "{" + Object.keys(v).sort().filter(k => v[k] !== undefined)
+      .map(k => JSON.stringify(k) + ":" + cloudStable(v[k])).join(",") + "}";
+  }
+  return JSON.stringify(v === undefined ? null : v);
+}
+function cloudPrint(v){
+  const s = cloudStable(v);
+  let h = 0x811c9dc5, g = 0x01000193;
+  for(let i = 0; i < s.length; i++){
+    const c = s.charCodeAt(i);
+    h = Math.imul(h ^ c, 0x01000193);
+    g = Math.imul(g ^ c, 0x811c9dc5);
+  }
+  return (h >>> 0).toString(36) + (g >>> 0).toString(36) + s.length.toString(36);
+}
+function cloudStamp(it){
+  const v = it.updatedAt || it.submittedAt || it.createdAt || 0;
+  const n = typeof v === "number" ? v : Date.parse(v);
+  return isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+/* photos, scans and PDFs alike: any embedded file big enough to matter */
+const cloudIsImg = v => typeof v === "string" && v.length >= CLOUD_IMG_MIN
+  && v.lastIndexOf("data:", 0) === 0 && /^data:[\w.+-]+\/[\w.+-]+(;[^,;]+)*;base64,/.test(v.slice(0, 120));
+
+/* photos are named by their contents, so each one is only ever sent once */
+const cloudShaCache = new Map();
+const cloudCheap = v => v.length + "|" + v.slice(v.length >> 1, (v.length >> 1) + 48) + "|" + v.slice(-48);
+async function cloudSha(v){
+  const k = cloudCheap(v);
+  if(cloudShaCache.has(k)) return cloudShaCache.get(k);
+  let hex;
+  if(window.crypto && crypto.subtle){
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+    hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+  }else{
+    hex = cloudPrint(v) + cloudPrint(v.slice(v.length >> 2));
+  }
+  cloudShaCache.set(k, hex);
+  return hex;
+}
+function cloudBlob(v){
+  const comma = v.indexOf(",");
+  const type = (v.slice(5, comma).split(";")[0]) || "image/jpeg";
+  const bin = atob(v.slice(comma + 1));
+  const arr = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type });
+}
+const cloudExt = v => ({ "image/png":"png", "image/webp":"webp", "image/gif":"gif", "image/jpeg":"jpg",
+  "application/pdf":"pdf" })[v.slice(5, v.indexOf(";"))] || "bin";
+function cloudDataUrl(blob){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = () => rej(fr.error || new Error("photo could not be read"));
+    fr.readAsDataURL(blob);
+  });
+}
+function cloudWords(e){
+  const m = String((e && (e.message || e.error_description || e.error)) || e || "");
+  if(/jwt|token.*expired|not authenticated|401/i.test(m)) return "your sign-in has expired — sign out and back in";
+  if(/failed to fetch|network|load failed|offline/i.test(m)) return "no signal";
+  if(/row-level security|permission denied|42501/i.test(m)) return "you don't have access to one of these jobs";
+  return m || "it did not go through";
+}
+
+/* the sync's own bookkeeping is saved without setting off another sync */
+let cloudQuiet = false;
+function cloudPersist(){ cloudQuiet = true; try{ save(); } finally{ cloudQuiet = false; } }
+
+/* a copy of an item with photos swapped for their place in storage */
+async function cloudPrepare(node, jobId, companyId, uploads){
+  if(Array.isArray(node)){
+    const out = [];
+    for(const v of node) out.push(await cloudPrepare(v, jobId, companyId, uploads));
+    return out;
+  }
+  if(cloudIsImg(node)){
+    const path = companyId + "/" + jobId + "/" + (await cloudSha(node)) + "." + cloudExt(node);
+    uploads.push([path, node]);
+    return "sbimg:" + path;
+  }
+  if(!node || typeof node !== "object") return node;
+  const out = {};
+  for(const k in node){
+    if(k === "__img") continue;                     /* this device's own storage markers */
+    out[k] = await cloudPrepare(node[k], jobId, companyId, uploads);
+  }
+  return out;
+}
+
+/* and back again: photos fetched from storage, unless this device already has them */
+const cloudImgCache = new Map();
+async function cloudResolve(node, local){
+  if(Array.isArray(node)){
+    for(let i = 0; i < node.length; i++) node[i] = await cloudResolve(node[i], Array.isArray(local) ? local[i] : undefined);
+    return node;
+  }
+  if(typeof node === "string" && node.lastIndexOf("sbimg:", 0) === 0){
+    const path = node.slice(6);
+    const sha = path.split("/").pop().split(".")[0];
+    if(cloudIsImg(local) && (await cloudSha(local)) === sha) return local;
+    if(cloudImgCache.has(path)) return cloudImgCache.get(path);
+    const { data, error } = await cloudClient().storage.from(CLOUD_BUCKET).download(path);
+    if(error) throw error;
+    const url = await cloudDataUrl(data);
+    cloudShaCache.set(cloudCheap(url), sha);
+    cloudImgCache.set(path, url);
+    syncCfg().imgs[path] = 1;
+    return url;
+  }
+  if(node && typeof node === "object"){
+    for(const k in node){
+      node[k] = await cloudResolve(node[k], local && typeof local === "object" ? local[k] : undefined);
+    }
+  }
+  return node;
+}
+
+async function cloudUpload(path, v){
+  const c = syncCfg();
+  if(c.imgs[path]) return;
+  const blob = cloudBlob(v);
+  const { error } = await cloudClient().storage.from(CLOUD_BUCKET)
+    .upload(path, blob, { contentType: blob.type, upsert:false });
+  if(error && !/exist|duplicate|409/i.test(String(error.message || "") + String(error.statusCode || "") + String(error.error || ""))){
+    throw error;
+  }
+  c.imgs[path] = 1;
+}
+
+/* ------------------------------------------------------------------ jobs -- */
+
+function cloudLocalHasJob(name){
+  if(DB.jobInfo && DB.jobInfo[name]) return true;
+  return CLOUD_KINDS.some(k => (DB[k] || []).some(x => x && x.job === name));
+}
+function cloudCode(name, taken){
+  const base = String(name).toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "JOB";
+  let code = base, n = 2;
+  while(taken.has(code)) code = base + "-" + (n++);
+  return code;
+}
+
+/* Match this device's jobs to the ones in the cloud. Contracts managers and
+   above put new jobs up; everyone else sees the jobs they have been put on. */
+async function cloudJobs(){
+  const cl = cloudClient(), c = syncCfg();
+  const rank = (sitehubAuth.user && sitehubAuth.user.rank) || 0;
+  const { data, error } = await cl.from("jobs").select("id, code, name").order("created_at");
+  if(error) throw error;
+  const remote = data || [];
+  const find = n => remote.find(j => j.name.trim().toLowerCase() === String(n).trim().toLowerCase());
+
+  const local = new Set(allJobs());
+  CLOUD_KINDS.forEach(k => (DB[k] || []).forEach(x => { if(x && x.job) local.add(x.job); }));
+
+  const map = {};
+  for(const name of local){
+    let j = find(name);
+    if(!j && rank >= 70 && cloudLocalHasJob(name)){
+      const taken = new Set(remote.map(r => r.code));
+      const ins = await cl.from("jobs").insert({ code: cloudCode(name, taken), name }).select("id, code, name").single();
+      if(ins.error) throw ins.error;
+      j = ins.data; remote.push(j);
+    }
+    if(j) map[name] = j.id;
+  }
+  remote.forEach(j => {
+    if(!Object.values(map).includes(j.id)) map[j.name] = j.id;
+  });
+  c.jobs = map;
+
+  /* the job list on this device: everything synced, plus anything with work
+     on it here that has not got a home in the cloud yet */
+  const names = Object.keys(map);
+  const keep = allJobs().filter(n => map[n] || cloudLocalHasJob(n) || rank >= 70);
+  DB.config.jobs = Array.from(new Set(keep.concat(names)));
+  if(!DB.config.jobs.includes(DB.job) || (!map[DB.job] && !cloudLocalHasJob(DB.job) && names.length)){
+    const next = names[0] || DB.config.jobs[0];
+    if(next){
+      DB.job = next;
+      DB.startDate = (DB.jobStart || {})[next] || DB.startDate;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ pull -- */
+
+function cloudMetaOf(name){
+  return { info:(DB.jobInfo || {})[name] || null, week:(DB.jobWeek || {})[name] || null,
+    hours:(DB.jobHours || {})[name] || null,
+    start:(DB.jobStart || {})[name] || (name === DB.job ? DB.startDate : null) || null };
+}
+function cloudCounters(){
+  return { counters: DB.counters || {}, counter: DB.counter || 0, voCounter: DB.voCounter || 0 };
+}
+
+async function cloudApply(row, name, jobId){
+  const c = syncCfg(), key = jobId + "|" + row.kind + "|" + row.item_id;
+
+  if(row.kind === "_counters"){
+    const d = row.data || {};
+    DB.counter = Math.max(DB.counter || 0, d.counter || 0);
+    DB.voCounter = Math.max(DB.voCounter || 0, d.voCounter || 0);
+    DB.counters = DB.counters || {};
+    Object.keys(d.counters || {}).forEach(k => {
+      DB.counters[k] = Math.max(DB.counters[k] || 0, d.counters[k] || 0);
+    });
+    c.known[key] = cloudPrint(row.data);
+    return 1;
+  }
+
+  if(row.kind === "_meta"){
+    const mine = cloudPrint(cloudMetaOf(name));
+    if(c.known[key] && mine !== c.known[key]) return 0;     /* changed here, not sent yet */
+    const d = row.data || {};
+    if(d.info){ DB.jobInfo = DB.jobInfo || {}; DB.jobInfo[name] = d.info; }
+    if(d.week){ DB.jobWeek = DB.jobWeek || {}; DB.jobWeek[name] = d.week; }
+    if(d.hours){ DB.jobHours = DB.jobHours || {}; DB.jobHours[name] = d.hours; }
+    if(d.start){ DB.jobStart = DB.jobStart || {}; DB.jobStart[name] = d.start; if(name === DB.job) DB.startDate = d.start; }
+    c.known[key] = cloudPrint(cloudMetaOf(name));
+    return 1;
+  }
+
+  if(CLOUD_KINDS.indexOf(row.kind) < 0) return 0;          /* from a newer version of the app */
+  const list = DB[row.kind] || (DB[row.kind] = []);
+  const i = list.findIndex(x => x && String(x.id) === row.item_id);
+  const local = i >= 0 ? list[i] : null;
+
+  let dirty = false;
+  if(local){
+    const uploads = [];
+    const mine = cloudPrint(await cloudPrepare(local, jobId, sitehubAuth.user.companyId, uploads));
+    dirty = mine !== c.known[key];
+    if(!dirty && row.deleted !== true && mine === cloudPrint(row.data)) return 0;   /* already the same */
+  }
+
+  if(row.deleted){
+    if(local && !dirty){ list.splice(i, 1); delete c.known[key]; return 1; }
+    if(!local) delete c.known[key];
+    return 0;
+  }
+  /* deleted here since it was last in step, and nobody has touched it since:
+     that delete is waiting to go up, so don't bring the item back */
+  if(!local && c.known[key] !== undefined && c.known[key] === cloudPrint(row.data)) return 0;
+  if(local && dirty){
+    const theirs = Number(row.client_stamp) || 0, ours = cloudStamp(local) || 0;
+    if(c.known[key] === undefined){
+      /* an old copy this device never synced: the cloud wins unless this one is clearly newer */
+      if(theirs && ours && ours > theirs) return 0;
+    }else if(!(theirs && ours && theirs > ours)){
+      return 0;                                             /* keep the edit made here */
+    }
+  }
+
+  const data = row.data || {};
+  data.job = name;
+  const print = cloudPrint(data);
+  const item = await cloudResolve(data, local);
+  if(i >= 0) list[i] = item; else list.push(item);
+  c.known[key] = print;
+  return 1;
+}
+
+async function cloudPullJob(name, jobId){
+  const cl = cloudClient(), c = syncCfg();
+  let since = c.cursor[jobId] || null, changed = 0, first = true;
+  for(;;){
+    let q = cl.from("job_items")
+      .select("kind, item_id, data, deleted, client_stamp, updated_at")
+      .eq("job_id", jobId).order("updated_at", { ascending:true }).limit(200);
+    if(since){
+      /* a little overlap the first time round, in case two saves crossed */
+      const t = Date.parse(since);
+      const from = first && isFinite(t) ? new Date(t - 120000).toISOString() : since;
+      q = q.gt("updated_at", from);
+    }
+    const { data, error } = await q;
+    if(error) throw error;
+    const rows = data || [];
+    for(const row of rows){
+      changed += await cloudApply(row, name, jobId);
+      c.cursor[jobId] = row.updated_at;
+    }
+    if(rows.length) cloudPersist();
+    if(rows.length < 200) break;
+    since = rows[rows.length - 1].updated_at;
+    first = false;
+  }
+  return changed;
+}
+
+/* ------------------------------------------------------------------ push -- */
+
+async function cloudPushAll(progress){
+  const cl = cloudClient(), c = syncCfg(), companyId = sitehubAuth.user.companyId;
+  if(!companyId) throw new Error("your account isn't linked to a company");
+  const jobIds = new Set(Object.values(c.jobs));
+  const rows = [], present = new Set();
+  const add = (row, key, print) => rows.push({ row, key, print });
+
+  for(const name in c.jobs){
+    const jobId = c.jobs[name];
+    for(const kind of CLOUD_KINDS){
+      for(const it of (DB[kind] || [])){
+        if(!it || it.id == null || it.job !== name) continue;
+        const key = jobId + "|" + kind + "|" + it.id;
+        present.add(key);
+        const uploads = [];
+        const data = await cloudPrepare(it, jobId, companyId, uploads);
+        const print = cloudPrint(data);
+        if(c.known[key] === print) continue;
+        for(const [path, v] of uploads) await cloudUpload(path, v);
+        add({ job_id:jobId, kind, item_id:String(it.id), data, deleted:false, client_stamp:cloudStamp(it) }, key, print);
+      }
+    }
+    const meta = cloudMetaOf(name), mk = jobId + "|_meta|job";
+    if(meta.info || meta.week || meta.hours || meta.start){
+      const mp = cloudPrint(meta);
+      if(c.known[mk] !== mp) add({ job_id:jobId, kind:"_meta", item_id:"job", data:meta, deleted:false, client_stamp:Date.now() }, mk, mp);
+    }
+    const cnt = cloudCounters(), ck = jobId + "|_counters|all", cp = cloudPrint(cnt);
+    if(c.known[ck] !== cp) add({ job_id:jobId, kind:"_counters", item_id:"all", data:cnt, deleted:false, client_stamp:Date.now() }, ck, cp);
+  }
+
+  /* gone from this device since it was last in step: gone for everyone */
+  Object.keys(c.known).forEach(key => {
+    if(present.has(key)) return;
+    const a = key.indexOf("|"), b = key.indexOf("|", a + 1);
+    const jobId = key.slice(0, a), kind = key.slice(a + 1, b), id = key.slice(b + 1);
+    if(kind.charAt(0) === "_" || !jobIds.has(jobId)) return;
+    add({ job_id:jobId, kind, item_id:id, data:{}, deleted:true, client_stamp:Date.now() }, key, null);
+  });
+
+  for(let i = 0; i < rows.length; i += 50){
+    const batch = rows.slice(i, i + 50);
+    const { error } = await cl.from("job_items").upsert(batch.map(b => b.row), { onConflict:"job_id,kind,item_id" });
+    if(error) throw error;
+    batch.forEach(b => { if(b.print) c.known[b.key] = b.print; else delete c.known[b.key]; });
+    cloudPersist();
+    if(progress) progress(Math.min(i + 50, rows.length), rows.length);
+  }
+  return rows.length;
+}
+
+/* ------------------------------------------------------------ the calls -- */
+
+/* one sync at a time; a second request waits for the first */
+let cloudChain = Promise.resolve();
+function cloudRun(fn){
+  const next = cloudChain.then(fn, fn);
+  cloudChain = next.catch(() => {});
+  return next;
 }
 function syncFail(e, quiet){
   const c = syncCfg();
-  c.lastError = (e && e.message) || "it did not go through";
-  save();
+  c.lastError = cloudWords(e);
+  cloudPersist();
   if(!quiet) toast("Not synced — " + c.lastError);
   return false;
 }
 
-/* Pull, merge, and say how many records were new. */
-async function syncPull(quiet){
-  if(!syncReady()) return false;
-  const c = syncCfg(), b = boardCfg();
-  try{
-    const got = await fetch(syncUrl() + "?ref=" + (b.branch||"main"),
-      { headers:syncHead(), cache:"no-store" });
-    if(got.status === 404){ c.lastPull = Date.now(); c.lastError = ""; save(); return true; }
-    if(!got.ok) throw new Error(githubWords(got.status));
-    const meta = await got.json();
-    c.sha = meta.sha;
-    const added = syncMerge(JSON.parse(unb64(meta.content)));
-    c.lastPull = Date.now(); c.lastError = "";
-    save();
-    if(!quiet) toast(added ? added + " new record" + (added===1?"":"s") + " pulled in"
-      : "Already up to date");
-    return true;
-  }catch(e){ return syncFail(e, quiet); }
+/* Bring in what has changed on the cloud. */
+function syncPull(quiet){
+  if(!syncReady()) return Promise.resolve(false);
+  return cloudRun(async () => {
+    const c = syncCfg();
+    try{
+      await cloudJobs();
+      let n = 0;
+      for(const name in c.jobs) n += await cloudPullJob(name, c.jobs[name]);
+      c.lastPull = Date.now(); c.lastError = "";
+      cloudPersist();
+      if(!quiet) toast(n ? n + " change" + (n === 1 ? "" : "s") + " brought in" : "Already up to date");
+      return true;
+    }catch(e){ return syncFail(e, quiet); }
+  });
 }
 
-/* Pull first, then push the combined set. */
-async function syncPush(quiet){
-  if(!syncReady()) return false;
-  const c = syncCfg(), b = boardCfg();
-  try{
-    /* read what is up there now, merge it in, and take its sha */
-    const got = await fetch(syncUrl() + "?ref=" + (b.branch||"main"),
-      { headers:syncHead(), cache:"no-store" });
-    if(got.status === 200){
-      const meta = await got.json();
-      c.sha = meta.sha;
-      syncMerge(JSON.parse(unb64(meta.content)));
-    } else if(got.status === 404){
-      c.sha = null;
-    } else throw new Error(githubWords(got.status));
-
-    const text = JSON.stringify(syncPayload());
-    const mb = text.length / 1048576;
-    if(mb > 40) throw new Error("the file is too big at " + mb.toFixed(0) + " MB");
-
-    const body = { message:"siteHUB — " + (cfg().user.name || "device") + " — "
-        + new Date().toLocaleString("en-GB"),
-      content: b64(text), branch: b.branch || "main" };
-    if(c.sha) body.sha = c.sha;
-
-    const put = await fetch(syncUrl(), { method:"PUT", headers:syncHead(),
-      body:JSON.stringify(body) });
-    if(!put.ok) throw new Error(githubWords(put.status));
-    const res = await put.json();
-    c.sha = (res.content && res.content.sha) || c.sha;
-    c.lastPush = Date.now(); c.lastError = "";
-    save();
-    if(!quiet) toast("Synced" + (mb > 8 ? " — " + mb.toFixed(1) + " MB, getting large" : ""));
-    return true;
-  }catch(e){ return syncFail(e, quiet); }
+/* Bring in first, then send what has changed here. */
+function syncPush(quiet){
+  if(!syncReady()) return Promise.resolve(false);
+  return cloudRun(async () => {
+    const c = syncCfg();
+    try{
+      await cloudJobs();
+      cloudChanged = 0;
+      for(const name in c.jobs) cloudChanged += await cloudPullJob(name, c.jobs[name]);
+      c.lastPull = Date.now();
+      const sent = await cloudPushAll(quiet ? null : (done, all) => {
+        if(all > 50) toast("Sending " + done + " of " + all + "…");
+      });
+      c.lastPush = Date.now(); c.lastError = "";
+      cloudPersist();
+      if(!quiet) toast(sent ? "Synced — " + sent + " change" + (sent === 1 ? "" : "s") + " sent" : "Synced");
+      return true;
+    }catch(e){ return syncFail(e, quiet); }
+  });
 }
 
-function githubWords(status){
-  return status === 401 ? "the token was refused"
-    : status === 404 ? "that repository could not be found"
-    : status === 403 ? "the token is not allowed to write there"
-    : status === 409 ? "it changed on the other device — try again"
-    : "GitHub said " + status;
+/* Saving does not wait for the network. The push happens a few seconds later.
+   The screen is only redrawn if someone else's work came in, and never while
+   a box is being typed in. */
+let syncTimer = null, cloudChanged = 0;
+function cloudRedraw(){
+  const a = document.activeElement;
+  if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)){ setTimeout(cloudRedraw, 5000); return; }
+  render();
 }
-
-/* Saving does not wait for the network. The push happens a few seconds later,
-   and only one is ever in flight. */
-let syncTimer = null, syncBusy = false;
 function syncMaybePush(){
-  if(!syncReady()) return;
+  if(cloudQuiet || !syncReady()) return;
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(async ()=>{
-    if(syncBusy) { syncMaybePush(); return; }
-    syncBusy = true;
-    try{ await syncPush(true); } finally { syncBusy = false; }
+  syncTimer = setTimeout(() => {
+    syncPush(true).then(ok => { if(ok && cloudChanged) cloudRedraw(); });
   }, 4000);
 }
 
@@ -16082,6 +16373,7 @@ function restoreBackup(){
           const fresh = blankDB();
           Object.keys(fresh).forEach(k => { if(!(k in d)) d[k] = fresh[k]; });
           DB = d;
+          delete DB.cloud;      /* a restore only ever adds to the cloud, never deletes from it */
           DB.board = DB.board || {};
           DB.board.token = token;
           DB.lastBackup = todayISO();
