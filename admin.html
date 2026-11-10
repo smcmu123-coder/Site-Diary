@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SiteHUB Admin</title>
+<link rel="icon" href="logo.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+/* Cheltenham Green Civils brand (Brand & Forms Style Guide v2):
+   one brand colour — CGC Green — plus neutrals; entered data in Value Blue;
+   rounded green section bars with white bold capitals; thin grey table lines. */
+:root{
+  --green:#1F5A2D; --green-d:#174522; --green-h:#2A6B39;
+  --tint:#EDF2EE; --tint-2:#D8DFDA; --line:#CBD3CD;
+  --blue:#2E6DA4; --ink:#1A1A1A; --ink-2:#4A524C; --ink-3:#6E7771;
+  --red:#B42318; --red-50:#FBEAE8; --amber:#9A5B07; --amber-50:#FCF1DF;
+  --font:"Segoe UI",Calibri,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#fff;color:var(--ink);font-family:var(--font);font-size:15px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--green)}
+[hidden]{display:none!important}
+
+/* ---------- layout ---------- */
+.shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.side{display:flex;flex-direction:column;background:var(--green);position:sticky;top:0;height:100vh}
+.side .brand{background:#fff;padding:22px 26px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line);border-bottom:3px solid var(--green)}
+.side .brand img{height:78px;width:auto;display:block}
+.side nav{display:flex;flex-direction:column;padding:14px 12px;gap:4px}
+.side nav a{display:flex;align-items:center;gap:12px;padding:11px 14px;color:#fff;text-decoration:none;
+  font-size:15px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-radius:10px}
+.side nav a:hover{background:var(--green-h)}
+.side nav a.on{background:#fff;color:var(--green)}
+.side nav a svg{width:18px;height:18px;flex:none}
+.side .me{margin-top:auto;padding:16px 26px 20px;color:rgba(255,255,255,.78);font-size:12.5px;line-height:1.55;border-top:1px solid rgba(255,255,255,.16)}
+.side .me b{color:#fff;font-weight:700;display:block;font-size:13.5px}
+.side .me a,.side .me button{color:#fff;background:none;border:none;padding:0;font-size:12.5px;text-decoration:underline;text-underline-offset:2px}
+.side .me .links{margin-top:8px;display:flex;gap:14px}
+main{padding:30px 44px 28px;min-width:0;display:flex;flex-direction:column;min-height:100vh}
+main > .content{flex:1}
+.foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:40px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3)}
+
+/* ---------- page header: title + thin green rule ---------- */
+.crumbs{display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:13px;color:var(--ink-3)}
+.crumbs a{color:var(--ink-2);text-decoration:none}.crumbs a:hover{color:var(--green);text-decoration:underline}
+.title{display:flex;align-items:flex-end;gap:14px;margin:0 0 24px;padding-bottom:12px;border-bottom:2px solid var(--green)}
+.title h1{margin:0;font-size:24px;font-weight:700;color:var(--ink)}
+.title .sub{color:var(--ink-3);font-size:13px;padding-bottom:3px}
+.title .sp{flex:1}
+.jobbar{background:var(--green);color:#fff;border-radius:12px;padding:12px 20px;margin:0 0 30px;
+  display:flex;align-items:baseline;gap:14px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:16px}
+.jobbar .ref{font-weight:400;text-transform:none;letter-spacing:0;font-size:13px;opacity:.85}
+.jobbar .sp{flex:1}
+.jobbar .lnk{color:#fff;text-transform:none;letter-spacing:0;text-decoration:underline;text-underline-offset:2px}
+
+/* ---------- tiles ---------- */
+.jobtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:26px;max-width:1080px}
+.jt{min-height:200px;border-radius:22px;background:var(--green);color:#fff;border:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:22px;
+  text-decoration:none;transition:transform .12s ease, background .12s ease, box-shadow .12s ease;font-family:var(--font)}
+.jt:hover{background:var(--green-h);transform:translateY(-2px);box-shadow:0 8px 22px rgba(31,90,45,.22)}
+.jt .n{font-size:19px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.jt .m{font-size:13px;color:rgba(255,255,255,.82)}
+.jt .k{margin-top:10px;display:flex;gap:8px}
+.jt .k span{background:rgba(255,255,255,.14);border-radius:99px;padding:4px 11px;font-size:12.5px;font-weight:600}
+.jt.new{background:var(--tint);color:var(--green);border:2px solid var(--green)}
+.jt.new:hover{background:var(--tint-2);box-shadow:none}
+.jt.new .plus{font-size:34px;line-height:1;font-weight:300}
+.sectiles{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:30px;max-width:1080px}
+.st{aspect-ratio:1/0.92;border-radius:22px;background:var(--green);color:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:18px;
+  text-decoration:none;position:relative;transition:transform .12s ease, background .12s ease, box-shadow .12s ease}
+.st:hover{background:var(--green-h);transform:translateY(-2px);box-shadow:0 8px 22px rgba(31,90,45,.22)}
+.st .t{font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.st .v{font-size:22px;line-height:1.35;white-space:pre-line;font-weight:400}
+.st .flag{position:absolute;top:12px;right:12px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:#fff}
+.st .flag.red{color:var(--red)} .st .flag.amber{color:var(--amber)}
+@media (max-width:1150px){ .sectiles{grid-template-columns:repeat(2,minmax(170px,1fr))} }
+
+/* ---------- section bars + record tables ---------- */
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.bar .sp{flex:1}
+.panel{margin:0 0 28px}
+.panel h2{margin:0 0 10px;background:var(--green);color:#fff;border-radius:10px;padding:9px 14px 9px 16px;
+  font-size:13.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;gap:10px;align-items:center;min-height:42px}
+.panel h2 .note{font-weight:400;text-transform:none;letter-spacing:0;font-size:12.5px;color:rgba(255,255,255,.82)}
+.panel h2 .sp{flex:1}
+.panel h2 .btn{background:#fff;color:var(--green);border-color:#fff;text-transform:none;letter-spacing:0}
+.panel h2 .btn:hover{background:var(--tint)}
+.panel .body{padding:4px 2px}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th{text-align:left;font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;
+  padding:9px 12px;border:1px solid var(--line);background:var(--tint);white-space:nowrap}
+table.t td{padding:10px 12px;border:1px solid var(--line);vertical-align:middle;color:var(--blue)}
+table.t tr:nth-child(odd) td{background:#FAFCFA}
+table.t td b{font-weight:600}
+table.t td .sub2{display:block;font-size:12.5px;color:var(--ink-3);margin-top:1px}
+table.t tr.off td{color:var(--ink-3)}
+table.t td.num,table.t th.num{text-align:right;font-variant-numeric:tabular-nums}
+table.t td.acts{text-align:right;white-space:nowrap;width:1%}
+.muted{color:var(--ink-3)}
+.fn{font-size:12px;color:var(--ink-3);margin:8px 2px 0}
+.empty{padding:26px 18px;color:var(--ink-3);text-align:center;border:1px dashed var(--line);border-radius:10px;background:#fff}
+.pill{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:var(--tint-2);color:var(--ink-2);white-space:nowrap;letter-spacing:.02em}
+.pill.ok{background:var(--tint);color:var(--green)} .pill.red{background:var(--red-50);color:var(--red)}
+.pill.amber{background:var(--amber-50);color:var(--amber)}
+/* key facts: bold green label, value in blue, on the pale tint */
+.stats{display:flex;gap:0;flex-wrap:wrap;margin:0 0 20px;border:1px solid var(--line);width:max-content;max-width:100%}
+.stat{padding:10px 18px;min-width:140px;background:var(--tint);border-right:1px solid var(--line)}
+.stat:last-child{border-right:none}
+.stat span{display:block;font-size:11.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em}
+.stat b{font-size:20px;font-weight:600;color:var(--blue)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:none;background:#fff;padding:7px 14px;font-size:13.5px;font-weight:600;color:var(--ink-2)}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--green);color:#fff}
+
+/* ---------- buttons, forms ---------- */
+.btn{border:1.5px solid var(--green);background:var(--green);color:#fff;border-radius:10px;padding:9px 16px;font-weight:700;font-size:14px}
+.btn:hover{background:var(--green-h);border-color:var(--green-h)}
+.btn.line{background:#fff;color:var(--green);border-color:var(--green)}
+.btn.line:hover{background:var(--tint)}
+.btn.ghost{background:none;border-color:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--tint)}
+.btn.danger{background:#fff;color:var(--red);border-color:#E9B7B1}
+.btn.danger:hover{background:var(--red-50)}
+.btn.sm{padding:5px 11px;font-size:13px;border-radius:8px}
+.btn[disabled]{opacity:.55;cursor:default}
+.lnk{background:none;border:none;color:var(--green);font-weight:700;padding:4px 6px;font-size:13px}
+.lnk:hover{text-decoration:underline}
+.lnk.red{color:var(--red)}
+.f{display:flex;flex-direction:column;gap:5px;margin:0 0 12px}
+.f label{font-size:12.5px;font-weight:700;color:var(--green)}
+.f .hint{font-size:12px;color:var(--ink-3);margin-top:-2px}
+.in{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff;width:100%;color:var(--blue)}
+.in:focus{outline:2px solid var(--tint-2);border-color:var(--green)}
+.in:disabled{background:var(--tint);color:var(--ink-2)}
+textarea.in{min-height:80px;resize:vertical}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 13px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.chips button.on{background:var(--green);border-color:var(--green);color:#fff}
+
+/* ---------- modal, toast ---------- */
+.scrim{position:fixed;inset:0;background:rgba(26,26,26,.42);display:flex;align-items:flex-start;justify-content:center;
+  padding:6vh 16px;z-index:50;overflow-y:auto}
+.dlg{background:#fff;border-radius:14px;width:100%;max-width:620px;padding:0 24px 20px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden}
+.dlg h3{margin:0 -24px 16px;padding:14px 24px;background:var(--green);color:#fff;font-size:15px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+.dlg p.lead{margin:0 0 16px;color:var(--ink-2);font-size:14px;line-height:1.5}
+.dlg .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 18px;
+  border-radius:10px;font-size:14px;font-weight:600;z-index:60;max-width:90vw;box-shadow:0 8px 30px rgba(0,0,0,.22)}
+
+/* ---------- sign-in ---------- */
+.gate{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--tint);padding:24px 16px}
+.gate .card{width:100%;max-width:400px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:30px 30px 24px;text-align:left}
+.gate img{height:72px;display:block;margin:0 0 18px}
+.gate h1{font-size:20px;font-weight:700;margin:0;padding-bottom:10px;border-bottom:2px solid var(--green)}
+.gate p{color:var(--ink-2);margin:12px 0 20px;font-size:14px}
+.gate .btn{width:100%;padding:12px;font-size:15px;margin-top:4px;text-align:center}
+.err{color:var(--red);font-size:13.5px;margin:2px 2px 10px}
+
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .side{position:static;height:auto}
+  .side .brand{border-right:none}
+  .side nav{flex-direction:row;overflow-x:auto}
+  .side .me{display:none}
+  main{padding:20px 16px 24px}
+  .jobtiles,.sectiles{gap:16px}
+  .g2,.g3{grid-template-columns:1fr}
+  .panel{overflow-x:auto}
+  .stats{width:auto}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* =====================================================================
+   SiteHUB admin console. Same sign-in and database as the app; everything
+   added here is written in the app's own format, so it turns up on site.
+   The database decides what each person may do — this page only shows it.
+   ===================================================================== */
+const SUPABASE_URL = "https://adgjfsntjexzpkdbqhyo.supabase.co";
+const SUPABASE_KEY = "sb_publishable_XxqonAYENqZzKu_Ocwm8Xg_KEManc6q";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY,
+  { auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:false } });
+
+/* ---------------------------------------------------------- lists (= app) */
+const PLANT_TYPES = ["Excavator","Dumper","Roller","Telehandler","Other"];
+const LIFTING_TYPES = ["Single leg chain","2 leg chain","3 leg chain","4 leg chain","Chain sling","Webbing sling",
+  "Round sling","Shackle","Lifting beam","Chain block","Lever hoist","Pipe grab","Manhole lifter","Vacuum lifter",
+  "Strop","Excavator lifting eye","Quick hitch","Other"];
+const TOOL_TYPES = ["Breaker","Disc cutter","Angle grinder","Whacker plate","Trench rammer","Concrete poker",
+  "Floor saw","Hammer drill","Drill","Chainsaw","Strimmer","Cement mixer","Site saw","Generator","Compressor","Pump",
+  "Lighting tower","Fuel bowser","Tool store","Welfare unit","Storage container","Ladder","Step ladder","Trestle","Other"];
+const TRADES = ["Groundworker","Machine operator","Banksman","Pipelayer","Steel fixer","Concrete gang","Kerb layer",
+  "Traffic management","Supervisor","Apprentice","Other"];
+const OWNERS = ["Hired","Owned","Subcontractor"];
+const DELIVERY_TYPES = ["Stone","Sand","Concrete","Materials","Tools","Plant","Misc"];
+const DELIVERY_UNITS = { Stone:"tonnes", Sand:"tonnes", Concrete:"m³", Materials:"items", Tools:"items", Plant:"items", Misc:"items" };
+const DELIVERY_LOADS = { Stone:20, Sand:20 };
+const HS_FORMS = { toolboxtalk:"Toolbox Talk", briefing:"Daily Activities Briefing", excavation:"Excavation Inspection",
+  havs:"HAVs Record", plantcheck:"Plant Inspection", loler:"LOLER Weekly Inspection", puwer:"PUWER Register" };
+const DEFAULT_HOURS = { start:"07:30", finish:"17:00", breakMins:30 };
+const WEEKDAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+/* ---------------------------------------------------------------- helpers */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[c]);
+const iso = d => { const x = new Date(d); return x.getFullYear() + "-" + String(x.getMonth()+1).padStart(2,"0") + "-" + String(x.getDate()).padStart(2,"0"); };
+const today = () => iso(new Date());
+const parse = s => { const [y,m,d] = String(s).split("-").map(Number); return new Date(y, m-1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+const weekStart = s => { const d = parse(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
+const daysBetween = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+const nice = s => { if(!s) return "—"; const d = parse(s); return d.toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }); };
+const short = s => { if(!s) return "—"; const d = parse(s); return d.toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" }); };
+const toMins = t => { if(!t || String(t).indexOf(":") < 0) return null; const [h,m] = String(t).split(":").map(Number); return h*60 + m; };
+const durMins = v => !v ? 0 : (Number(v.h)||0)*60 + (Number(v.m)||0);
+const hm = mins => { const h = Math.floor(mins/60), m = Math.round(mins%60); return (h ? h+"h" : "") + (h && m ? " " : "") + (m ? m+"m" : (h ? "" : "0m")); };
+const round2 = n => Math.round(n*100)/100;
+const newId = p => p + "_" + Date.now() + Math.random().toString(36).slice(2, 6);
+const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+
+function toast(msg, ms){
+  const o = $(".toast"); if(o) o.remove();
+  const el = document.createElement("div"); el.className = "toast"; el.textContent = msg;
+  document.body.appendChild(el); setTimeout(() => el.remove(), ms || 3200);
+}
+function words(e){
+  const m = String((e && (e.message || e.error_description)) || e || "");
+  if(/row-level security|permission denied|42501/i.test(m)) return "You don't have permission to do that.";
+  if(/failed to fetch|network/i.test(m)) return "No connection — try again.";
+  if(/duplicate key/i.test(m)) return "That already exists.";
+  return m || "Something went wrong.";
+}
+function modal(html, bind){
+  const w = document.createElement("div"); w.className = "scrim";
+  w.innerHTML = `<div class="dlg">${html}</div>`;
+  const close = () => w.remove();
+  w.addEventListener("mousedown", e => { if(e.target === w) close(); });
+  document.body.appendChild(w);
+  if(bind) bind(w.querySelector(".dlg"), close);
+  const first = w.querySelector("input,select,textarea"); if(first) first.focus();
+  return close;
+}
+function confirmBox(title, text, yes, onYes, danger){
+  modal(`<h3>${esc(title)}</h3><p class="lead">${esc(text)}</p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button>
+    <button class="btn ${danger === false ? "" : "danger"}" data-yes>${esc(yes)}</button></div>`, (d, close) => {
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => { d.querySelector("[data-yes]").disabled = true; await onYes(); close(); };
+  });
+}
+
+/* ------------------------------------------------------------ app state */
+const S = { me:null, perms:{}, jobs:[], items:{}, team:null, roles:[], members:[] };
+const can = (m, a) => S.perms[m + "." + a] || "";
+const isAdmin = () => !!can("company_settings", "view");
+
+/* ---------------------------------------------------------------- data */
+async function loadMe(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session) return null;
+  const { data:p, error } = await sb.from("profiles")
+    .select("id, full_name, email, active, company_id, role:roles(key, name), company:companies(name)")
+    .eq("id", session.user.id).maybeSingle();
+  if(error) throw error;
+  if(!p) return null;
+  const { data:perms } = await sb.rpc("my_permissions");
+  S.perms = {}; (perms || []).forEach(x => S.perms[x.module + "." + x.action] = x.scope);
+  S.me = p;
+  return p;
+}
+async function loadJobs(){
+  const { data, error } = await sb.from("jobs").select("id, code, name, principal_contractor, address, start_date, end_date, status, created_at").order("created_at");
+  if(error) throw error;
+  S.jobs = data || [];
+}
+const jobById = id => S.jobs.find(j => j.id === id);
+
+/* every live item on a job, in the app's own shape */
+async function loadItems(jobId, force){
+  if(S.items[jobId] && !force) return S.items[jobId];
+  const out = [];
+  for(let from = 0; ; from += 1000){
+    const { data, error } = await sb.from("job_items").select("kind, item_id, data, updated_at")
+      .eq("job_id", jobId).eq("deleted", false).order("updated_at").range(from, from + 999);
+    if(error) throw error;
+    out.push(...(data || []));
+    if(!data || data.length < 1000) break;
+  }
+  const by = { meta:{}, counters:null };
+  out.forEach(r => {
+    if(r.kind === "_meta"){ by.meta = r.data || {}; return; }
+    if(r.kind === "_counters"){ by.counters = r.data; return; }
+    (by[r.kind] = by[r.kind] || []).push(Object.assign({}, r.data, { id: r.data && r.data.id != null ? r.data.id : r.item_id }));
+  });
+  S.items[jobId] = by;
+  return by;
+}
+const list = (jobId, kind) => ((S.items[jobId] || {})[kind]) || [];
+
+/* write one item exactly as the app would */
+async function saveItem(jobId, kind, item){
+  const job = jobById(jobId);
+  const data = Object.assign({}, item, { job: job ? job.name : item.job, updatedAt: Date.now() });
+  const { error } = await sb.from("job_items").upsert([{ job_id:jobId, kind, item_id:String(data.id), data,
+    deleted:false, client_stamp:Date.now() }], { onConflict:"job_id,kind,item_id" });
+  if(error) throw error;
+  const arr = (S.items[jobId][kind] = S.items[jobId][kind] || []);
+  const i = arr.findIndex(x => String(x.id) === String(data.id));
+  if(i >= 0) arr[i] = data; else arr.push(data);
+}
+async function deleteItem(jobId, kind, id){
+  const old = (S.items[jobId][kind] || []).find(x => String(x.id) === String(id)) || { id };
+  const { error } = await sb.from("job_items").upsert([{ job_id:jobId, kind, item_id:String(id),
+    data:Object.assign({}, old, { updatedAt:Date.now() }), deleted:true, client_stamp:Date.now() }], { onConflict:"job_id,kind,item_id" });
+  if(error) throw error;
+  S.items[jobId][kind] = (S.items[jobId][kind] || []).filter(x => String(x.id) !== String(id));
+}
+async function saveMeta(jobId, meta){
+  const { error } = await sb.from("job_items").upsert([{ job_id:jobId, kind:"_meta", item_id:"job", data:meta,
+    deleted:false, client_stamp:Date.now() }], { onConflict:"job_id,kind,item_id" });
+  if(error) throw error;
+  S.items[jobId].meta = meta;
+}
+
+/* ------------------------------------------------------------ job maths */
+const onSite = x => !x.offDate || x.offDate > today();
+const isHired = x => (x.owner || "Hired") !== "Owned";
+function examState(x){
+  if(!x.examDate) return null;
+  const left = daysBetween(today(), x.examDate);
+  if(left < 0) return { cls:"red", label:"Exam overdue" };
+  if(left <= 30) return { cls:"amber", label:"Exam due " + nice(x.examDate) };
+  return { cls:"ok", label:"Exam " + nice(x.examDate) };
+}
+function weekOf(jobId){
+  const meta = (S.items[jobId] || {}).meta || {};
+  if(Array.isArray(meta.week) && meta.week.length === 7) return meta.week;
+  const b = meta.hours || DEFAULT_HOURS;
+  return WEEKDAYS.map((_, i) => ({ working:i < 5, start:b.start, finish:b.finish,
+    breakMins:Number.isFinite(Number(b.breakMins)) ? Number(b.breakMins) : 30 }));
+}
+const dayIdx = s => (parse(s).getDay() + 6) % 7;
+function dayHours(jobId, date){
+  const d = weekOf(jobId)[dayIdx(date)];
+  const a = toMins(d.start), b = toMins(d.finish);
+  if(a == null || b == null) return 0;
+  let m = b - a; if(m < 0) m += 1440; m -= Number(d.breakMins) || 0;
+  return Math.max(0, round2(m/60));
+}
+function normalDayMins(jobId){
+  const d = weekOf(jobId).find(x => x.working) || weekOf(jobId)[0];
+  const a = toMins(d.start), b = toMins(d.finish);
+  let m = (b - a) - (Number(d.breakMins) || 0);
+  return m > 0 ? m : 540;
+}
+function rowHours(jobId, row, date){
+  if(!row || row.onSite !== true) return 0;
+  if(row.normal === true) return dayHours(jobId, date);
+  const a = toMins(row.start), b = toMins(row.finish);
+  if(a == null || b == null) return 0;
+  let m = b - a; if(m < 0) m += 1440;
+  const brk = Number(weekOf(jobId)[dayIdx(date)].breakMins);
+  m -= Number.isFinite(brk) ? brk : 30;
+  return Math.max(0, round2(m/60));
+}
+const diaries = jobId => list(jobId, "records").filter(r => (r.form || "diary") === "diary" && r.status === "submitted");
+function delays(jobId){
+  const out = [];
+  diaries(jobId).forEach(r => (((r.data || {}).delayList) || []).forEach(x => {
+    const mins = durMins(x.time);
+    if(mins) out.push({ date:r.date, cause:x.cause || "Other", detail:x.detail || "", affected:x.affected || "", mins, counted:x.counted !== false });
+  }));
+  return out.sort((a, b) => b.date.localeCompare(a.date));
+}
+function timesheet(jobId, ws){
+  const days = [0,1,2,3,4,5,6].map(i => addDays(ws, i));
+  const people = {};
+  days.forEach(d => {
+    const rec = diaries(jobId).find(r => r.date === d);
+    ((rec && rec.data && rec.data.labourTable) || []).forEach(row => {
+      const key = row.id || row.name;
+      if(!people[key]) people[key] = { name:row.name, trade:row.trade, days:{}, total:0 };
+      if(row.leave){ people[key].days[d] = { leave:row.leave }; return; }
+      if(row.onSite !== true) return;
+      const h = rowHours(jobId, row, d);
+      people[key].days[d] = { hours:h }; people[key].total += h;
+    });
+  });
+  list(jobId, "tsHours").filter(e => days.includes(e.date)).forEach(e => {
+    if(people[e.key] && people[e.key].days[e.date]) return;
+    if(!people[e.key]) people[e.key] = { name:e.name, trade:e.trade, days:{}, total:0 };
+    const a = toMins(e.start), b = toMins(e.finish);
+    let m = (a == null || b == null) ? 0 : (b - a + (b < a ? 1440 : 0)) - (Number(e.breakMins) || 0);
+    const h = m > 0 ? round2(m/60) : 0;
+    people[e.key].days[e.date] = { hours:h, manual:true }; people[e.key].total += h;
+  });
+  return { days, people:Object.values(people).filter(p => p.total > 0 || Object.keys(p.days).length)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name))) };
+}
+const receivedTotal = d => (d.received || []).reduce((n, r) => n + (Number(r.qty) || 0), 0);
+function deliveryState(d){
+  if(d.cancelled) return { key:"cancelled", label:"Cancelled", cls:"" };
+  const got = receivedTotal(d), want = Number(d.qty) || 0;
+  if(want && got >= want) return { key:"complete", label:"Received", cls:"ok" };
+  if(got > 0) return { key:"part", label:"Part received", cls:"amber" };
+  if(d.dueDate && d.dueDate < today()) return { key:"overdue", label:"Overdue", cls:"red" };
+  if(d.dueDate === today()) return { key:"today", label:"Due today", cls:"amber" };
+  return { key:"booked", label:"Booked", cls:"" };
+}
+const hsRecords = jobId => list(jobId, "records").filter(r => HS_FORMS[r.form]);
+
+/* ================================================================ screens */
+const ICON = {
+  dash:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>`,
+  staff:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.6.2 4.6 1.9 5.3 4.9"/></svg>`,
+  admin:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6L12 3z"/><path d="M8.8 12.2l2.2 2.2 4.3-4.6"/></svg>`
+};
+
+function shell(active, inner){
+  const me = S.me || {};
+  return `<div class="shell">
+    <aside class="side">
+      <div class="brand"><img src="logo.png" alt="Cheltenham Green Civils"></div>
+      <nav>
+        <a href="#/" class="${active === "dash" ? "on" : ""}">${ICON.dash}Dashboard</a>
+        <a href="#/staff" class="${active === "staff" ? "on" : ""}">${ICON.staff}Staff</a>
+        <a href="#/admin" class="${active === "admin" ? "on" : ""}">${ICON.admin}Admin</a>
+      </nav>
+      <div class="me"><b>${esc(me.full_name || me.email || "")}</b>${esc((me.role || {}).name || "")}
+        · ${esc((me.company || {}).name || "")}<br>
+        <div class="links"><a href="./">Open the site app</a><button data-signout>Sign out</button></div></div>
+    </aside>
+    <main><div class="content">${inner}</div>
+      <footer class="foot"><span>Cheltenham Green Civils · SiteHUB admin</span>
+        <span>Updated ${new Date().toLocaleString("en-GB", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })}</span></footer></main>
+  </div>`;
+}
+
+/* ------------------------------------------------------------ dashboard */
+async function viewDashboard(){
+  await loadJobs();
+  const live = S.jobs.filter(j => j.status !== "archived");
+  const counts = {};
+  if(live.length){
+    const { data } = await sb.from("job_items").select("job_id, kind, data").in("kind", ["plant","labour","lifting"])
+      .eq("deleted", false).in("job_id", live.map(j => j.id));
+    (data || []).forEach(r => {
+      const c = counts[r.job_id] = counts[r.job_id] || { plant:0, labour:0, lifting:0 };
+      if(onSite(r.data || {})) c[r.kind]++;
+    });
+  }
+  const tile = j => { const c = counts[j.id] || { plant:0, labour:0 };
+    return `<a class="jt" href="#/job/${j.id}"><span class="n">${esc(j.name)}</span>
+      <span class="m">${esc([j.code, j.principal_contractor].filter(Boolean).join(" · "))}</span>
+      <span class="k"><span>${plural(c.plant, "machine")}</span><span>${c.labour} ops</span></span></a>`; };
+  return shell("dash", `
+    <div class="title"><h1>Jobs</h1><span class="sub">${plural(live.length, "live job")}</span><span class="sp"></span>
+      ${S.jobs.some(j => j.status === "archived") ? `<a class="lnk" href="#/archived">Archived jobs</a>` : ""}</div>
+    <div class="jobtiles">
+      ${live.map(tile).join("")}
+      ${can("jobs", "create") ? `<button class="jt new" data-newjob><span class="plus">+</span><span class="n">Create new job</span></button>` : ""}
+    </div>`);
+}
+async function viewArchived(){
+  await loadJobs();
+  const arch = S.jobs.filter(j => j.status === "archived");
+  return shell("dash", `<div class="crumbs"><a href="#/">Dashboard</a> › Archived</div>
+    <div class="title"><h1>Archived jobs</h1></div>
+    <div class="jobtiles">${arch.map(j => `<a class="jt" href="#/job/${j.id}"><span class="n">${esc(j.name)}</span>
+      <span class="m">${esc(j.code || "")}</span></a>`).join("") || `<p class="empty">None.</p>`}</div>`);
+}
+
+function jobForm(job, meta){
+  const info = (meta && meta.info) || {};
+  const v = job ? { name:job.name, code:job.code, pc:job.principal_contractor || info.pc || "", address:job.address || info.address || "",
+    theirRef:info.theirRef || "", start:job.start_date || (meta && meta.start) || "", end:job.end_date || "", status:job.status || "live" }
+    : { name:"", code:"", pc:"", address:"", theirRef:"", start:today(), end:"", status:"live" };
+  modal(`<h3>${job ? "Edit job" : "Create new job"}</h3>
+    <p class="lead">${job ? "Changes show in the app the next time it syncs." : "It appears in the app for everyone who can see this job."}</p>
+    <div class="f"><label>Job name *</label>${job ? `<div class="hint">The name links the job to every record on site, so it can't be changed here.</div>` : ""}
+      <input class="in" data-k="name" value="${esc(v.name)}" ${job ? "disabled" : ""} placeholder="e.g. Bramhall High School"></div>
+    <div class="g2">
+      <div class="f"><label>Job number *</label><input class="in" data-k="code" value="${esc(v.code)}" placeholder="e.g. CG180"></div>
+      <div class="f"><label>Their order reference</label><input class="in" data-k="theirRef" value="${esc(v.theirRef)}"></div>
+    </div>
+    <div class="f"><label>Principal contractor</label><input class="in" data-k="pc" value="${esc(v.pc)}"></div>
+    <div class="f"><label>Site address</label><input class="in" data-k="address" value="${esc(v.address)}"></div>
+    <div class="g3">
+      <div class="f"><label>Start date</label><input class="in" type="date" data-k="start" value="${esc(v.start)}"></div>
+      <div class="f"><label>Expected completion</label><input class="in" type="date" data-k="end" value="${esc(v.end)}"></div>
+      <div class="f"><label>Status</label><select class="in" data-k="status">${["tender","live","complete","archived"].map(s =>
+        `<option ${s === v.status ? "selected" : ""} value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div>
+    </div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${job ? "Save" : "Create job"}</button></div>`,
+  (d, close) => {
+    const val = k => d.querySelector(`[data-k="${k}"]`).value.trim();
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const name = job ? job.name : val("name"), code = val("code");
+      if(!name) return err("Give the job a name.");
+      if(!code) return err("Give the job a number.");
+      if(!job && S.jobs.some(j => j.name.trim().toLowerCase() === name.toLowerCase())) return err("There's already a job with that name.");
+      const btn = d.querySelector("[data-yes]"); btn.disabled = true;
+      try{
+        const row = { code, principal_contractor:val("pc") || null, address:val("address") || null,
+          start_date:val("start") || null, end_date:val("end") || null, status:val("status") };
+        let id = job && job.id;
+        if(job){
+          const { error } = await sb.from("jobs").update(row).eq("id", id); if(error) throw error;
+        } else {
+          const { data, error } = await sb.from("jobs").insert(Object.assign({ name }, row)).select("id").single();
+          if(error) throw error; id = data.id;
+        }
+        await loadItems(id, true);
+        const m = Object.assign({}, S.items[id].meta || {});
+        m.info = Object.assign({}, m.info || {}, { pc:val("pc"), address:val("address"), ref:code, theirRef:val("theirRef") });
+        if(val("start")) m.start = val("start");
+        await saveMeta(id, m);
+        close(); toast(job ? "Job saved" : "Job created");
+        await loadJobs(); route();
+      }catch(e){ btn.disabled = false; err(words(e)); }
+    };
+  });
+}
+
+/* ---------------------------------------------------------------- job */
+async function viewJob(jobId){
+  if(!S.jobs.length) await loadJobs();
+  const job = jobById(jobId);
+  if(!job) return shell("dash", `<p class="empty">That job can't be found, or you don't have access to it.</p>`);
+  await loadItems(jobId, true);
+  const plant = list(jobId, "plant").filter(onSite), lift = list(jobId, "lifting").filter(onSite);
+  const tools = list(jobId, "tools").filter(onSite), labour = list(jobId, "labour").filter(onSite);
+  const dels = list(jobId, "deliveries");
+  const booked = dels.filter(d => !["complete","cancelled"].includes(deliveryState(d).key)).length;
+  const received = dels.filter(d => deliveryState(d).key === "complete").length;
+  const lostMins = delays(jobId).filter(x => x.counted).reduce((n, x) => n + x.mins, 0);
+  const lostDays = round2(lostMins / normalDayMins(jobId));
+  const hire = plant.concat(lift, tools).filter(isHired);
+  const ts = timesheet(jobId, weekStart(today()));
+  const tsHours = round2(ts.people.reduce((n, p) => n + p.total, 0));
+  const tbts = hsRecords(jobId).filter(r => r.form === "toolboxtalk").length;
+  const examFlag = arr => { const s = arr.map(examState).filter(Boolean);
+    return s.some(x => x.cls === "red") ? `<span class="flag red">Exam overdue</span>` : s.some(x => x.cls === "amber") ? `<span class="flag amber">Exam due</span>` : ""; };
+  const tile = (key, title, value, flag) => `<a class="st" href="#/job/${jobId}/${key}">${flag || ""}<span class="t">${title}</span><span class="v">${value}</span></a>`;
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › ${esc(job.name)}</div>
+    <div class="jobbar">${esc(job.name)}<span class="ref">${esc([job.code, job.principal_contractor].filter(Boolean).join(" · "))}</span>
+      <span class="sp"></span>${can("jobs", "edit") ? `<button class="lnk" data-editjob="${jobId}">Edit job details</button>` : ""}</div>
+    <div class="sectiles">
+      ${tile("plant", "Plant", plural(plant.length, "item"), examFlag(plant))}
+      ${tile("lifting", "Lifting", plural(lift.length, "item"), examFlag(lift))}
+      ${tile("delays", "Delays", lostMins ? (lostDays >= 1 ? lostDays + " days delayed" : hm(lostMins) + " lost") : "No delays")}
+      ${tile("deliveries", "Deliveries", booked + " booked\n" + received + " received")}
+      ${tile("hire", "Live Hire", plural(hire.length, "item"))}
+      ${tile("labour", "Labour", labour.length + " ops")}
+      ${tile("timesheets", "Timesheets", tsHours ? tsHours + " hrs this week" : "This week")}
+      ${tile("hs", "Health and Safety", tbts ? plural(tbts, "toolbox talk") : "")}
+    </div>`);
+}
+
+/* ------------------------------------------------- registers (generic) */
+const REG = {
+  plant:{ title:"Plant", kind:"plant", prefix:"pl", noun:"machine",
+    blank:() => ({ item:"", fleetNo:"", model:"", type:"Excavator", owner:"Hired", hireCompany:"", hireRef:"", hirePhone:"", hireEmail:"",
+      onDate:today(), offDate:"", examDate:"" }),
+    fields:[ ["item","Item *","text",{ ph:"e.g. 8 tonne excavator" }], ["fleetNo","Fleet number","text"], ["model","Make / model","text"],
+      ["type","Type","select",{ opts:PLANT_TYPES }], ["owner","Owned or hired","select",{ opts:OWNERS }], ["hireCompany","Hire company / supplier","text"],
+      ["hireRef","Hire reference","text"], ["hirePhone","Supplier phone","text"], ["hireEmail","Supplier email","text"],
+      ["onDate","On site from","date"], ["offDate","Off hired","date"], ["examDate","Thorough examination due","date"] ],
+    cols:[ ["Item", x => `<b>${esc(x.item)}</b>${x.model ? `<span class="sub2">${esc(x.model)}</span>` : ""}`],
+      ["Fleet no", x => esc(x.fleetNo || "—")], ["Type", x => esc(x.type || "")],
+      ["Owned / hired", x => esc(isHired(x) ? (x.hireCompany || x.owner || "Hired") : "Owned")],
+      ["On site", x => short(x.onDate)], ["Examination", x => { const s = examState(x); return s ? `<span class="pill ${s.cls}">${esc(s.label)}</span>` : "—"; }] ] },
+  lifting:{ title:"Lifting", kind:"lifting", prefix:"lf", noun:"item",
+    blank:() => ({ item:"", idNo:"", type:"Single leg chain", swl:"", owner:"Hired", hireCompany:"", hireRef:"", onDate:today(), offDate:"", examDate:"" }),
+    fields:[ ["item","Item *","text",{ ph:"e.g. 2 leg chain 3.15t" }], ["idNo","ID number","text"], ["type","Type","select",{ opts:LIFTING_TYPES }],
+      ["swl","Safe working load","text",{ ph:"e.g. 3.15t" }], ["owner","Owned or hired","select",{ opts:OWNERS }], ["hireCompany","Hire company / supplier","text"],
+      ["hireRef","Hire reference","text"], ["onDate","On site from","date"], ["offDate","Off hired","date"], ["examDate","Thorough examination due","date"] ],
+    cols:[ ["Item", x => `<b>${esc(x.item)}</b>`], ["ID no", x => esc(x.idNo || "—")], ["Type", x => esc(x.type || "")], ["SWL", x => esc(x.swl || "—")],
+      ["Owned / hired", x => esc(isHired(x) ? (x.hireCompany || x.owner || "Hired") : "Owned")],
+      ["Examination", x => { const s = examState(x); return s ? `<span class="pill ${s.cls}">${esc(s.label)}</span>` : "—"; }] ] },
+  tools:{ title:"Work equipment", kind:"tools", prefix:"tl", noun:"item",
+    blank:() => ({ item:"", idNo:"", type:"Breaker", owner:"Owned", hireCompany:"", onDate:today(), offDate:"" }),
+    fields:[ ["item","Item *","text"], ["idNo","ID number","text"], ["type","Type","select",{ opts:TOOL_TYPES }],
+      ["owner","Owned or hired","select",{ opts:OWNERS }], ["hireCompany","Hire company / supplier","text"], ["onDate","On site from","date"], ["offDate","Off hired","date"] ],
+    cols:[] },
+  labour:{ title:"Labour", kind:"labour", prefix:"lb", noun:"person",
+    blank:() => ({ name:"", trade:"Groundworker", company:"Cheltenham Green Civils", phone:"", email:"", onDate:today(), offDate:"" }),
+    fields:[ ["name","Name *","text"], ["trade","Trade","select",{ opts:TRADES }], ["company","Company","text"],
+      ["phone","Mobile","text"], ["email","Email","text"], ["onDate","On site from","date"], ["offDate","Left site","date"] ],
+    cols:[ ["Name", x => `<b>${esc(x.name)}</b>`], ["Trade", x => esc(x.trade || "")], ["Company", x => esc(x.company || "")],
+      ["Contact", x => esc([x.phone, x.email].filter(Boolean).join(" · ") || "—")], ["On site", x => short(x.onDate)] ] }
+};
+
+function itemForm(jobId, key, item){
+  const R = REG[key], isNew = !item;
+  const v = Object.assign(R.blank(), item || {});
+  const field = ([id, label, type, o]) => { o = o || {};
+    const input = type === "select" ? `<select class="in" data-k="${id}">${o.opts.map(x => `<option ${x === v[id] ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>`
+      : `<input class="in" type="${type}" data-k="${id}" value="${esc(v[id] || "")}" placeholder="${esc(o.ph || "")}">`;
+    return `<div class="f"><label>${esc(label)}</label>${input}</div>`; };
+  const fs = R.fields.map(field);
+  modal(`<h3>${isNew ? "Add " + R.noun : "Edit " + R.noun}</h3>
+    <p class="lead">${isNew ? "It goes straight onto the register in the app." : "Changes show in the app the next time it syncs."}</p>
+    <div class="g2">${fs.join("")}</div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${isNew ? "Add" : "Save"}</button></div>`,
+  (d, close) => {
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const out = Object.assign({}, item || { id:newId(R.prefix) });
+      d.querySelectorAll("[data-k]").forEach(el => out[el.dataset.k] = el.value.trim());
+      const req = R.fields[0][0];
+      if(!out[req]) return err("Fill in the " + R.fields[0][1].replace(" *", "").toLowerCase() + ".");
+      if(out.offDate && out.onDate && out.offDate < out.onDate) return err("The off date is before the on date.");
+      d.querySelector("[data-yes]").disabled = true;
+      try{ await saveItem(jobId, R.kind, out); close(); toast(isNew ? "Added" : "Saved"); route(); }
+      catch(e){ d.querySelector("[data-yes]").disabled = false; err(words(e)); }
+    };
+  });
+}
+
+let regShow = "on";
+function registerView(jobId, key){
+  const R = REG[key], job = jobById(jobId);
+  const all = list(jobId, R.kind).slice().sort((a, b) => String(b.onDate || "").localeCompare(String(a.onDate || "")));
+  const rows = all.filter(x => regShow === "all" || (regShow === "on" ? onSite(x) : !onSite(x)));
+  const editable = !!can(R.kind === "labour" ? "site_diary" : R.kind === "lifting" ? "lifting" : R.kind === "tools" ? "tools" : "plant", "edit");
+  const offWord = R.kind === "labour" ? "Left site" : "Off hire";
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › ${R.title}</div>
+    <div class="title"><h1>${R.title}</h1><span class="sub">${plural(all.filter(onSite).length, "on site")}</span><span class="sp"></span>
+      ${editable ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : ""}</div>
+    <div class="bar"><div class="seg">${[["on","On site"],["off","Gone"],["all","All"]].map(([k,l]) =>
+      `<button class="${regShow === k ? "on" : ""}" data-regshow="${k}">${l}</button>`).join("")}</div></div>
+    <div class="panel">${rows.length ? `<table class="t"><tr>${R.cols.map(c => `<th>${c[0]}</th>`).join("")}<th></th></tr>
+      ${rows.map(x => `<tr class="${onSite(x) ? "" : "off"}">${R.cols.map(c => `<td>${c[1](x)}</td>`).join("")}
+        <td class="acts">${editable ? `<button class="lnk" data-edit="${esc(x.id)}">Edit</button>
+          ${onSite(x) ? `<button class="lnk" data-offhire="${esc(x.id)}">${offWord}</button>` : ""}
+          <button class="lnk red" data-del="${esc(x.id)}">Delete</button>` : ""}</td></tr>`).join("")}</table>`
+      : `<p class="empty">Nothing here yet.</p>`}</div>`);
+}
+function bindRegister(jobId, key){
+  const R = REG[key];
+  document.querySelectorAll("[data-regshow]").forEach(b => b.onclick = () => { regShow = b.dataset.regshow; route(); });
+  const add = $("[data-add]"); if(add) add.onclick = () => itemForm(jobId, key, null);
+  const find = id => list(jobId, R.kind).find(x => String(x.id) === id);
+  document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => itemForm(jobId, key, find(b.dataset.edit)));
+  document.querySelectorAll("[data-offhire]").forEach(b => b.onclick = () => {
+    const x = find(b.dataset.offhire);
+    confirmBox((R.kind === "labour" ? "Mark " + x.name + " as left site" : "Off hire " + x.item) + " today?",
+      "It stays on the register with today's date, so the records still show it was here.", R.kind === "labour" ? "Left site" : "Off hire",
+      async () => { try{ await saveItem(jobId, R.kind, Object.assign({}, x, { offDate:today() })); toast("Done"); route(); }catch(e){ toast(words(e)); } }, false);
+  });
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const x = find(b.dataset.del);
+    confirmBox("Delete " + (x.item || x.name) + "?",
+      "This removes it from the register for everyone. If it was simply on site and has gone, use " + (R.kind === "labour" ? "Left site" : "Off hire") + " instead so the history is kept.",
+      "Delete", async () => { try{ await deleteItem(jobId, R.kind, x.id); toast("Deleted"); route(); }catch(e){ toast(words(e)); } });
+  });
+}
+
+/* ------------------------------------------------------------ live hire */
+function hireView(jobId){
+  const job = jobById(jobId);
+  const rows = [];
+  [["plant","Plant"],["lifting","Lifting"],["tools","Work equipment"]].forEach(([k, l]) =>
+    list(jobId, k).filter(x => onSite(x) && isHired(x)).forEach(x => rows.push({ k, l, x })));
+  rows.sort((a, b) => String(a.x.onDate || "").localeCompare(String(b.x.onDate || "")));
+  const edit = !!can("plant", "edit");
+  const bySupplier = {};
+  rows.forEach(r => { const s = r.x.hireCompany || r.x.owner || "Hired"; bySupplier[s] = (bySupplier[s] || 0) + 1; });
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Live hire</div>
+    <div class="title"><h1>Live hire</h1><span class="sub">Everything hired in and still on site</span></div>
+    <div class="stats"><div class="stat"><span>On hire</span><b>${rows.length}</b></div>
+      ${Object.entries(bySupplier).slice(0, 4).map(([s, n]) => `<div class="stat"><span>${esc(s)}</span><b>${n}</b></div>`).join("")}</div>
+    <div class="panel">${rows.length ? `<table class="t"><tr><th>Item</th><th>What</th><th>Supplier</th><th>Hire ref</th><th>On hire since</th><th class="num">Days</th><th></th></tr>
+      ${rows.map(r => `<tr><td><b>${esc(r.x.item)}</b>${r.x.fleetNo || r.x.idNo ? `<span class="sub2">${esc(r.x.fleetNo || r.x.idNo)}</span>` : ""}</td>
+        <td>${esc(r.l)}</td><td>${esc(r.x.hireCompany || r.x.owner || "—")}</td><td>${esc(r.x.hireRef || "—")}</td>
+        <td>${short(r.x.onDate)}</td><td class="num">${r.x.onDate ? Math.max(0, daysBetween(r.x.onDate, today())) : "—"}</td>
+        <td class="acts">${edit ? `<button class="lnk" data-hireoff="${r.k}:${esc(r.x.id)}">Off hire today</button>` : ""}</td></tr>`).join("")}</table>`
+      : `<p class="empty">Nothing on hire.</p>`}</div>`);
+}
+function bindHire(jobId){
+  document.querySelectorAll("[data-hireoff]").forEach(b => b.onclick = () => {
+    const [k, id] = b.dataset.hireoff.split(":");
+    const x = list(jobId, k).find(i => String(i.id) === id);
+    confirmBox("Off hire " + x.item + " today?", "Remember to call it off with " + (x.hireCompany || "the supplier") + (x.hireRef ? " (ref " + x.hireRef + ")" : "") + ".",
+      "Off hire", async () => { try{ await saveItem(jobId, k, Object.assign({}, x, { offDate:today() })); toast("Off hired"); route(); }catch(e){ toast(words(e)); } }, false);
+  });
+}
+
+/* --------------------------------------------------------------- delays */
+function delaysView(jobId){
+  const job = jobById(jobId), all = delays(jobId);
+  const counted = all.filter(x => x.counted), mins = counted.reduce((n, x) => n + x.mins, 0);
+  const byCause = {}; counted.forEach(x => byCause[x.cause] = (byCause[x.cause] || 0) + x.mins);
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Delays</div>
+    <div class="title"><h1>Delays</h1><span class="sub">From the submitted site diaries</span></div>
+    <div class="stats"><div class="stat"><span>Time lost</span><b>${hm(mins)}</b></div>
+      <div class="stat"><span>Working days</span><b>${round2(mins / normalDayMins(jobId))}</b></div>
+      ${Object.entries(byCause).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, m]) => `<div class="stat"><span>${esc(c)}</span><b>${hm(m)}</b></div>`).join("")}</div>
+    <div class="panel">${all.length ? `<table class="t"><tr><th>Date</th><th>Cause</th><th>What happened</th><th>Who it held up</th><th class="num">Time lost</th></tr>
+      ${all.map(x => `<tr class="${x.counted ? "" : "off"}"><td>${short(x.date)}</td><td>${esc(x.cause)}</td><td>${esc(x.detail || "—")}</td>
+        <td>${esc(x.affected || "—")}</td><td class="num">${hm(x.mins)}${x.counted ? "" : " (not counted)"}</td></tr>`).join("")}</table>`
+      : `<p class="empty">No delays recorded in the diaries.</p>`}</div>`);
+}
+
+/* ----------------------------------------------------------- deliveries */
+let delShow = "open";
+function deliveriesView(jobId){
+  const job = jobById(jobId);
+  const all = list(jobId, "deliveries").slice().sort((a, b) => String(b.dueDate || "").localeCompare(String(a.dueDate || "")));
+  const rows = all.filter(d => { const k = deliveryState(d).key;
+    return delShow === "all" ? true : delShow === "open" ? !["complete","cancelled"].includes(k) : k === "complete"; });
+  const edit = !!can("site_diary", "edit");
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Deliveries</div>
+    <div class="title"><h1>Deliveries</h1><span class="sp"></span>${edit ? `<button class="btn" data-adddel>+ Book a delivery</button>` : ""}</div>
+    <div class="bar"><div class="seg">${[["open","Booked"],["done","Received"],["all","All"]].map(([k, l]) =>
+      `<button class="${delShow === k ? "on" : ""}" data-delshow="${k}">${l}</button>`).join("")}</div></div>
+    <div class="panel">${rows.length ? `<table class="t"><tr><th>Due</th><th>What</th><th>Supplier</th><th>Order ref</th><th class="num">Ordered</th><th class="num">Received</th><th>Status</th><th></th></tr>
+      ${rows.map(d => { const s = deliveryState(d), u = d.unit || DELIVERY_UNITS[d.type] || "";
+        return `<tr><td>${short(d.dueDate)}${d.dueTime && d.dueTime !== "none" ? " " + esc(d.dueTime) : ""}</td>
+        <td><b>${esc(d.description || d.type)}</b><span class="sub2">${esc(d.type)}</span></td>
+        <td>${esc(d.supplier || "—")}</td><td>${esc(d.orderRef || "—")}</td>
+        <td class="num">${esc(d.qty || "—")} ${esc(u)}</td><td class="num">${round2(receivedTotal(d))} ${esc(u)}</td>
+        <td><span class="pill ${s.cls}">${s.label}</span></td>
+        <td class="acts">${edit ? `<button class="lnk" data-editdel="${esc(d.id)}">Edit</button>
+          ${!d.cancelled && s.key !== "complete" ? `<button class="lnk red" data-canceldel="${esc(d.id)}">Cancel</button>` : ""}` : ""}</td></tr>`; }).join("")}</table>`
+      : `<p class="empty">No deliveries here.</p>`}</div>`);
+}
+function deliveryForm(jobId, d){
+  const isNew = !d;
+  const v = Object.assign({ type:"Stone", description:"", supplier:"", orderRef:"", qty:"", unit:DELIVERY_UNITS.Stone,
+    loadSize:DELIVERY_LOADS.Stone || "", dueDate:today(), dueTime:"", notes:"" }, d || {});
+  modal(`<h3>${isNew ? "Book a delivery" : "Edit delivery"}</h3>
+    <p class="lead">It shows on site under Deliveries, ready to be booked in when it arrives.</p>
+    <div class="g2">
+      <div class="f"><label>Type</label><select class="in" data-k="type">${DELIVERY_TYPES.map(t => `<option ${t === v.type ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+      <div class="f"><label>Description *</label><input class="in" data-k="description" value="${esc(v.description)}" placeholder="e.g. Type 1 MOT"></div>
+      <div class="f"><label>Supplier</label><input class="in" data-k="supplier" value="${esc(v.supplier)}"></div>
+      <div class="f"><label>Order reference</label><input class="in" data-k="orderRef" value="${esc(v.orderRef)}"></div>
+      <div class="f"><label>Quantity</label><input class="in" type="number" min="0" step="any" data-k="qty" value="${esc(v.qty)}"></div>
+      <div class="f"><label>Unit</label><input class="in" data-k="unit" value="${esc(v.unit)}"></div>
+      <div class="f"><label>Due date</label><input class="in" type="date" data-k="dueDate" value="${esc(v.dueDate)}"></div>
+      <div class="f"><label>Due time</label><input class="in" type="time" data-k="dueTime" value="${esc(v.dueTime === "none" ? "" : v.dueTime)}"></div>
+    </div>
+    <div class="f"><label>Notes</label><textarea class="in" data-k="notes">${esc(v.notes)}</textarea></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${isNew ? "Book it" : "Save"}</button></div>`,
+  (dl, close) => {
+    const k = n => dl.querySelector(`[data-k="${n}"]`);
+    k("type").onchange = () => { k("unit").value = DELIVERY_UNITS[k("type").value] || "items"; };
+    dl.querySelector("[data-no]").onclick = close;
+    dl.querySelector("[data-yes]").onclick = async () => {
+      const out = Object.assign({}, d || { id:"dl_" + Date.now(), received:[] });
+      dl.querySelectorAll("[data-k]").forEach(el => out[el.dataset.k] = el.value.trim());
+      if(isNew) out.loadSize = DELIVERY_LOADS[out.type] || "";
+      if(!out.description){ const e = dl.querySelector(".err"); e.textContent = "Say what's being delivered."; e.hidden = false; return; }
+      dl.querySelector("[data-yes]").disabled = true;
+      try{ await saveItem(jobId, "deliveries", out); close(); toast(isNew ? "Delivery booked" : "Saved"); route(); }
+      catch(e){ dl.querySelector("[data-yes]").disabled = false; toast(words(e)); }
+    };
+  });
+}
+function bindDeliveries(jobId){
+  document.querySelectorAll("[data-delshow]").forEach(b => b.onclick = () => { delShow = b.dataset.delshow; route(); });
+  const a = $("[data-adddel]"); if(a) a.onclick = () => deliveryForm(jobId, null);
+  const find = id => list(jobId, "deliveries").find(x => String(x.id) === id);
+  document.querySelectorAll("[data-editdel]").forEach(b => b.onclick = () => deliveryForm(jobId, find(b.dataset.editdel)));
+  document.querySelectorAll("[data-canceldel]").forEach(b => b.onclick = () => {
+    const d = find(b.dataset.canceldel);
+    confirmBox("Cancel this delivery?", (d.description || d.type) + " — it stays on the list marked as cancelled.", "Cancel delivery",
+      async () => { try{ await saveItem(jobId, "deliveries", Object.assign({}, d, { cancelled:true })); toast("Cancelled"); route(); }catch(e){ toast(words(e)); } });
+  });
+}
+
+/* ----------------------------------------------------------- timesheets */
+let tsWeek = null;
+function timesheetsView(jobId){
+  const job = jobById(jobId);
+  tsWeek = tsWeek || weekStart(today());
+  const ts = timesheet(jobId, tsWeek);
+  const total = round2(ts.people.reduce((n, p) => n + p.total, 0));
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Timesheets</div>
+    <div class="title"><h1>Timesheets</h1><span class="sub">Built from the site diaries, plus hours added on the timesheet in the app</span></div>
+    <div class="bar"><button class="btn line sm" data-tsw="-7">‹ Previous</button>
+      <b style="font-size:15px">Week commencing ${nice(tsWeek)}</b>
+      <button class="btn line sm" data-tsw="7">Next ›</button><span class="sp"></span>
+      <div class="stat" style="padding:8px 14px"><span>Total</span><b style="font-size:18px">${total} hrs</b></div></div>
+    <div class="panel">${ts.people.length ? `<table class="t"><tr><th>Name</th>${ts.days.map((d, i) => `<th class="num">${WEEKDAYS[i]} ${parse(d).getDate()}</th>`).join("")}<th class="num">Total</th></tr>
+      ${ts.people.map(p => `<tr><td><b>${esc(p.name)}</b><span class="sub2">${esc(p.trade || "")}</span></td>
+        ${ts.days.map(d => { const x = p.days[d]; return `<td class="num">${!x ? "" : x.leave ? `<span class="pill">${esc(x.leave)}</span>` : x.hours + (x.manual ? "*" : "")}</td>`; }).join("")}
+        <td class="num"><b>${round2(p.total)}</b></td></tr>`).join("")}</table>
+      <p class="fn">* added on the timesheet rather than a diary</p>`
+      : `<p class="empty">No hours for this week yet.</p>`}</div>`);
+}
+function bindTimesheets(){
+  document.querySelectorAll("[data-tsw]").forEach(b => b.onclick = () => { tsWeek = addDays(tsWeek, Number(b.dataset.tsw)); route(); });
+}
+
+/* ------------------------------------------------- health & safety + library */
+let LIB = null;
+async function loadLibrary(){
+  const { data, error } = await sb.from("tbt_library").select("id, title, topic, file_path, file_name, size_bytes, created_at, archived")
+    .eq("archived", false).order("title");
+  if(error){ LIB = { error:words(error), items:[] }; return LIB; }
+  LIB = { items:data || [] }; return LIB;
+}
+function libraryPanel(){
+  const manage = can("health_safety", "manage") === "all";
+  if(!LIB) return `<div class="panel"><h2>Toolbox talk library</h2><p class="empty">Loading…</p></div>`;
+  return `<div class="panel"><h2>Toolbox talk library <span class="note">
+      Shared with every job — site managers pick a talk in the app and it goes into their Toolbox Talk record</span>
+      <span class="sp"></span>${manage ? `<button class="btn sm" data-libup>+ Upload PDF</button>` : ""}</h2>
+    ${LIB.error ? `<p class="empty">${esc(LIB.error)}</p>` : LIB.items.length ? `<table class="t"><tr><th>Title</th><th>Topic</th><th>Added</th><th class="num">Size</th><th></th></tr>
+      ${LIB.items.map(x => `<tr><td><b>${esc(x.title)}</b></td><td>${esc(x.topic || "—")}</td><td>${nice(iso(x.created_at))}</td>
+        <td class="num">${x.size_bytes ? Math.max(1, Math.round(x.size_bytes / 1024)) + " KB" : "—"}</td>
+        <td class="acts"><button class="lnk" data-libview="${x.id}">Open</button>${manage ? `<button class="lnk red" data-libdel="${x.id}">Remove</button>` : ""}</td></tr>`).join("")}</table>`
+      : `<p class="empty">No toolbox talks yet.${manage ? " Upload your first PDF." : ""}</p>`}</div>`;
+}
+function bindLibrary(){
+  const up = $("[data-libup]");
+  if(up) up.onclick = () => modal(`<h3>Upload a toolbox talk</h3>
+    <p class="lead">A PDF of the talk. On site it's added to the Toolbox Talk record page by page, just like a scanned sheet.</p>
+    <div class="f"><label>PDF file *</label><input class="in" type="file" accept="application/pdf,.pdf" data-file></div>
+    <div class="f"><label>Title *</label><input class="in" data-title placeholder="e.g. Working near buried services"></div>
+    <div class="f"><label>Topic</label><input class="in" data-topic placeholder="e.g. Excavations"></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Upload</button></div>`, (d, close) => {
+      const fileIn = d.querySelector("[data-file]"), title = d.querySelector("[data-title]");
+      const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+      fileIn.onchange = () => { const f = fileIn.files[0]; if(f && !title.value) title.value = f.name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " "); };
+      d.querySelector("[data-no]").onclick = close;
+      d.querySelector("[data-yes]").onclick = async () => {
+        const f = fileIn.files[0];
+        if(!f) return err("Choose the PDF.");
+        if(!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) return err("That isn't a PDF.");
+        if(f.size > 20 * 1024 * 1024) return err("That PDF is over 20 MB — please make it smaller.");
+        if(!title.value.trim()) return err("Give it a title.");
+        const btn = d.querySelector("[data-yes]"); btn.disabled = true; btn.textContent = "Uploading…";
+        const path = S.me.company_id + "/" + (crypto.randomUUID ? crypto.randomUUID() : newId("tbt")) + ".pdf";
+        try{
+          const u = await sb.storage.from("company-library").upload(path, f, { contentType:"application/pdf", upsert:false });
+          if(u.error) throw u.error;
+          const { error } = await sb.from("tbt_library").insert({ title:title.value.trim(), topic:d.querySelector("[data-topic]").value.trim() || null,
+            file_path:path, file_name:f.name, size_bytes:f.size });
+          if(error){ await sb.storage.from("company-library").remove([path]); throw error; }
+          close(); toast("Added to the library"); await loadLibrary(); route();
+        }catch(e){ btn.disabled = false; btn.textContent = "Upload"; err(words(e)); }
+      };
+    });
+  document.querySelectorAll("[data-libview]").forEach(b => b.onclick = async () => {
+    const x = LIB.items.find(i => i.id === b.dataset.libview);
+    const w = window.open("about:blank", "_blank");
+    const { data, error } = await sb.storage.from("company-library").createSignedUrl(x.file_path, 300);
+    if(error || !data){ if(w) w.close(); return toast(words(error)); }
+    if(w) w.location = data.signedUrl; else location.href = data.signedUrl;
+  });
+  document.querySelectorAll("[data-libdel]").forEach(b => b.onclick = () => {
+    const x = LIB.items.find(i => i.id === b.dataset.libdel);
+    confirmBox("Remove " + x.title + " from the library?", "Toolbox talks already done with it keep their copy. It just won't be offered on site any more.",
+      "Remove", async () => {
+        try{
+          const { error } = await sb.from("tbt_library").delete().eq("id", x.id); if(error) throw error;
+          await sb.storage.from("company-library").remove([x.file_path]);
+          toast("Removed"); await loadLibrary(); route();
+        }catch(e){ toast(words(e)); }
+      });
+  });
+}
+let hsShow = "all";
+function hsView(jobId){
+  const job = jobById(jobId);
+  const recs = hsRecords(jobId).filter(r => hsShow === "all" || r.form === hsShow)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.submittedAt || 0) - (a.submittedAt || 0));
+  const counts = {}; hsRecords(jobId).forEach(r => counts[r.form] = (counts[r.form] || 0) + 1);
+  const by = r => { const d = r.data || {}; return [d.subject, d.deliveredBy || d.inspectedBy || d.operator || d.completedBy || d.name].filter(Boolean).join(" — ") || "—"; };
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Health and safety</div>
+    <div class="title"><h1>Health and safety</h1></div>
+    ${libraryPanel()}
+    <div class="bar"><div class="chips">${[["all","All"]].concat(Object.keys(HS_FORMS).filter(k => counts[k]).map(k => [k, HS_FORMS[k]])).map(([k, l]) =>
+      `<button class="${hsShow === k ? "on" : ""}" data-hsshow="${k}">${esc(l)}${k === "all" ? "" : " " + counts[k]}</button>`).join("")}</div></div>
+    <div class="panel"><h2>Records on this job</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Record</th><th>Ref</th><th>Subject / by</th><th>Status</th></tr>
+      ${recs.slice(0, 300).map(r => `<tr><td>${short(r.date)}</td><td>${esc(HS_FORMS[r.form])}</td><td>${esc(r.ref || "—")}</td>
+        <td>${esc(by(r))}${(r.data || {}).libraryTalk ? ` <span class="pill ok">From library</span>` : ""}</td>
+        <td><span class="pill ${r.status === "submitted" ? "ok" : "amber"}">${r.status === "submitted" ? "Done" : "In progress"}</span></td></tr>`).join("")}</table>`
+      : `<p class="empty">No health and safety records yet.</p>`}</div>`);
+}
+function bindHs(){
+  document.querySelectorAll("[data-hsshow]").forEach(b => b.onclick = () => { hsShow = b.dataset.hsshow; route(); });
+  bindLibrary();
+}
+
+/* ---------------------------------------------------------------- staff */
+async function loadTeam(){
+  const [p, r, j, m] = await Promise.all([ sb.rpc("team_list"), sb.from("roles").select("id, key, name, rank").order("rank", { ascending:false }),
+    sb.from("jobs").select("id, name, status").order("name"), sb.from("job_members").select("job_id, user_id") ]);
+  [p, r, j, m].forEach(x => { if(x.error) throw x.error; });
+  S.team = p.data || []; S.roles = r.data || []; S.teamJobs = (j.data || []).filter(x => x.status !== "archived"); S.members = m.data || [];
+}
+const jobsOf = uid => S.members.filter(m => m.user_id === uid).map(m => m.job_id);
+const SEES_ALL = ["admin", "director_qs"];
+async function viewStaff(){
+  await loadTeam();
+  const manage = !!can("team", "manage"), invite = !!can("invites", "manage");
+  const jobName = id => (S.teamJobs.find(j => j.id === id) || {}).name || "";
+  const row = p => { const js = jobsOf(p.id).map(jobName).filter(Boolean);
+    const status = !p.active ? `<span class="pill red">Access off</span>` : !p.joined ? `<span class="pill amber">Invite sent</span>` : `<span class="pill ok">Active</span>`;
+    return `<tr class="${p.active ? "" : "off"}"><td><b>${esc(p.full_name || "—")}</b>${p.id === S.me.id ? ` <span class="muted">(you)</span>` : ""}</td>
+      <td>${esc(p.email || "")}</td><td>${esc(p.role_name || "No role")}</td>
+      <td>${SEES_ALL.includes(p.role_key) ? "All jobs" : js.length ? esc(js.join(", ")) : `<span class="muted">Not on a job</span>`}</td>
+      <td>${status}</td><td class="acts">${manage || can("labour", "allocate") ? `<button class="lnk" data-manage="${p.id}">Manage</button>` : ""}</td></tr>`; };
+  return shell("staff", `
+    <div class="title"><h1>Staff</h1><span class="sub">${plural(S.team.length, "person")}</span><span class="sp"></span>
+      ${invite ? `<button class="btn" data-invite>+ Invite someone</button>` : ""}</div>
+    <div class="panel">${S.team.length ? `<table class="t"><tr><th>Name</th><th>Email</th><th>Role</th><th>Jobs</th><th>Status</th><th></th></tr>
+      ${S.team.map(row).join("")}</table>` : `<p class="empty">Nobody yet.</p>`}</div>`);
+}
+async function invoke(body){
+  const { data, error } = await sb.functions.invoke("invite-user", { body });
+  if(error){ let msg = error.message; try{ const j = await error.context.json(); if(j && j.error) msg = j.error; }catch(e){} throw new Error(msg); }
+  if(data && data.error) throw new Error(data.error);
+  return data || {};
+}
+function jobChips(chosen){
+  return `<div class="chips">${S.teamJobs.map(j => `<button type="button" class="${chosen.includes(j.id) ? "on" : ""}" data-chip="${j.id}">${esc(j.name)}</button>`).join("") || "No jobs yet."}</div>`;
+}
+function bindChips(d, arr){
+  d.querySelectorAll("[data-chip]").forEach(b => b.onclick = () => {
+    const id = b.dataset.chip, i = arr.indexOf(id);
+    if(i >= 0) arr.splice(i, 1); else arr.push(id);
+    b.classList.toggle("on", i < 0);
+  });
+}
+function inviteForm(){
+  const chosen = [];
+  modal(`<h3>Invite someone</h3><p class="lead">They'll get an email with a link to set up their account.</p>
+    <div class="g2"><div class="f"><label>First name *</label><input class="in" data-k="first"></div>
+      <div class="f"><label>Last name *</label><input class="in" data-k="last"></div></div>
+    <div class="f"><label>Email *</label><input class="in" type="email" data-k="email"></div>
+    <div class="f"><label>Role</label><select class="in" data-k="role">${S.roles.map(r => `<option value="${r.key}" ${r.key === "site_manager" ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select></div>
+    <div class="f"><label>Jobs</label><div class="hint">Admin and Director / QS see every job anyway.</div>${jobChips(chosen)}</div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Send invite</button></div>`, (d, close) => {
+    bindChips(d, chosen);
+    const v = k => d.querySelector(`[data-k="${k}"]`).value.trim();
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      if(!v("first") || !v("last")) return err("Add their first and last name.");
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v("email"))) return err("That email doesn't look right.");
+      const btn = d.querySelector("[data-yes]"); btn.disabled = true; btn.textContent = "Sending…";
+      try{
+        const r = await invoke({ action:"invite", email:v("email"), full_name:v("first") + " " + v("last"), role_key:v("role"),
+          job_ids:chosen, redirect_to:location.origin + location.pathname.replace(/admin\.html$/, "") });
+        close(); toast(r.message || "Invite sent"); route();
+      }catch(e){ btn.disabled = false; btn.textContent = "Send invite"; err(e.message); }
+    };
+  });
+}
+function manageForm(uid){
+  const p = S.team.find(x => x.id === uid); if(!p) return;
+  const isMe = p.id === S.me.id, manage = !!can("team", "manage"), alloc = !!can("labour", "allocate");
+  const chosen = jobsOf(uid).slice();
+  modal(`<h3>${esc(p.full_name || p.email)}</h3><p class="lead">${esc(p.email || "")}</p>
+    ${manage && !isMe ? `<div class="f"><label>Role</label><select class="in" data-role>${S.roles.map(r => `<option value="${r.id}" ${r.id === p.role_id ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select></div>` : ""}
+    ${alloc ? `<div class="f"><label>Jobs</label>${jobChips(chosen)}</div>` : ""}
+    <p class="err" hidden></p>
+    <div class="acts" style="justify-content:space-between;flex-wrap:wrap">
+      <span>${manage && !isMe ? (p.joined
+        ? `<button class="btn danger sm" data-active>${p.active ? "Switch off access" : "Switch access on"}</button>
+           <button class="btn danger sm" data-remove>Remove from SiteHUB</button>`
+        : `<button class="btn line sm" data-resend>Resend invite</button> <button class="btn danger sm" data-cancelinv>Cancel invite</button>`) : ""}</span>
+      <span><button class="btn ghost" data-no>Close</button>${(manage && !isMe) || alloc ? ` <button class="btn" data-yes>Save</button>` : ""}</span>
+    </div>`, (d, close) => {
+    bindChips(d, chosen);
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    const busy = async (fn, ok) => { try{ const m = await fn(); close(); toast(m || ok); route(); }catch(e){ err(e.message || words(e)); } };
+    d.querySelector("[data-no]").onclick = close;
+    const yes = d.querySelector("[data-yes]");
+    if(yes) yes.onclick = () => busy(async () => {
+      yes.disabled = true;
+      const sel = d.querySelector("[data-role]");
+      if(sel && sel.value !== p.role_id){ const { error } = await sb.rpc("admin_update_member", { p_user:uid, p_role:sel.value }); if(error) throw new Error(words(error)); }
+      if(alloc){
+        const before = jobsOf(uid), add = chosen.filter(j => !before.includes(j)), drop = before.filter(j => !chosen.includes(j));
+        const role = S.roles.find(r => r.id === (sel ? sel.value : p.role_id)) || {};
+        const jr = ["admin","director_qs","contracts_manager","project_manager","site_manager","operative"].includes(role.key) ? role.key : "viewer";
+        if(add.length){ const { error } = await sb.from("job_members").insert(add.map(job_id => ({ job_id, user_id:uid, job_role:jr }))); if(error) throw new Error(words(error)); }
+        if(drop.length){ const { error } = await sb.from("job_members").delete().eq("user_id", uid).in("job_id", drop); if(error) throw new Error(words(error)); }
+      }
+    }, "Saved");
+    const act = d.querySelector("[data-active]");
+    if(act) act.onclick = () => busy(async () => { const { error } = await sb.rpc("admin_update_member", { p_user:uid, p_active:!p.active }); if(error) throw new Error(words(error)); },
+      p.active ? "Access switched off" : "Access switched on");
+    const rem = d.querySelector("[data-remove]");
+    if(rem) rem.onclick = () => { close(); confirmBox("Remove " + (p.full_name || p.email) + " from SiteHUB?",
+      "Their login is deleted and they come off every job and the staff list. Everything they've recorded stays on the jobs. To bring them back, invite them again as new.",
+      "Remove", async () => { try{ const r = await invoke({ action:"remove", user_id:uid }); toast(r.message || "Removed"); route(); }catch(e){ toast(e.message); } }); };
+    const rs = d.querySelector("[data-resend]");
+    if(rs) rs.onclick = () => busy(async () => (await invoke({ action:"resend", email:p.email, redirect_to:location.origin + location.pathname.replace(/admin\.html$/, "") })).message, "Invite sent again");
+    const ci = d.querySelector("[data-cancelinv]");
+    if(ci) ci.onclick = () => busy(async () => (await invoke({ action:"cancel", email:p.email })).message, "Invite cancelled");
+  });
+}
+
+/* ---------------------------------------------------------------- admin */
+async function viewAdmin(){
+  await loadLibrary();
+  let audit = [];
+  const a = await sb.from("audit_log").select("action, entity, entity_id, detail, actor, at").order("at", { ascending:false }).limit(40);
+  if(!a.error) audit = a.data || [];
+  if(!S.team){ try{ await loadTeam(); }catch(e){} }
+  const who = id => ((S.team || []).find(p => p.id === id) || {}).full_name || (id ? "Someone" : "System");
+  const what = x => {
+    const d = x.detail || {}, after = d.after || d;
+    const name = after.full_name || after.name || after.title || after.email || d.email || "";
+    const verb = x.action === "insert" ? "added" : x.action === "delete" ? "removed" : x.action === "remove" ? "removed from SiteHUB" : "changed";
+    const thing = { profiles:"person", jobs:"job", job_members:"job allocation", invitations:"invitation", role_permissions:"role permission",
+      user_permission_overrides:"personal permission", tbt_library:"toolbox talk" }[x.entity] || x.entity;
+    return thing[0].toUpperCase() + thing.slice(1) + " " + verb + (name ? " — " + name : "");
+  };
+  return shell("admin", `<div class="title"><h1>Admin</h1></div>
+    ${libraryPanel()}
+    <div class="panel"><h2>Recent changes</h2>${audit.length ? `<table class="t"><tr><th>When</th><th>Who</th><th>What</th></tr>
+      ${audit.map(x => `<tr><td>${new Date(x.at).toLocaleString("en-GB", { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" })}</td>
+        <td>${esc(who(x.actor))}</td><td>${esc(what(x))}</td></tr>`).join("")}</table>` : `<p class="empty">Nothing yet.</p>`}</div>`);
+}
+
+/* ================================================================ router */
+let routing = 0;
+let fresh = true;      /* moving page fetches the latest; redrawing after a save doesn't need to */
+async function route(){
+  const my = ++routing;
+  const wasFresh = fresh; fresh = false;
+  const root = $("#root");
+  const h = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  try{
+    let html, bind = () => {};
+    if(h[0] === "staff"){ html = await viewStaff(); bind = () => {
+      const i = $("[data-invite]"); if(i) i.onclick = inviteForm;
+      document.querySelectorAll("[data-manage]").forEach(b => b.onclick = () => manageForm(b.dataset.manage)); }; }
+    else if(h[0] === "admin"){ html = await viewAdmin(); bind = bindLibrary; }
+    else if(h[0] === "archived"){ html = await viewArchived(); }
+    else if(h[0] === "job" && h[1]){
+      const id = h[1], sec = h[2];
+      if(!sec){ html = await viewJob(id); bind = () => { const e = $("[data-editjob]"); if(e) e.onclick = () => jobForm(jobById(id), S.items[id].meta); }; }
+      else{
+        if(!S.jobs.length) await loadJobs();
+        if(!jobById(id)){ html = shell("dash", `<p class="empty">That job can't be found.</p>`); }
+        else{
+          await loadItems(id, wasFresh);
+          if(REG[sec]){ html = registerView(id, sec); bind = () => bindRegister(id, sec); }
+          else if(sec === "hire"){ html = hireView(id); bind = () => bindHire(id); }
+          else if(sec === "delays"){ html = delaysView(id); }
+          else if(sec === "deliveries"){ html = deliveriesView(id); bind = () => bindDeliveries(id); }
+          else if(sec === "timesheets"){ html = timesheetsView(id); bind = bindTimesheets; }
+          else if(sec === "hs"){ if(!LIB) loadLibrary().then(() => { if(location.hash.endsWith("/hs")) route(); }); html = hsView(id); bind = bindHs; }
+          else html = await viewJob(id);
+        }
+      }
+    }
+    else { html = await viewDashboard(); bind = () => { const n = $("[data-newjob]"); if(n) n.onclick = () => jobForm(null, null); }; }
+    if(my !== routing) return;
+    root.innerHTML = html;
+    const so = $("[data-signout]"); if(so) so.onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    bind();
+  }catch(e){
+    if(my !== routing) return;
+    root.innerHTML = shell("dash", `<div class="panel"><div class="body"><p class="err">${esc(words(e))}</p>
+      <button class="btn line" onclick="route()">Try again</button></div></div>`);
+  }
+}
+window.addEventListener("hashchange", () => { regShow = "on"; fresh = true; route(); });
+
+/* --------------------------------------------------------------- sign in */
+function signIn(msg){
+  $("#root").innerHTML = `<div class="gate"><div class="card"><img src="logo.png" alt="">
+    <h1>SiteHUB admin</h1><p>Sign in with your SiteHUB account</p>
+    <form id="si"><div class="f"><label>Email</label><input class="in" type="email" id="em" autocomplete="email"></div>
+      <div class="f"><label>Password</label><input class="in" type="password" id="pw" autocomplete="current-password"></div>
+      <p class="err" id="er" ${msg ? "" : "hidden"}>${esc(msg || "")}</p>
+      <button class="btn" type="submit">Sign in</button></form>
+    <p style="margin-top:18px;font-size:13.5px">Forgotten your password? Reset it from the <a href="./">SiteHUB app</a>.</p></div></div>`;
+  $("#em").focus();
+  $("#si").onsubmit = async e => {
+    e.preventDefault();
+    const er = $("#er"); er.hidden = true;
+    const { error } = await sb.auth.signInWithPassword({ email:$("#em").value.trim(), password:$("#pw").value });
+    if(error){ er.textContent = /invalid/i.test(error.message) ? "Email or password not recognised." : error.message; er.hidden = false; return; }
+    start();
+  };
+}
+async function start(){
+  if(SUPABASE_URL.indexOf("https://") !== 0){ $("#root").innerHTML = `<div class="gate"><p>This copy isn't connected to a database yet.</p></div>`; return; }
+  let me = null;
+  try{ me = await loadMe(); }catch(e){ return signIn(words(e)); }
+  if(!me) return signIn();
+  if(!me.active || !me.company_id) return signIn("Your account isn't set up for SiteHUB. Speak to your admin.");
+  if(!isAdmin()){
+    $("#root").innerHTML = `<div class="gate"><div class="card"><img src="logo.png" alt=""><h1>Use the SiteHUB app</h1>
+      <p>The admin console is for admins. Everything for your role is in the SiteHUB app.</p>
+      <a class="btn" style="display:block;text-decoration:none" href="./">Open the app</a>
+      <p><button class="lnk" id="so">Sign out</button></p></div></div>`;
+    $("#so").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    return;
+  }
+  route();
+}
+start();
+</script>
+</body>
+</html>
