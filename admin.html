@@ -321,6 +321,7 @@ img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:
 .btn.cm-del{color:var(--red)} .btn.cm-del:hover{background:var(--red-50)}
 .cm-add .g3{grid-template-columns:1.5fr 1fr 1fr}
 @media (max-width:860px){ .cm-add .g3{grid-template-columns:1fr} }
+.cm-note{font-size:13px;color:var(--ink-2);background:var(--tint);border-radius:10px;padding:10px 12px;margin:12px 0 0}
 .cm-none{border:1px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--ink-3);font-size:14px}
 .cm-add{margin-top:20px}
 .cm-add h4{margin:0 0 10px;font-size:12.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em}
@@ -967,7 +968,7 @@ function registerView(jobId, key){
       `<button class="${regShow === k ? "on" : ""}" data-regshow="${k}">${l}</button>`).join("")}</div></div>
     <div class="panel">${rows.length ? `<table class="t"><tr>${R.cols.map(c => `<th>${c[0]}</th>`).join("")}<th></th></tr>
       ${rows.map(x => `<tr class="${onSite(x) ? "" : "off"}">${R.cols.map(c => `<td>${c[1](x)}</td>`).join("")}
-        <td class="acts">${R.kind === "plant" || R.kind === "lifting" ? `<button class="lnk" data-certs="${esc(x.id)}">Certificates${(x.docs || []).length ? " (" + x.docs.length + ")" : ""}</button>` : ""}${editable ? `<button class="lnk" data-edit="${esc(x.id)}">Edit</button>
+        <td class="acts">${R.kind === "plant" || R.kind === "lifting" ? `<button class="lnk" data-certs="${esc(x.id)}">Certificates${(x.docs || []).length ? " (" + new Set(x.docs.map(d => d.group || d.id)).size + ")" : ""}</button>` : ""}${editable ? `<button class="lnk" data-edit="${esc(x.id)}">Edit</button>
           ${onSite(x) ? `<button class="lnk" data-offhire="${esc(x.id)}">${offWord}</button>` : ""}
           <button class="lnk red" data-del="${esc(x.id)}">Delete</button>` : ""}</td></tr>`).join("")}</table>`
       : emptyState(regShow === "off" ? "Nothing gone off site yet" : "No " + R.noun + "s " + (regShow === "on" ? "on site" : "yet"),
@@ -975,7 +976,7 @@ function registerView(jobId, key){
           editable && regShow !== "off" ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : "")}</div>`);
 }
 function bindRegister(jobId, key){
-  document.querySelectorAll("[data-certs]").forEach(b => b.onclick = () => certModal(jobId, REG[key].kind, b.dataset.certs));
+  document.querySelectorAll("[data-certs]").forEach(b => b.onclick = () => jobCertModal(jobId, REG[key].kind, b.dataset.certs));
   document.querySelectorAll("[data-fromfleet]").forEach(b => b.onclick = () => fromFleetForm(jobId, key));
   const R = REG[key];
   document.querySelectorAll("[data-regshow]").forEach(b => b.onclick = () => { regShow = b.dataset.regshow; route(); });
@@ -1873,7 +1874,10 @@ async function fleetAllocate(f, jobId, date){
   const item = fleetToJobItem(f, jobId, date);
   /* its certificates go with it — from where it is now, or the last job it was on */
   const prev = cur || (FLOC.history[f.id] || [])[0];
-  if(prev && (prev.x.docs || []).length) item.docs = await carryDocs(prev.x.docs, jobId);
+  /* its certificates go with it: the company ones, plus anything site added to it on the last job */
+  const siteDocs = prev ? (prev.x.docs || []).filter(d => !d.fromFleet) : [];
+  const docs = await fleetDocsForJob(f, jobId, siteDocs.length ? await carryDocs(siteDocs, jobId) : []);
+  if(docs.length) item.docs = docs;
   if(prev && prev.x.examDate && (!item.examDate || prev.x.examDate > item.examDate)) item.examDate = prev.x.examDate;
   await saveItem(jobId, f.kind, item);
 }
@@ -1924,7 +1928,7 @@ async function viewFleet(){
         ${kk !== "tools" ? `<td>${e ? `<span class="pill ${e.cls}">${esc(e.label)}</span>` : "—"}</td>` : ""}
         <td class="acts">${canEdit ? `<button class="lnk" data-fleetmove="${f.id}">${at ? "Move" : "Allocate"}</button>
           ${at ? `<button class="lnk" data-fleetyard="${f.id}">Back to yard</button>` : ""}
-          ${at && kk !== "tools" ? `<button class="lnk" data-fleetcerts="${f.id}">Certificates${(at.x.docs || []).length ? " (" + at.x.docs.length + ")" : ""}</button>` : ""}
+          <button class="lnk" data-fleetcerts="${f.id}">Certificates${(f.docs || []).length ? " (" + new Set(f.docs.map(d => d.group || d.id)).size + ")" : ""}</button>
           <button class="lnk" data-fleetedit="${f.id}">Edit</button>` : ""}<button class="lnk" data-fleethist="${f.id}">History</button></td></tr>`; }).join("")}</table>`
       : mine.length ? emptyState("Nothing matches", "Try a different search or filter.")
       : emptyState("No " + label.toLowerCase() + " in the company list yet", "Add each owned " + noun + " once — then allocate it to jobs and move it between them from here.",
@@ -2024,8 +2028,7 @@ function bindFleet(){
   document.querySelectorAll("[data-fleetedit]").forEach(b => b.onclick = () => fleetForm(find(b.dataset.fleetedit)));
   document.querySelectorAll("[data-fleetmove]").forEach(b => b.onclick = () => fleetMoveForm(find(b.dataset.fleetmove)));
   document.querySelectorAll("[data-fleethist]").forEach(b => b.onclick = () => fleetHistory(find(b.dataset.fleethist)));
-  document.querySelectorAll("[data-fleetcerts]").forEach(b => b.onclick = async () => { const at = FLOC.at[b.dataset.fleetcerts];
-    await loadItems(at.jobId, true); certModal(at.jobId, at.kind, at.x.id); });
+  document.querySelectorAll("[data-fleetcerts]").forEach(b => b.onclick = () => fleetCertModal(find(b.dataset.fleetcerts)));
   document.querySelectorAll("[data-fleetyard]").forEach(b => b.onclick = () => { const f = find(b.dataset.fleetyard), at = FLOC.at[f.id];
     confirmBox("Bring " + f.item + " back to the yard today?", "It comes off " + ((jobById(at.jobId) || {}).name || "the job") + "'s register today. The job keeps its record of it.", "Back to yard",
       async () => { try{ await fleetReturn(f, today()); toast(f.item + " is back in the yard"); route(); }catch(e){ toast(words(e)); } }, false); });
@@ -2412,36 +2415,37 @@ async function carryDocs(docs, jobId){
   }
   return out;
 }
-function certModal(jobId, kind, id){
-  const it = () => list(jobId, kind).find(x => String(x.id) === String(id)) || {};
-  const editable = !!can(kind === "lifting" ? "lifting" : "plant", "edit");
+/* One certificate window, used two ways:
+   - Plant section (company plant): add and remove — the master copy;
+   - a job's Plant / Lifting page: view only. */
+function certModal(o){
   let file = null, changed = false;
-  /* pages of one upload share a group, so a 3-page PDF is one certificate here */
   const groups = () => {
     const by = new Map();
-    (it().docs || []).forEach(d => { const k = d.group || d.id; if(!by.has(k)) by.set(k, []); by.get(k).push(d); });
+    (o.docs() || []).forEach(d => { const k = d.group || d.id; if(!by.has(k)) by.set(k, []); by.get(k).push(d); });
     return [...by.values()].map(pages => { pages.sort((a, b) => (b.scannedAt || 0) - (a.scannedAt || 0));
       const d = pages[0]; return { key:d.group || d.id, d, pages, ref:String(d.title || "").replace(/\s*—?\s*page \d+ of \d+$/i, "") }; })
       .sort((a, b) => (b.d.scannedAt || b.d.addedAt || 0) - (a.d.scannedAt || a.d.addedAt || 0));
   };
   const DOCICO = SVG('<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="m9 14 2 2 4-4"/>');
   const draw = () => {
-    const x = it(), gs = groups(), ex = examState(x);
+    const gs = groups(), ex = examState({ examDate:o.exam() });
     return `<div class="cm">
-      <div class="cm-h"><div><span class="cm-k">Certificates</span><b>${esc(x.item || "")}</b>${x.fleetNo || x.idNo ? `<span class="cm-no">${esc(x.fleetNo || x.idNo)}</span>` : ""}</div>
+      <div class="cm-h"><div><span class="cm-k">Certificates</span><b>${esc(o.title)}</b>${o.no ? `<span class="cm-no">${esc(o.no)}</span>` : ""}</div>
         <button type="button" class="dx" aria-label="Close" data-no>&times;</button></div>
       <div class="cm-b">
-        <div class="cm-sum"><span>${kind === "lifting" ? "Lifting gear" : "Plant"} · shows in the app on this job's register</span>
-          ${ex ? `<span class="pill ${ex.cls}">${esc(ex.label)}</span>` : `<span class="pill">No examination date</span>`}</div>
+        <div class="cm-sum"><span>${o.sub}</span>
+          ${o.showExam ? (ex ? `<span class="pill ${ex.cls}">${esc(ex.label)}</span>` : `<span class="pill">No examination date</span>`) : ""}</div>
         ${gs.length ? `<ul class="cm-list">${gs.map(g => { const st = docStateC(g.d); return `<li>
             <span class="cm-ic">${DOCICO}</span>
             <span class="cm-t"><b>${esc(g.d.type || "Document")}</b>
-              <em>${esc([g.ref || "", g.pages.length > 1 ? plural(g.pages.length, "page") : "", "added " + nice(iso(g.d.scannedAt || g.d.addedAt || Date.now()))].filter(Boolean).join(" · "))}</em></span>
+              <em>${esc([g.ref || "", g.pages.length > 1 ? plural(g.pages.length, "page") : "", "added " + nice(iso(g.d.scannedAt || g.d.addedAt || Date.now())), o.tag ? o.tag(g.d) : ""].filter(Boolean).join(" · "))}</em></span>
             ${st ? `<span class="pill ${st.cls}">${esc(st.label)}</span>` : ""}
             <span class="cm-a">${g.pages.slice().reverse().map((p, i) => `<button type="button" class="btn line sm" data-docopen="${esc(p.id)}">${g.pages.length > 1 ? "Page " + (i + 1) : "Open"}</button>`).join("")}
-              ${editable ? `<button type="button" class="btn ghost sm cm-del" data-docdel="${esc(g.key)}" aria-label="Remove">Remove</button>` : ""}</span></li>`; }).join("")}</ul>`
-          : `<div class="cm-none">No certificates on this ${kind === "lifting" ? "item" : "machine"} yet.</div>`}
-        ${editable ? `<div class="cm-add">
+              ${o.editable ? `<button type="button" class="btn ghost sm cm-del" data-docdel="${esc(g.key)}">Remove</button>` : ""}</span></li>`; }).join("")}</ul>`
+          : `<div class="cm-none">${esc(o.empty || "No certificates yet.")}</div>`}
+        ${o.note ? `<p class="cm-note">${o.note}</p>` : ""}
+        ${o.editable ? `<div class="cm-add">
           <h4>Add a certificate</h4>
           <label class="drop${file ? " has" : ""}" data-drop>
             <input type="file" accept="application/pdf,.pdf,image/*" data-cfile hidden>
@@ -2449,12 +2453,11 @@ function certModal(jobId, kind, id){
             <span class="drop-t">${file ? `<b>${esc(file.name)}</b><em>${Math.max(1, Math.round(file.size / 1024))} KB · click to choose a different file</em>`
               : `<b>Drop the PDF or photo here</b><em>or click to choose a file</em>`}</span></label>
           <div class="g3">
-            <div class="f"><label>What is it?</label><select class="in" data-ctype>${DOC_TYPES.map(t => `<option ${t === (kind === "lifting" ? "LOLER certificate" : "Thorough examination certificate") ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+            <div class="f"><label>What is it?</label><select class="in" data-ctype>${DOC_TYPES.map(t => `<option ${t === o.defaultType ? "selected" : ""}>${t}</option>`).join("")}</select></div>
             <div class="f"><label>Reference</label><input class="in" data-cref placeholder="Certificate number"></div>
             <div class="f" data-cexpwrap><label>Valid until / next exam</label><input class="in" type="date" data-cexp></div></div>
           <p class="err" hidden></p>
-          <div class="cm-go"><span class="hint">A PDF is added page by page, so it opens and prints on site like a scanned certificate.</span>
-            <button class="btn" data-cadd>Add certificate</button></div></div>` : ""}
+          <div class="cm-go"><span class="hint">${o.addHint || ""}</span><button class="btn" data-cadd>Add certificate</button></div></div>` : ""}
       </div></div>`;
   };
   modal(draw(), (d, close) => {
@@ -2462,19 +2465,19 @@ function certModal(jobId, kind, id){
     const done = () => { close(); if(changed) route(); };
     const bind = () => {
       d.querySelectorAll("[data-no]").forEach(b => b.onclick = done);
-      const findDoc = docId => (it().docs || []).find(x => x.id === docId);
-      d.querySelectorAll("[data-docopen]").forEach(b => b.onclick = () => openDoc(findDoc(b.dataset.docopen)));
+      d.querySelectorAll("[data-gofleet]").forEach(a => a.addEventListener("click", () => close()));
+      const findDoc = id => (o.docs() || []).find(x => x.id === id);
+      d.querySelectorAll("[data-docopen]").forEach(b => b.onclick = () => o.open(findDoc(b.dataset.docopen)));
       d.querySelectorAll("[data-docdel]").forEach(b => b.onclick = () => {
         const g = groups().find(x => x.key === b.dataset.docdel); if(!g) return;
         confirmBox("Remove this " + (g.d.type || "document").toLowerCase() + "?", (g.pages.length > 1 ? "All " + g.pages.length + " pages come" : "It comes") + " off the app too.", "Remove", async () => {
           const gone = new Set(g.pages.map(p => p.id));
-          try{ await saveItem(jobId, kind, Object.assign({}, it(), { docs:(it().docs || []).filter(x => !gone.has(x.id)) })); changed = true; d.innerHTML = draw(); bind(); toast("Removed"); }
-          catch(e){ toast(words(e)); }
+          try{ await o.commit((o.docs() || []).filter(x => !gone.has(x.id)), null); changed = true; d.innerHTML = draw(); bind(); toast("Removed"); }
+          catch(e){ toast(e.message || words(e)); }
         });
       });
       const type = d.querySelector("[data-ctype]");
       if(!type) return;
-      const keep = { t:type.value };
       const sync = () => { d.querySelector("[data-cexpwrap]").style.visibility = isCertType(type.value) ? "visible" : "hidden"; };
       type.onchange = sync; sync();
       const inp = d.querySelector("[data-cfile]"), drop = d.querySelector("[data-drop]");
@@ -2500,15 +2503,12 @@ function certModal(jobId, kind, id){
           add.textContent = pages.length > 1 ? "Uploading " + pages.length + " pages…" : "Uploading…";
           const now = Date.now(), group = "grp_" + now, fresh = [];
           for(let i = 0; i < pages.length; i++){
-            fresh.push({ id:"doc_" + (now + i), group, type:t, title:ref + (pages.length > 1 ? (ref ? " — " : "") + "page " + (i + 1) + " of " + pages.length : ""),
-              expires:exp || "", src:await uploadDataUrl(jobId, pages[i]), scannedAt:now + (pages.length - i) });
+            fresh.push(Object.assign({ id:"doc_" + (now + i), group, type:t, title:ref + (pages.length > 1 ? (ref ? " — " : "") + "page " + (i + 1) + " of " + pages.length : ""),
+              expires:exp || "", scannedAt:now + (pages.length - i) }, await o.upload(pages[i])));
           }
-          const x = it(), next = Object.assign({}, x, { docs:fresh.concat(x.docs || []) });
-          /* a certificate with a later date moves the item's examination date on (as the app does) */
-          if(exp && isCertType(t) && (!x.examDate || exp > x.examDate)) next.examDate = exp;
-          await saveItem(jobId, kind, next); changed = true;
-          /* company plant keeps the new examination date too, so it travels with the machine */
-          if(next.fleetId && next.examDate !== x.examDate) await sb.from("fleet_items").update({ exam_date:next.examDate }).eq("id", next.fleetId);
+          const cur = o.exam();
+          /* a certificate with a later date moves the examination date on (as the app does) */
+          await o.commit(fresh.concat(o.docs() || []), exp && isCertType(t) && (!cur || exp > cur) ? exp : null); changed = true;
           toast(pages.length > 1 ? "Certificate added — " + plural(pages.length, "page") : "Certificate added");
           file = null; d.innerHTML = draw(); bind();
         }catch(e){ add.disabled = false; add.textContent = "Add certificate"; err(e.message || words(e)); }
@@ -2516,6 +2516,77 @@ function certModal(jobId, kind, id){
     };
     bind();
   });
+}
+
+/* company plant: the master copy, in its own store; the job it's on gets a copy */
+async function uploadPlantPage(f, url){
+  const blob = await (await fetch(url)).blob();
+  const path = S.me.company_id + "/" + f.id + "/" + (await shaHex(url)) + ".jpg";
+  const { error } = await sb.storage.from("company-plant").upload(path, blob, { contentType:"image/jpeg", upsert:false });
+  if(error && !/exists|duplicate/i.test(error.message || "")) throw new Error(/bucket|not found/i.test(error.message || "") ? "Run 14_fleet_certs.sql in Supabase to switch certificates on." : words(error));
+  return { path };
+}
+async function openPlantDoc(d){
+  if(!d) return;
+  const w = window.open("about:blank", "_blank");
+  const { data, error } = await sb.storage.from("company-plant").createSignedUrl(d.path, 300);
+  if(error || !data){ if(w) w.close(); return toast("That certificate couldn't be opened — " + words(error)); }
+  if(w) w.location = data.signedUrl; else location.href = data.signedUrl;
+}
+/* the copy on a job: certificates from company plant (fromFleet) plus anything added on site in the app */
+async function fleetDocsForJob(f, jobId, existing){
+  const have = new Map((existing || []).filter(d => d.fromFleet).map(d => [d.id, d]));
+  const out = [];
+  for(const d of (f.docs || [])){
+    const jobPath = S.me.company_id + "/" + jobId + "/" + String(d.path).split("/").pop();
+    const prev = have.get(d.id);
+    if(!(prev && prev.src === "sbimg:" + jobPath)){
+      const dl = await sb.storage.from("company-plant").download(d.path);
+      if(dl.error || !dl.data) throw new Error("A certificate file couldn't be copied to the job — " + words(dl.error));
+      const up = await sb.storage.from("job-photos").upload(jobPath, dl.data, { contentType:"image/jpeg", upsert:false });
+      if(up.error && !/exists|duplicate/i.test(up.error.message || "")) throw up.error;
+    }
+    const c = Object.assign({}, d, { src:"sbimg:" + jobPath, fromFleet:true }); delete c.path;
+    out.push(c);
+  }
+  return out.concat((existing || []).filter(d => !d.fromFleet));
+}
+async function fleetPushToJob(f){
+  if(!FLOC) await loadFleetLocations();
+  const at = FLOC.at[f.id]; if(!at) return;
+  await loadItems(at.jobId, true);
+  const x = list(at.jobId, at.kind).find(i => String(i.id) === String(at.x.id)) || at.x;
+  const docs = await fleetDocsForJob(f, at.jobId, x.docs);
+  await saveItem(at.jobId, at.kind, Object.assign({}, x, { docs }, f.exam_date && f.kind !== "tools" ? { examDate:f.exam_date } : {}));
+}
+function fleetCertModal(f){
+  const label = { plant:"Plant", lifting:"Lifting gear", tools:"Work equipment" }[f.kind];
+  const at = FLOC && FLOC.at[f.id];
+  certModal({ title:f.item, no:f.fleet_no, editable:can(f.kind === "lifting" ? "lifting" : f.kind === "tools" ? "tools" : "plant", "manage") === "all",
+    showExam:f.kind !== "tools",
+    sub:label + " · company plant" + (at ? " · on " + esc((jobById(at.jobId) || {}).name || "a job") + " — site sees them in the app" : " · in the yard"),
+    defaultType:f.kind === "lifting" ? "LOLER certificate" : f.kind === "tools" ? "Test certificate" : "Thorough examination certificate",
+    addHint:"A PDF is added page by page. Wherever it goes, its certificates go with it.",
+    empty:"No certificates on this " + (f.kind === "plant" ? "machine" : "item") + " yet.",
+    docs:() => f.docs || [], exam:() => f.exam_date || "",
+    upload:url => uploadPlantPage(f, url), open:openPlantDoc,
+    commit:async (docs, exam) => {
+      const row = { docs }; if(exam) row.exam_date = exam;
+      const { error } = await sb.from("fleet_items").update(row).eq("id", f.id);
+      if(error) throw new Error(/docs/i.test(error.message || "") ? "Run 14_fleet_certs.sql in Supabase to switch certificates on." : words(error));
+      Object.assign(f, row);
+      await fleetPushToJob(f);
+    } });
+}
+/* on a job: view only */
+function jobCertModal(jobId, kind, id){
+  const x = list(jobId, kind).find(i => String(i.id) === String(id)) || {};
+  certModal({ title:x.item || "", no:x.fleetNo || x.idNo, editable:false, showExam:true, exam:() => x.examDate || "",
+    sub:(kind === "lifting" ? "Lifting gear" : "Plant") + " on " + esc((jobById(jobId) || {}).name || "this job"),
+    docs:() => x.docs || [], open:openDoc, tag:d => d.fromFleet ? "" : "added on site",
+    empty:"No certificates on this " + (kind === "plant" ? "machine" : "item") + ".",
+    note:x.fleetId ? `Certificates for company plant are added and changed in the <a href="#/plant" data-gofleet>Plant section</a>.`
+      : `This isn't company plant (${esc(x.owner === "Owned" ? "not in the company list yet" : "hired")}). Certificates for it are added on site in the app, or add it to the <a href="#/plant" data-gofleet>Plant section</a> if it's owned.` });
 }
 
 /* ---------------------------------------------------------------- staff */
