@@ -69,6 +69,37 @@ main > .content{flex:1}
 .jt.new{background:var(--tint);color:var(--green);border:2px solid var(--green)}
 .jt.new:hover{background:var(--tint-2);box-shadow:none}
 .jt.new .plus{font-size:34px;line-height:1;font-weight:300}
+/* dashboard job cards: the job at a glance */
+.jobcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(500px,1fr));gap:24px;max-width:1240px}
+.jobcards .jt.new{min-height:180px}
+.jc{display:flex;flex-direction:column;border-radius:22px;overflow:hidden;border:1.5px solid var(--green);background:#fff;color:var(--ink);text-decoration:none;
+  transition:transform .12s ease, box-shadow .12s ease}
+.jc:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(31,90,45,.18)}
+.jc:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+.jc .jh{background:var(--green);color:#fff;padding:16px 20px;display:flex;gap:14px;align-items:flex-start;justify-content:space-between}
+.jc .jh .n{display:block;font-size:18px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.jc .jh .m{display:block;font-size:13px;color:rgba(255,255,255,.82);margin-top:2px}
+.jc .state{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:99px;background:#fff}
+.jc .state .ico{width:15px;height:15px}
+.jc .state.ok{color:var(--green)} .jc .state.warn{color:var(--red)}
+.jc .jb{padding:16px 18px 18px;display:flex;flex-direction:column;gap:14px;flex:1}
+.jks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line)}
+.jk{padding:10px 12px;background:var(--tint);border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.jk:nth-child(4n){border-right:none} .jk:nth-last-child(-n+4){border-bottom:none}
+.jk span{display:block;font-size:10.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jk b{display:block;font-size:20px;font-weight:600;color:var(--blue);line-height:1.3;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jk em{display:block;font-style:normal;font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jk.warn{background:var(--red-50)} .jk.warn b,.jk.warn span{color:var(--red)}
+.jp .jpl{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.jp .jpl span{font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em}
+.jp .jpl b{font-size:14px;color:var(--ink)} .jp .jpl em{font-style:normal;font-size:12.5px;color:var(--ink-3)}
+.bar2{height:8px;border-radius:99px;background:var(--tint-2);overflow:hidden}
+.bar2 i{display:block;height:100%;background:var(--green);border-radius:99px}
+.jf{display:flex;flex-wrap:wrap;gap:6px}
+.jf span{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--red);background:var(--red-50);border-radius:99px;padding:4px 10px}
+.jf .ico{width:13px;height:13px;stroke-width:2.2}
+@media (max-width:1150px){ .jobcards{grid-template-columns:1fr} }
+@media (max-width:640px){ .jks{grid-template-columns:repeat(2,minmax(0,1fr))} .jk:nth-child(4n){border-right:1px solid var(--line)} .jk:nth-child(2n){border-right:none} .jk:nth-last-child(-n+4){border-bottom:1px solid var(--line)} .jk:nth-last-child(-n+2){border-bottom:none} }
 .sectiles{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:24px;max-width:1080px}
 .st{aspect-ratio:1/0.82;border-radius:22px;background:var(--green);color:#fff;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:18px;
@@ -285,7 +316,7 @@ const durMins = v => !v ? 0 : (Number(v.h)||0)*60 + (Number(v.m)||0);
 const hm = mins => { const h = Math.floor(mins/60), m = Math.round(mins%60); return (h ? h+"h" : "") + (h && m ? " " : "") + (m ? m+"m" : (h ? "" : "0m")); };
 const round2 = n => Math.round(n*100)/100;
 const newId = p => p + "_" + Date.now() + Math.random().toString(36).slice(2, 6);
-const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+const plural = (n, w) => n + " " + (n === 1 ? w : w === "person" ? "people" : /[^aeiou]y$/.test(w) ? w.slice(0, -1) + "ies" : w + "s");
 
 function toast(msg, ms){
   const o = $(".toast"); if(o) o.remove();
@@ -340,7 +371,7 @@ async function loadMe(){
 async function loadJobs(){
   const { data, error } = await sb.from("jobs").select("id, code, name, principal_contractor, address, start_date, end_date, status, created_at").order("created_at");
   if(error) throw error;
-  S.jobs = data || [];
+  S.jobs = (data || []).filter(j => j.status !== "deleted");      /* a deleted job only stays as a marker for phones */
 }
 const jobById = id => S.jobs.find(j => j.id === id);
 
@@ -537,42 +568,74 @@ function shell(active, inner){
 async function viewDashboard(){
   await loadJobs();
   const live = S.jobs.filter(j => j.status !== "archived");
-  const counts = {}, tot = { labour:0, plant:0, hire:0, overdue:0, deliveries:0 };
-  const blank = () => ({ plant:0, labour:0, lifting:0, tools:0, overdue:0 });
-  if(live.length){
-    const rows = [];
-    for(let from = 0; ; from += 1000){
-      const { data, error } = await sb.from("job_items").select("job_id, kind, data").in("kind", ["plant","labour","lifting","tools","deliveries"])
-        .eq("deleted", false).in("job_id", live.map(j => j.id)).range(from, from + 999);
-      if(error) throw error;
-      rows.push(...(data || []));
-      if(!data || data.length < 1000) break;
+  await Promise.all(live.map(j => loadItems(j.id, true)));
+  const t = today(), ws = weekStart(t);
+  /* everything the card needs about one job, worked out the same way as the job's own pages */
+  const sum = j => {
+    const id = j.id, plant = list(id, "plant").filter(onSite), lift = list(id, "lifting").filter(onSite);
+    const hire = hireRows(id), dels = list(id, "deliveries");
+    const lost = delays(id).filter(x => x.counted), lostWeek = lost.filter(x => x.date >= ws);
+    const exams = plant.concat(lift).map(examState).filter(e => e && e.cls === "red").length;
+    const late = dels.filter(d => deliveryState(d).key === "overdue").length;
+    const due = dels.filter(d => deliveryState(d).key === "today").length;
+    const cur = ramsCurrent(id), unsigned = ramsUnsigned(id).length;
+    const meta = (S.items[id] || {}).meta || {}, start = j.start_date || meta.start || "", end = j.end_date || "";
+    let prog = null;
+    if(start && end && end > start){
+      const total = daysBetween(start, end), gone = Math.min(total, Math.max(0, daysBetween(start, t)));
+      prog = { pct:Math.round(gone / total * 100), week:Math.max(1, Math.ceil((gone + 1) / 7)), weeks:Math.max(1, Math.ceil(total / 7)), left:Math.max(0, daysBetween(t, end)), over:t > end };
     }
-    rows.forEach(r => {
-      const x = r.data || {}, c = counts[r.job_id] = counts[r.job_id] || blank();
-      if(r.kind === "deliveries"){ if(["today","overdue"].includes(deliveryState(x).key)) tot.deliveries++; return; }
-      if(!onSite(x)) return;
-      c[r.kind]++;
-      if(r.kind === "labour") tot.labour++;
-      if(r.kind === "plant") tot.plant++;
-      if(r.kind !== "labour" && isHired(x)) tot.hire++;
-      const e = examState(x);
-      if(e && e.cls === "red"){ c.overdue++; tot.overdue++; }
-    });
-  }
-  const tile = j => { const c = counts[j.id] || blank();
-    return `<a class="jt" href="#/job/${j.id}"><span class="n">${esc(j.name)}</span>
-      <span class="m">${esc([j.code, j.principal_contractor].filter(Boolean).join(" · "))}</span>
-      <span class="k"><span>${plural(c.plant, "machine")}</span><span>${plural(c.labour, "op")}</span>
-        ${c.overdue ? `<span class="bad">${TI.alert}${plural(c.overdue, "exam")} overdue</span>` : ""}</span></a>`; };
+    const hs = hsOverdueCount(id);
+    const flags = [];
+    if(exams) flags.push(plural(exams, "exam") + " overdue");
+    if(hs) flags.push(plural(hs, "H&S item") + " overdue");
+    if(late) flags.push(plural(late, "delivery") + " late");
+    if(cur && unsigned) flags.push(unsigned + " to sign RAMS");
+    if(!cur) flags.push("No RAMS");
+    if(prog && prog.over) flags.push("Past completion date");
+    return { ops:list(id, "labour").filter(onSite).length, plant:plant.length, lift:lift.length,
+      hireN:hire.reduce((n, r) => n + hireQty(r.x), 0), hireW:hire.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0), hirePriced:hire.some(r => hireWeekly(r.x) != null),
+      due, late, booked:dels.filter(d => !["complete","cancelled"].includes(deliveryState(d).key)).length,
+      hrs:round2(timesheet(id, ws).people.reduce((n, p) => n + p.total, 0)),
+      lostMins:lost.reduce((n, x) => n + x.mins, 0), lostWeekMins:lostWeek.reduce((n, x) => n + x.mins, 0), dayMins:normalDayMins(id),
+      hs, exams, cur, unsigned, prog, flags };
+  };
+  const S2 = live.map(j => ({ j, s:sum(j) }));
+  const tot = S2.reduce((a, { s }) => ({ ops:a.ops + s.ops, plant:a.plant + s.plant, hireN:a.hireN + s.hireN, hireW:a.hireW + s.hireW,
+    exams:a.exams + s.exams, hs:a.hs + s.hs, due:a.due + s.due + s.late }), { ops:0, plant:0, hireN:0, hireW:0, exams:0, hs:0, due:0 });
+  const cell = (label, value, sub, warn) => `<div class="jk${warn ? " warn" : ""}"><span>${label}</span><b>${value}</b>${sub ? `<em>${sub}</em>` : ""}</div>`;
+  const days = m => !m ? "None" : m >= 540 ? round2(m / 540) + " days" : hm(m);
+  const card = ({ j, s }) => {
+    const ok = !s.flags.length;
+    return `<a class="jc" href="#/job/${j.id}">
+      <div class="jh"><div><span class="n">${esc(j.name)}</span><span class="m">${esc([j.code, j.principal_contractor].filter(Boolean).join(" · "))}</span></div>
+        <span class="state ${ok ? "ok" : "warn"}">${ok ? TI.ok + "On track" : TI.alert + plural(s.flags.length, "thing") + " to look at"}</span></div>
+      <div class="jb">
+        <div class="jks">
+          ${cell("Ops on site", s.ops)}
+          ${cell("Plant on site", s.plant, s.lift ? s.lift + " lifting" : "")}
+          ${cell("Live hire", s.hirePriced ? money(s.hireW) : s.hireN, s.hirePriced ? plural(s.hireN, "item") + " · per week" : plural(s.hireN, "item"))}
+          ${cell("Deliveries", s.due + s.late ? (s.due + s.late) + " due" : s.booked + " booked", s.late ? s.late + " late" : s.due ? "today" : "", s.late)}
+          ${cell("Hours", s.hrs, "this week")}
+          ${cell("Delays", days(s.lostMins), s.lostWeekMins ? hm(s.lostWeekMins) + " this week" : "time lost", s.lostWeekMins > 0)}
+          ${cell("H&amp;S overdue", s.hs, s.hs ? "to catch up" : "all up to date", s.hs)}
+          ${cell("RAMS", s.cur ? "Rev " + esc(revText(s.cur)) : "None", s.cur ? (s.unsigned ? s.unsigned + " still to sign" : "everyone signed") : "upload one", !s.cur || s.unsigned)}
+        </div>
+        ${s.prog ? `<div class="jp"><div class="jpl"><span>Programme</span><b>${s.prog.over ? "Past completion — " + nice(j.end_date) : "Week " + s.prog.week + " of " + s.prog.weeks}</b>
+            <em>${s.prog.over ? "" : s.prog.left + " days to completion"}</em></div>
+          <div class="bar2"><i style="width:${s.prog.pct}%"></i></div></div>`
+        : `<div class="jp"><div class="jpl"><span>Programme</span><em>${j.start_date ? "Started " + nice(j.start_date) + " — " : ""}add a completion date under Edit job details to track time used</em></div></div>`}
+        ${s.flags.length ? `<div class="jf">${s.flags.map(f => `<span>${TI.alert}${esc(f)}</span>`).join("")}</div>` : ""}
+      </div></a>`;
+  };
   const kpi = (label, n, warn) => `<div class="kpi${warn && n ? " warn" : ""}"><span>${warn && n ? TI.alert : ""}${label}</span><b>${n}</b></div>`;
   const dateNow = new Date().toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
   return shell("dash", `
     <div class="title"><h1>Jobs</h1><span class="sub">${plural(live.length, "live job")}</span><span class="sp"></span>
       ${S.jobs.some(j => j.status === "archived") ? `<a class="lnk" href="#/archived">Archived jobs</a>` : ""}<span class="today">${dateNow}</span></div>
-    ${live.length ? `<div class="kpis">${kpi("Live jobs", live.length)}${kpi("Ops on site", tot.labour)}${kpi("Machines on site", tot.plant)}${kpi("Items on hire", tot.hire)}${kpi("Exams overdue", tot.overdue, true)}${kpi("Deliveries due", tot.deliveries)}</div>` : ""}
-    <div class="jobtiles">
-      ${live.map(tile).join("")}
+    ${live.length ? `<div class="kpis">${kpi("Live jobs", live.length)}${kpi("Ops on site", tot.ops)}${kpi("Machines on site", tot.plant)}${kpi("Live hire / week", money(tot.hireW))}${kpi("Exams overdue", tot.exams, true)}${kpi("H&amp;S overdue", tot.hs, true)}</div>` : ""}
+    <div class="jobcards">
+      ${S2.map(card).join("")}
       ${can("jobs", "create") ? `<button class="jt new" data-newjob><span class="plus">+</span><span class="n">Create new job</span></button>` : ""}
     </div>`);
 }
@@ -607,11 +670,14 @@ function jobForm(job, meta){
         `<option ${s === v.status ? "selected" : ""} value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div>
     </div>
     <p class="err" hidden></p>
-    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${job ? "Save" : "Create job"}</button></div>`,
+    <div class="acts" style="justify-content:space-between"><span>${job && can("jobs", "delete") ? `<button class="btn danger sm" data-deljob>Delete job</button>` : ""}</span>
+      <span><button class="btn ghost" data-no>Cancel</button> <button class="btn" data-yes>${job ? "Save" : "Create job"}</button></span></div>`,
   (d, close) => {
     const val = k => d.querySelector(`[data-k="${k}"]`).value.trim();
     const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
     d.querySelector("[data-no]").onclick = close;
+    const del = d.querySelector("[data-deljob]");
+    if(del) del.onclick = () => { close(); deleteJobFlow(job); };
     d.querySelector("[data-yes]").onclick = async () => {
       const name = job ? job.name : val("name"), code = val("code");
       if(!name) return err("Give the job a name.");
@@ -636,6 +702,48 @@ function jobForm(job, meta){
         close(); toast(job ? "Job saved" : "Job created");
         await loadJobs(); route();
       }catch(e){ btn.disabled = false; err(words(e)); }
+    };
+  });
+}
+
+/* deleting a job created by mistake: two questions, the second needs the name typed */
+async function deleteJobFlow(job){
+  try{ await loadItems(job.id, true); }catch(e){}
+  const by = S.items[job.id] || {}, n = k => (by[k] || []).length;
+  const parts = [[n("records"), "record"], [n("plant") + n("lifting") + n("tools"), "plant or equipment entry"], [n("labour"), "person"],
+    [n("deliveries"), "delivery"], [n("rams"), "RAMS revision"]].filter(([c]) => c).map(([c, w]) => plural(c, w) + (w === "person" ? " on the labour list" : ""));
+  const busy = parts.length > 0;
+  modal(`<h3>Delete ${esc(job.name)}?</h3>
+    <p class="lead">${busy ? "This job has " + esc(parts.join(", ")) + ". Deleting it removes all of that for everyone, and it comes off every phone."
+      : "Nothing has been recorded on this job yet. Deleting it removes it for everyone, and it comes off every phone."}</p>
+    ${busy ? `<p class="lead" style="margin-top:-6px">If the job has simply finished, set its status to <b>Archived</b> instead — it's kept, just out of the way.</p>` : ""}
+    <div class="acts" style="justify-content:space-between"><span>${busy ? `<button class="btn line sm" data-archive>Archive it instead</button>` : ""}</span>
+      <span><button class="btn ghost" data-no>Keep the job</button> <button class="btn danger" data-yes>Yes, delete it</button></span></div>`, (d, close) => {
+    d.querySelector("[data-no]").onclick = close;
+    const ar = d.querySelector("[data-archive]");
+    if(ar) ar.onclick = async () => { const { error } = await sb.from("jobs").update({ status:"archived" }).eq("id", job.id);
+      if(error) return toast(words(error)); close(); toast(job.name + " archived"); location.hash = "#/"; route(); };
+    d.querySelector("[data-yes]").onclick = () => { close(); deleteJobConfirm(job, busy); };
+  });
+}
+function deleteJobConfirm(job, busy){
+  modal(`<h3>Are you sure?</h3>
+    <p class="lead">This can't be undone.${busy ? " Every record, photo link and register entry on the job is deleted." : ""} To confirm, type the job name exactly as it's shown:</p>
+    <p style="margin:0 0 8px"><b>${esc(job.name)}</b></p>
+    <div class="f"><input class="in" data-type autocomplete="off" spellcheck="false" placeholder="Type the job name"></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn danger" data-yes disabled>Delete for good</button></div>`, (d, close) => {
+    const inp = d.querySelector("[data-type]"), yes = d.querySelector("[data-yes]");
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    inp.oninput = () => { yes.disabled = inp.value.trim().toLowerCase() !== job.name.trim().toLowerCase(); };
+    d.querySelector("[data-no]").onclick = close;
+    yes.onclick = async () => {
+      yes.disabled = true; yes.textContent = "Deleting…";
+      const { error } = await sb.rpc("delete_job", { p_job:job.id });
+      if(error){ yes.textContent = "Delete for good"; yes.disabled = false;
+        return err(/delete_job|function|schema cache/i.test(error.message || "") ? "Run 11_delete_job.sql in Supabase first to switch deleting on." : words(error)); }
+      delete S.items[job.id];
+      close(); toast(job.name + " deleted"); location.hash = "#/"; await loadJobs(); route();
     };
   });
 }
@@ -1072,7 +1180,7 @@ const statusPill = r => `<span class="pill ${r.status === "submitted" ? "ok" : "
 function dailyDue(jobId, form){
   const from = [firstDone(jobId, form), jobStart(jobId)].filter(Boolean).sort().pop();
   const t = today(), done = new Set(doneRecs(jobId, form).map(r => r.date));
-  const overdue = from ? workingDays(jobId, from, addDays(t, -1)).filter(d => !done.has(d)) : [];
+  const overdue = firstDone(jobId, form) && from ? workingDays(jobId, from, addDays(t, -1)).filter(d => !done.has(d)) : [];
   const dueToday = isWorkingDay(jobId, t) && !done.has(t);
   return { overdue, dueToday, started:!!firstDone(jobId, form) };
 }
@@ -1858,7 +1966,7 @@ async function loadTeam(){
   const [p, r, j, m] = await Promise.all([ sb.rpc("team_list"), sb.from("roles").select("id, key, name, rank").order("rank", { ascending:false }),
     sb.from("jobs").select("id, name, status").order("name"), sb.from("job_members").select("job_id, user_id") ]);
   [p, r, j, m].forEach(x => { if(x.error) throw x.error; });
-  S.team = p.data || []; S.roles = r.data || []; S.teamJobs = (j.data || []).filter(x => x.status !== "archived"); S.members = m.data || [];
+  S.team = p.data || []; S.roles = r.data || []; S.teamJobs = (j.data || []).filter(x => x.status !== "archived" && x.status !== "deleted"); S.members = m.data || [];
 }
 const jobsOf = uid => S.members.filter(m => m.user_id === uid).map(m => m.job_id);
 const SEES_ALL = ["admin", "director_qs", "hire_controller"];

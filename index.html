@@ -16100,6 +16100,17 @@ async function cloudUpload(path, v){
 
 /* ------------------------------------------------------------------ jobs -- */
 
+function cloudForgetJob(name, jobId){
+  const c = syncCfg();
+  DB.config.jobs = (DB.config.jobs || []).filter(n => n !== name);
+  ["jobInfo","jobWeek","jobHours","jobStart"].forEach(k => { if(DB[k]) delete DB[k][name]; });
+  CLOUD_KINDS.forEach(k => { if(Array.isArray(DB[k])) DB[k] = DB[k].filter(x => !x || x.job !== name); });
+  Object.keys(c.known || {}).forEach(k => { if(k.indexOf(jobId + "|") === 0) delete c.known[k]; });
+  if(c.cursor) delete c.cursor[jobId];
+  delete c.jobs[name];
+  if(DB.job === name) DB.job = (DB.config.jobs || [])[0] || DB.job;
+  if(typeof toast === "function") setTimeout(() => toast(name + " was deleted in the office, so it's been taken off this phone.", 5000), 400);
+}
 function cloudLocalHasJob(name){
   if(DB.jobInfo && DB.jobInfo[name]) return true;
   return CLOUD_KINDS.some(k => (DB[k] || []).some(x => x && x.job === name));
@@ -16117,9 +16128,13 @@ async function cloudJobs(){
   const cl = cloudClient(), c = syncCfg();
   const known = sitehubAuth.can ? sitehubAuth.can("jobs", "create") : null;
   const mayCreate = known === null ? ((sitehubAuth.user && sitehubAuth.user.rank) || 0) >= 70 : !!known;
-  const { data, error } = await cl.from("jobs").select("id, code, name").order("created_at");
+  const { data, error } = await cl.from("jobs").select("id, code, name, status").order("created_at");
   if(error) throw error;
-  const remote = data || [];
+  /* a job deleted in the console leaves a marker: take it off this device
+     rather than putting it back */
+  const gone = new Set((data || []).filter(j => j.status === "deleted").map(j => j.id));
+  Object.keys(c.jobs || {}).forEach(name => { if(gone.has(c.jobs[name])) cloudForgetJob(name, c.jobs[name]); });
+  const remote = (data || []).filter(j => !gone.has(j.id));
   const find = n => remote.find(j => j.name.trim().toLowerCase() === String(n).trim().toLowerCase());
 
   const local = new Set(allJobs());
