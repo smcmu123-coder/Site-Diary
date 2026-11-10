@@ -1658,8 +1658,14 @@ html{ overscroll-behavior-y:none }
 
   const CACHE = "sitehub-auth-user";        /* lets a signed-in phone open with no signal */
   const hash = new URLSearchParams(location.hash.slice(1));
-  const linkType = hash.get("type");        /* "invite" | "recovery" from an email link */
-  const linkError = hash.get("error_description");
+  const query = new URLSearchParams(location.search);
+  /* Email links carry a one-time code (?token_hash=…&type=invite|recovery).
+     It is only used when the person taps Continue — email security scanners
+     open links to check them, and would otherwise use the code up. */
+  const tokenHash = query.get("token_hash");
+  let linkType = query.get("type") || hash.get("type");   /* "invite" | "recovery" */
+  if(linkType !== "invite" && linkType !== "recovery") linkType = null;
+  let linkError = hash.get("error_description");
 
   let client = null;
   try{
@@ -1690,7 +1696,7 @@ html{ overscroll-behavior-y:none }
     const h = new Date().getHours();
     return h < 12 ? "good morning" : h < 18 ? "good afternoon" : "good evening";
   }
-  function cleanUrl(){ try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){} }
+  function cleanUrl(){ try{ history.replaceState(null, "", location.pathname); }catch(e){} }
 
   /* ---------------------------------------------------------------- screen */
   let root = null;
@@ -1858,8 +1864,33 @@ html{ overscroll-behavior-y:none }
       const { error } = await client.auth.updateUser({ password:pw });
       if(error){ go.disabled = false; return err(error.message); }
       if(fullName) await client.from("profiles").update({ full_name:fullName }).eq("id", session.user.id);
+      try{ await client.rpc("mark_joined"); }catch(e){}
       cleanUrl();
       afterSession(session, done);
+    };
+  }
+
+  function continueScreen(done){
+    const invite = linkType === "invite";
+    screen(`
+      <h1>${invite ? "You have been invited to join SiteHUB" : "reset your password"}</h1>
+      <p class="ag-sub">${invite ? "tap continue to set up your account" : "tap continue to choose a new password"}</p>
+      <p class="ag-err" id="agErr" hidden></p>
+      <button class="btn" id="agGo" type="button">Continue</button>`);
+    const err = t => { const e = document.getElementById("agErr"); e.textContent = t; e.hidden = !t; };
+    document.getElementById("agGo").onclick = async () => {
+      const go = document.getElementById("agGo"); go.disabled = true; err("");
+      try{ await client.auth.signOut({ scope:"local" }); }catch(e){}
+      clearCache();
+      const { data, error } = await client.auth.verifyOtp({ token_hash:tokenHash, type:linkType });
+      if(error || !data || !data.session){
+        go.disabled = false;
+        if(looksOffline(error)) return err("no signal — try again when you're connected");
+        cleanUrl();
+        linkError = "expired";
+        return signInScreen(done, "signin", "that link has expired or already been used — ask for a new one");
+      }
+      setPasswordScreen(data.session, done);
     };
   }
 
@@ -1988,6 +2019,8 @@ html{ overscroll-behavior-y:none }
         }
         return messageScreen("no signal", "you need internet to sign in the first time. once you've signed in, siteHUB works offline.", false);
       }
+
+      if(tokenHash && linkType) return continueScreen(done);
 
       let session = null, gerr = null;
       try{
