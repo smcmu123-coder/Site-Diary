@@ -15,7 +15,7 @@
   --tint:#EDF2EE; --tint-2:#D8DFDA; --line:#CBD3CD;
   --blue:#2E6DA4; --ink:#1A1A1A; --ink-2:#4A524C; --ink-3:#6E7771;
   --red:#B42318; --red-50:#FBEAE8; --amber:#9A5B07; --amber-50:#FCF1DF;
-  --font:"Segoe UI",Calibri,Arial,sans-serif;
+  --font:"Segoe UI",system-ui,-apple-system,Calibri,Arial,sans-serif;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:#fff;color:var(--ink);font-family:var(--font);font-size:15px}
@@ -69,16 +69,16 @@ main > .content{flex:1}
 .jt.new{background:var(--tint);color:var(--green);border:2px solid var(--green)}
 .jt.new:hover{background:var(--tint-2);box-shadow:none}
 .jt.new .plus{font-size:34px;line-height:1;font-weight:300}
-.sectiles{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:30px;max-width:1080px}
-.st{aspect-ratio:1/0.92;border-radius:22px;background:var(--green);color:#fff;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:18px;
+.sectiles{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:24px;max-width:1080px}
+.st{aspect-ratio:1/0.82;border-radius:22px;background:var(--green);color:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:18px;
   text-decoration:none;position:relative;transition:transform .12s ease, background .12s ease, box-shadow .12s ease}
 .st:hover{background:var(--green-h);transform:translateY(-2px);box-shadow:0 8px 22px rgba(31,90,45,.22)}
 .st .t{font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-.st .v{font-size:22px;line-height:1.35;white-space:pre-line;font-weight:400}
+.st .v{font-size:21px;line-height:1.3;white-space:pre-line;font-weight:400}
 .st .flag{position:absolute;top:12px;right:12px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:#fff}
 .st .flag.red{color:var(--red)} .st .flag.amber{color:var(--amber)}
-@media (max-width:1150px){ .sectiles{grid-template-columns:repeat(2,minmax(170px,1fr))} }
+@media (max-width:1150px){ .sectiles,.sectiles.three{grid-template-columns:repeat(2,minmax(170px,1fr))} }
 
 /* ---------- section bars + record tables ---------- */
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
@@ -164,6 +164,63 @@ textarea.in{min-height:80px;resize:vertical}
 .gate .btn{width:100%;padding:12px;font-size:15px;margin-top:4px;text-align:center}
 .err{color:var(--red);font-size:13.5px;margin:2px 2px 10px}
 
+/* ---------- UI/UX polish ---------- */
+/* keyboard focus is always visible */
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.jt:focus-visible,.st:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+.side nav a:focus-visible{outline:3px solid #fff;outline-offset:-3px}
+/* rows light up under the pointer so the eye can follow across a wide table */
+table.t tr:hover td{background:var(--tint)}
+table.t tr.total td{background:var(--tint);border-top:2px solid var(--green);color:var(--ink)}
+/* loading: a thin bar along the top, the page stays put underneath */
+.busybar{position:fixed;top:0;left:0;right:0;height:3px;z-index:70;overflow:hidden;opacity:0;transition:opacity .15s;pointer-events:none}
+body.busy .busybar{opacity:1}
+.busybar::before{content:"";position:absolute;top:0;bottom:0;width:35%;background:var(--green);animation:busy 1.1s ease-in-out infinite}
+@keyframes busy{from{left:-35%}to{left:100%}}
+body.busy main .content{opacity:.6;transition:opacity .2s .15s}
+.boot{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:var(--ink-3);font-size:14px}
+.boot img{height:64px}
+/* empty states say what would be here and offer the action that fills it */
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px}
+.empty b{color:var(--ink);font-size:15px}
+.empty .btn{margin-top:6px}
+/* tile icons: one outline family, one weight */
+.ico{width:22px;height:22px;flex:none}
+.ico:not(.app){fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.st .ic{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;background:#fff;color:var(--green);flex:none;margin-bottom:4px}
+.st .ic .ico{width:30px;height:30px}
+/* the day at a glance (key facts) */
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);margin:0 0 26px;max-width:1080px}
+.kpi{padding:12px 16px;background:var(--tint);border-right:1px solid var(--line);min-width:0}
+.kpi:last-child{border-right:none}
+.kpi span{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi b{display:block;font-size:26px;font-weight:600;color:var(--blue);line-height:1.25;font-variant-numeric:tabular-nums}
+.kpi.warn{background:var(--red-50)} .kpi.warn b,.kpi.warn span{color:var(--red)}
+.kpi .ico{width:14px;height:14px;stroke-width:2.2}
+.jt .k{flex-wrap:wrap;justify-content:center}
+.jt .k span.bad{background:#fff;color:var(--red);display:inline-flex;align-items:center;gap:4px}
+.jt .k .ico{width:13px;height:13px;stroke-width:2.4}
+/* needs attention list under the job tiles */
+.attn{max-width:1080px;margin-top:34px}
+.attn ul{list-style:none;margin:0;padding:0;border:1px solid var(--line)}
+.attn li{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px}
+.attn li:last-child{border-bottom:none}
+.attn li:hover{background:var(--tint)}
+.attn li .ico{width:18px;height:18px}
+.attn li.red .ico{color:var(--red)} .attn li.amber .ico{color:var(--amber)}
+.attn li .what{flex:1;color:var(--blue)} .attn li .what b{font-weight:600}
+.attn li .tag{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.attn li.red .tag{background:var(--red-50);color:var(--red)} .attn li.amber .tag{background:var(--amber-50);color:var(--amber)}
+.attn li .when{color:var(--ink-3);font-size:13px;white-space:nowrap;min-width:92px;text-align:right}
+.attn .clear{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);color:var(--green);font-weight:600;font-size:14px;background:var(--tint)}
+.sectiles.three{grid-template-columns:repeat(3,minmax(170px,1fr));max-width:900px}
+.stat.warn{background:var(--red-50)} .stat.warn span,.stat.warn b{color:var(--red)}
+.pill.env{background:#E4EEF6;color:var(--blue)}
+img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:#fff}
+.today{font-size:13px;color:var(--ink-3);padding-bottom:3px;margin-left:16px}
+@media (max-width:1150px){ .kpis{grid-template-columns:repeat(3,minmax(0,1fr))} .kpi:nth-child(3){border-right:none} .kpi:nth-child(-n+3){border-bottom:1px solid var(--line)} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} .jt:hover,.st:hover{transform:none} }
+
 @media (max-width:860px){
   .shell{grid-template-columns:1fr}
   .side{position:static;height:auto}
@@ -179,7 +236,8 @@ textarea.in{min-height:80px;resize:vertical}
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div class="busybar" role="progressbar" aria-label="Loading"></div>
+<div id="root"><div class="boot"><img src="logo.png" alt="Cheltenham Green Civils">Loading SiteHUB…</div></div>
 
 <script>
 /* =====================================================================
@@ -427,19 +485,46 @@ const ICON = {
   admin:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6L12 3z"/><path d="M8.8 12.2l2.2 2.2 4.3-4.6"/></svg>`
 };
 
+const SVG = p => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
+const TI = {
+  /* the app's own Project tile icons (TILE_ICONS), so both look the same */
+  plant: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"> <rect x="2.6" y="18.3" width="18.8" height="2.7" rx="1.35"/> <rect x="13.2" y="12.2" width="6.8" height="6.1" rx="1.1"/> <rect x="14.4" y="13.4" width="2.9" height="2.2" rx="0.4" stroke-width="1.1"/> <path d="M13.3 14 8.2 8.8"/> <path d="M8.2 8.8 5.3 13.9"/> <path d="M5.6 13.2 3.1 15.4l1.5 1.7L7 15z" fill="currentColor" stroke-width="1.2"/></svg>`,
+  lifting: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/> <path d="M12 9 8 15h8z"/><path d="M9 18h6"/><circle cx="12" cy="20.5" r="1.6"/></svg>`,
+  delays: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12.5" r="8"/> <path d="M12 8v5l3 2M9 2.5h6"/></svg>`,
+  deliveries: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7.5h10v9H3z"/> <path d="M13 11h4l3 3v2.5h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></svg>`,
+  labour: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/> <path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 11a3 3 0 1 0-1.5-5.6"/><path d="M17 20a5.5 5.5 0 0 0-1.6-3.9"/></svg>`,
+  timesheets: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>`,
+  hs: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5z"/> <path d="M4 7.5 12 11l8-3.5M12 11v9"/></svg>`,
+  hire: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.4 1.4 0 0 1 0 2l-6.7 6.7a1.4 1.4 0 0 1-2 0z"/><circle cx="8" cy="8" r="1.6"/></svg>`,
+  alert: SVG('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  ok: SVG('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>')
+};
+const HSI = {  /* H&S tiles: the app's icons where it has one (plant, tools, lifting, RAMS), the rest drawn to match */
+  briefings: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4.5" width="14" height="16.5" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M8.5 10h7M8.5 13.5h7M8.5 17h4"/></svg>`,
+  excavations: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5h5v11.5h9V8.5h5"/><path d="M7.5 13h9"/><path d="M12 13v7"/></svg>`,
+  havs: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 21v-4.5L5 13.4a1.4 1.4 0 0 1 2.2-1.8l1.3 1.6V6a1.3 1.3 0 0 1 2.6 0v5.5"/><path d="M11.1 10.8V4.6a1.3 1.3 0 0 1 2.6 0v6.2"/><path d="M13.7 10.8V6a1.3 1.3 0 0 1 2.6 0v8c0 3.7-2.2 7-6 7"/><path d="M19 8.5c.9 1 .9 2.6 0 3.6M21 7c1.6 1.9 1.6 4.7 0 6.6"/></svg>`,
+  plant: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"> <rect x="2.6" y="18.3" width="18.8" height="2.7" rx="1.35"/> <rect x="13.2" y="12.2" width="6.8" height="6.1" rx="1.1"/> <rect x="14.4" y="13.4" width="2.9" height="2.2" rx="0.4" stroke-width="1.1"/> <path d="M13.3 14 8.2 8.8"/> <path d="M8.2 8.8 5.3 13.9"/> <path d="M5.6 13.2 3.1 15.4l1.5 1.7L7 15z" fill="currentColor" stroke-width="1.2"/></svg>`,
+  puwer: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"> <path d="M14.5 5.2a3.6 3.6 0 0 0 4.8 4.6l-8.4 8.4a2 2 0 1 1-2.8-2.8z"/> <path d="M6 3.5 9.5 7 7 9.5 3.5 6z"/><path d="M7 9.5 4.5 12"/></svg>`,
+  loler: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6"/> <path d="M12 9 8 15h8z"/><path d="M9 18h6"/><circle cx="12" cy="20.5" r="1.6"/></svg>`,
+  toolbox: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10.5h-9.5L6 19.5v-4H4z"/><path d="M8 9h8M8 12h5"/></svg>`,
+  rams: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"> <path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/> <path d="m9 13.3 2 2 4-4.2"/></svg>`,
+  tempworks: `<svg class="ico app" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h17"/><path d="M6.5 4.5v15.5M17.5 4.5v15.5"/><path d="M6.5 8.5l11 7M17.5 8.5l-11 7"/><path d="M4.5 20h4M15.5 20h4"/></svg>`,
+};
+const emptyState = (title, text, action) => `<div class="empty"><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ""}${action || ""}</div>`;
+
 function shell(active, inner){
   const me = S.me || {};
   return `<div class="shell">
     <aside class="side">
       <div class="brand"><img src="logo.png" alt="Cheltenham Green Civils"></div>
-      <nav>
+      <nav>${isHireOnly() ? `<a href="#/" class="on">${TI.hire}Live hire</a>` : `
         <a href="#/" class="${active === "dash" ? "on" : ""}">${ICON.dash}Dashboard</a>
         <a href="#/staff" class="${active === "staff" ? "on" : ""}">${ICON.staff}Staff</a>
-        <a href="#/admin" class="${active === "admin" ? "on" : ""}">${ICON.admin}Admin</a>
+        <a href="#/admin" class="${active === "admin" ? "on" : ""}">${ICON.admin}Admin</a>`}
       </nav>
       <div class="me"><b>${esc(me.full_name || me.email || "")}</b>${esc((me.role || {}).name || "")}
         · ${esc((me.company || {}).name || "")}<br>
-        <div class="links"><a href="./">Open the site app</a><button data-signout>Sign out</button></div></div>
+        <div class="links">${isHireOnly() ? "" : `<a href="./">Open the site app</a>`}<button data-signout>Sign out</button></div></div>
     </aside>
     <main><div class="content">${inner}</div>
       <footer class="foot"><span>Cheltenham Green Civils · SiteHUB admin</span>
@@ -451,22 +536,40 @@ function shell(active, inner){
 async function viewDashboard(){
   await loadJobs();
   const live = S.jobs.filter(j => j.status !== "archived");
-  const counts = {};
+  const counts = {}, tot = { labour:0, plant:0, hire:0, overdue:0, deliveries:0 };
+  const blank = () => ({ plant:0, labour:0, lifting:0, tools:0, overdue:0 });
   if(live.length){
-    const { data } = await sb.from("job_items").select("job_id, kind, data").in("kind", ["plant","labour","lifting"])
-      .eq("deleted", false).in("job_id", live.map(j => j.id));
-    (data || []).forEach(r => {
-      const c = counts[r.job_id] = counts[r.job_id] || { plant:0, labour:0, lifting:0 };
-      if(onSite(r.data || {})) c[r.kind]++;
+    const rows = [];
+    for(let from = 0; ; from += 1000){
+      const { data, error } = await sb.from("job_items").select("job_id, kind, data").in("kind", ["plant","labour","lifting","tools","deliveries"])
+        .eq("deleted", false).in("job_id", live.map(j => j.id)).range(from, from + 999);
+      if(error) throw error;
+      rows.push(...(data || []));
+      if(!data || data.length < 1000) break;
+    }
+    rows.forEach(r => {
+      const x = r.data || {}, c = counts[r.job_id] = counts[r.job_id] || blank();
+      if(r.kind === "deliveries"){ if(["today","overdue"].includes(deliveryState(x).key)) tot.deliveries++; return; }
+      if(!onSite(x)) return;
+      c[r.kind]++;
+      if(r.kind === "labour") tot.labour++;
+      if(r.kind === "plant") tot.plant++;
+      if(r.kind !== "labour" && isHired(x)) tot.hire++;
+      const e = examState(x);
+      if(e && e.cls === "red"){ c.overdue++; tot.overdue++; }
     });
   }
-  const tile = j => { const c = counts[j.id] || { plant:0, labour:0 };
+  const tile = j => { const c = counts[j.id] || blank();
     return `<a class="jt" href="#/job/${j.id}"><span class="n">${esc(j.name)}</span>
       <span class="m">${esc([j.code, j.principal_contractor].filter(Boolean).join(" · "))}</span>
-      <span class="k"><span>${plural(c.plant, "machine")}</span><span>${c.labour} ops</span></span></a>`; };
+      <span class="k"><span>${plural(c.plant, "machine")}</span><span>${plural(c.labour, "op")}</span>
+        ${c.overdue ? `<span class="bad">${TI.alert}${plural(c.overdue, "exam")} overdue</span>` : ""}</span></a>`; };
+  const kpi = (label, n, warn) => `<div class="kpi${warn && n ? " warn" : ""}"><span>${warn && n ? TI.alert : ""}${label}</span><b>${n}</b></div>`;
+  const dateNow = new Date().toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
   return shell("dash", `
     <div class="title"><h1>Jobs</h1><span class="sub">${plural(live.length, "live job")}</span><span class="sp"></span>
-      ${S.jobs.some(j => j.status === "archived") ? `<a class="lnk" href="#/archived">Archived jobs</a>` : ""}</div>
+      ${S.jobs.some(j => j.status === "archived") ? `<a class="lnk" href="#/archived">Archived jobs</a>` : ""}<span class="today">${dateNow}</span></div>
+    ${live.length ? `<div class="kpis">${kpi("Live jobs", live.length)}${kpi("Ops on site", tot.labour)}${kpi("Machines on site", tot.plant)}${kpi("Items on hire", tot.hire)}${kpi("Exams overdue", tot.overdue, true)}${kpi("Deliveries due", tot.deliveries)}</div>` : ""}
     <div class="jobtiles">
       ${live.map(tile).join("")}
       ${can("jobs", "create") ? `<button class="jt new" data-newjob><span class="plus">+</span><span class="n">Create new job</span></button>` : ""}
@@ -555,7 +658,17 @@ async function viewJob(jobId){
   const tbts = hsRecords(jobId).filter(r => r.form === "toolboxtalk").length;
   const examFlag = arr => { const s = arr.map(examState).filter(Boolean);
     return s.some(x => x.cls === "red") ? `<span class="flag red">Exam overdue</span>` : s.some(x => x.cls === "amber") ? `<span class="flag amber">Exam due</span>` : ""; };
-  const tile = (key, title, value, flag) => `<a class="st" href="#/job/${jobId}/${key}">${flag || ""}<span class="t">${title}</span><span class="v">${value}</span></a>`;
+  const tile = (key, title, value, flag) => `<a class="st" href="#/job/${jobId}/${key}">${flag || ""}<span class="ic">${TI[key]}</span><span class="t">${title}</span><span class="v">${value}</span></a>`;
+  const attn = [];
+  [["plant","Plant"],["lifting","Lifting"]].forEach(([k]) => list(jobId, k).filter(onSite).forEach(x => { const e = examState(x);
+    if(e && e.cls !== "ok") attn.push({ cls:e.cls, sort:x.examDate, href:k, tag:e.cls === "red" ? "Exam overdue" : "Exam due",
+      what:`<b>${esc(x.item)}</b>${x.fleetNo || x.idNo ? " · " + esc(x.fleetNo || x.idNo) : ""}`, when:nice(x.examDate) }); }));
+  dels.forEach(d => { const st = deliveryState(d);
+    if(st.key === "overdue" || st.key === "today") attn.push({ cls:st.key === "overdue" ? "red" : "amber", sort:d.dueDate, href:"deliveries",
+      tag:st.key === "overdue" ? "Delivery overdue" : "Delivery today",
+      what:`<b>${esc(d.description || d.type)}</b>${d.supplier ? " from " + esc(d.supplier) : ""}`,
+      when:short(d.dueDate) + (d.dueTime && d.dueTime !== "none" ? " " + esc(d.dueTime) : "") }); });
+  attn.sort((a, b) => (a.cls === b.cls ? 0 : a.cls === "red" ? -1 : 1) || String(a.sort).localeCompare(String(b.sort)));
   return shell("dash", `
     <div class="crumbs"><a href="#/">Dashboard</a> › ${esc(job.name)}</div>
     <div class="jobbar">${esc(job.name)}<span class="ref">${esc([job.code, job.principal_contractor].filter(Boolean).join(" · "))}</span>
@@ -565,11 +678,16 @@ async function viewJob(jobId){
       ${tile("lifting", "Lifting", plural(lift.length, "item"), examFlag(lift))}
       ${tile("delays", "Delays", lostMins ? (lostDays >= 1 ? lostDays + " days delayed" : hm(lostMins) + " lost") : "No delays")}
       ${tile("deliveries", "Deliveries", booked + " booked\n" + received + " received")}
-      ${tile("hire", "Live Hire", plural(hire.length, "item"))}
-      ${tile("labour", "Labour", labour.length + " ops")}
-      ${tile("timesheets", "Timesheets", tsHours ? tsHours + " hrs this week" : "This week")}
-      ${tile("hs", "Health and Safety", tbts ? plural(tbts, "toolbox talk") : "")}
-    </div>`);
+      ${tile("hire", "Live Hire", plural(hire.reduce((n, x) => n + hireQty(x), 0), "item") + (hire.some(x => hireWeekly(x) != null) ? "\n" + money(hire.reduce((n, x) => n + (hireWeekly(x) || 0), 0)) + " / wk" : ""))}
+      ${tile("labour", "Labour", plural(labour.length, "op"))}
+      ${tile("timesheets", "Timesheets", tsHours + " hrs this week")}
+      ${tile("hs", "Health and Safety", (n => n ? plural(n, "item") + " overdue" : "All up to date")(hsOverdueCount(jobId)),
+        hsOverdueCount(jobId) ? `<span class="flag red">Overdue</span>` : "")}
+    </div>
+    <div class="attn panel"><h2>Needs attention</h2>${attn.length
+      ? `<ul>${attn.map(a => `<li class="${a.cls}">${TI.alert}<span class="tag">${a.tag}</span><span class="what">${a.what}</span><span class="when">${a.when}</span>
+          <a class="lnk" href="#/job/${jobId}/${a.href}">Open</a></li>`).join("")}</ul>`
+      : `<div class="clear">${TI.ok}Nothing overdue — exams and today's deliveries are all in hand.</div>`}</div>`);
 }
 
 /* ------------------------------------------------- registers (generic) */
@@ -644,7 +762,7 @@ function registerView(jobId, key){
   const offWord = R.kind === "labour" ? "Left site" : "Off hire";
   return shell("dash", `
     <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › ${R.title}</div>
-    <div class="title"><h1>${R.title}</h1><span class="sub">${plural(all.filter(onSite).length, "on site")}</span><span class="sp"></span>
+    <div class="title"><h1>${R.title}</h1><span class="sub">${all.filter(onSite).length} on site</span><span class="sp"></span>
       ${editable ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : ""}</div>
     <div class="bar"><div class="seg">${[["on","On site"],["off","Gone"],["all","All"]].map(([k,l]) =>
       `<button class="${regShow === k ? "on" : ""}" data-regshow="${k}">${l}</button>`).join("")}</div></div>
@@ -653,12 +771,14 @@ function registerView(jobId, key){
         <td class="acts">${editable ? `<button class="lnk" data-edit="${esc(x.id)}">Edit</button>
           ${onSite(x) ? `<button class="lnk" data-offhire="${esc(x.id)}">${offWord}</button>` : ""}
           <button class="lnk red" data-del="${esc(x.id)}">Delete</button>` : ""}</td></tr>`).join("")}</table>`
-      : `<p class="empty">Nothing here yet.</p>`}</div>`);
+      : emptyState(regShow === "off" ? "Nothing gone off site yet" : "No " + R.noun + "s " + (regShow === "on" ? "on site" : "yet"),
+          regShow === "off" ? "" : "Anything added here shows on the register in the app.",
+          editable && regShow !== "off" ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : "")}</div>`);
 }
 function bindRegister(jobId, key){
   const R = REG[key];
   document.querySelectorAll("[data-regshow]").forEach(b => b.onclick = () => { regShow = b.dataset.regshow; route(); });
-  const add = $("[data-add]"); if(add) add.onclick = () => itemForm(jobId, key, null);
+  document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => itemForm(jobId, key, null));
   const find = id => list(jobId, R.kind).find(x => String(x.id) === id);
   document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => itemForm(jobId, key, find(b.dataset.edit)));
   document.querySelectorAll("[data-offhire]").forEach(b => b.onclick = () => {
@@ -676,34 +796,136 @@ function bindRegister(jobId, key){
 }
 
 /* ------------------------------------------------------------ live hire */
-function hireView(jobId){
-  const job = jobById(jobId);
+/* Hire is kept on the register it belongs to (plant, lifting or work
+   equipment) so it also shows on site; these extra fields ride along:
+   hireCompany = supplier, hireRef = contract number, qty, hireRate (£ per item
+   per week) and weeklyCost (qty × rate). */
+const HIRE_KINDS = [["tools","Work equipment"],["plant","Plant"],["lifting","Lifting gear"]];
+const HIRE_MOD = { plant:"plant", lifting:"lifting", tools:"tools" };
+const money = n => n === "" || n == null || !isFinite(Number(n)) ? "—" : "£" + Number(n).toLocaleString("en-GB", { minimumFractionDigits:2, maximumFractionDigits:2 });
+const hireQty = x => { const q = Number(x.qty); return q > 0 ? q : 1; };
+const hireWeekly = x => x.hireRate === "" || x.hireRate == null || !isFinite(Number(x.hireRate)) ? null : round2(hireQty(x) * Number(x.hireRate));
+function hireRows(jobId){
   const rows = [];
-  [["plant","Plant"],["lifting","Lifting"],["tools","Work equipment"]].forEach(([k, l]) =>
-    list(jobId, k).filter(x => onSite(x) && isHired(x)).forEach(x => rows.push({ k, l, x })));
-  rows.sort((a, b) => String(a.x.onDate || "").localeCompare(String(b.x.onDate || "")));
-  const edit = !!can("plant", "edit");
-  const bySupplier = {};
-  rows.forEach(r => { const s = r.x.hireCompany || r.x.owner || "Hired"; bySupplier[s] = (bySupplier[s] || 0) + 1; });
+  HIRE_KINDS.forEach(([k, l]) => list(jobId, k).filter(x => onSite(x) && isHired(x)).forEach(x => rows.push({ k, l, x })));
+  return rows.sort((a, b) => String(a.x.hireCompany || "").localeCompare(String(b.x.hireCompany || "")) || String(a.x.onDate || "").localeCompare(String(b.x.onDate || "")));
+}
+/* one job's live hire as a table — used on the job page and the hire controller's screen */
+function hireTable(jobId, rows, withTotal){
+  const weekly = rows.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
+  const priced = rows.filter(r => hireWeekly(r.x) != null).length;
+  return `<table class="t"><tr><th>Supplier</th><th>Item</th><th>Contract number</th><th>Date on hire</th>
+        <th class="num">Quantity</th><th class="num">Rate</th><th class="num">Weekly cost</th><th></th></tr>
+      ${rows.map(r => { const w = hireWeekly(r.x), key = jobId + "|" + r.k + "|" + esc(r.x.id); return `<tr><td>${esc(r.x.hireCompany || "—")}</td>
+        <td><b>${esc(r.x.item)}</b><span class="sub2">${esc(r.l)}${r.x.fleetNo || r.x.idNo ? " · " + esc(r.x.fleetNo || r.x.idNo) : ""}</span></td>
+        <td>${esc(r.x.hireRef || "—")}</td><td>${short(r.x.onDate)}<span class="sub2">${r.x.onDate ? plural(Math.max(0, daysBetween(r.x.onDate, today())), "day") + " on hire" : ""}</span></td>
+        <td class="num">${hireQty(r.x)}</td><td class="num">${r.x.hireRate === "" || r.x.hireRate == null ? "—" : money(r.x.hireRate) + "<span class=\"sub2\">per week</span>"}</td>
+        <td class="num"><b>${w == null ? "—" : money(w)}</b></td>
+        <td class="acts">${can(HIRE_MOD[r.k], "edit") ? `<button class="lnk" data-edithire="${key}">Edit</button>
+          <button class="lnk" data-hireoff="${key}">Off hire</button>` : ""}</td></tr>`; }).join("")}
+      ${withTotal ? `<tr class="total"><td colspan="6"><b>Total per week</b>${priced < rows.length ? `<span class="sub2">${plural(rows.length - priced, "item")} without a rate</span>` : ""}</td>
+        <td class="num"><b>${money(weekly)}</b></td><td></td></tr>` : ""}</table>`;
+}
+const canAddHire = () => HIRE_KINDS.some(([k]) => can(HIRE_MOD[k], "create"));
+function hireView(jobId){
+  const job = jobById(jobId), rows = hireRows(jobId);
+  const weekly = rows.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
+  const suppliers = new Set(rows.map(r => r.x.hireCompany || "Not set")).size;
   return shell("dash", `
     <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Live hire</div>
-    <div class="title"><h1>Live hire</h1><span class="sub">Everything hired in and still on site</span></div>
-    <div class="stats"><div class="stat"><span>On hire</span><b>${rows.length}</b></div>
-      ${Object.entries(bySupplier).slice(0, 4).map(([s, n]) => `<div class="stat"><span>${esc(s)}</span><b>${n}</b></div>`).join("")}</div>
-    <div class="panel">${rows.length ? `<table class="t"><tr><th>Item</th><th>What</th><th>Supplier</th><th>Hire ref</th><th>On hire since</th><th class="num">Days</th><th></th></tr>
-      ${rows.map(r => `<tr><td><b>${esc(r.x.item)}</b>${r.x.fleetNo || r.x.idNo ? `<span class="sub2">${esc(r.x.fleetNo || r.x.idNo)}</span>` : ""}</td>
-        <td>${esc(r.l)}</td><td>${esc(r.x.hireCompany || r.x.owner || "—")}</td><td>${esc(r.x.hireRef || "—")}</td>
-        <td>${short(r.x.onDate)}</td><td class="num">${r.x.onDate ? Math.max(0, daysBetween(r.x.onDate, today())) : "—"}</td>
-        <td class="acts">${edit ? `<button class="lnk" data-hireoff="${r.k}:${esc(r.x.id)}">Off hire today</button>` : ""}</td></tr>`).join("")}</table>`
-      : `<p class="empty">Nothing on hire.</p>`}</div>`);
+    <div class="title"><h1>Live hire</h1><span class="sub">Everything hired in and still on site</span><span class="sp"></span>
+      ${canAddHire() ? `<button class="btn" data-addhire="${jobId}">+ Add hire item</button>` : ""}</div>
+    <div class="stats"><div class="stat"><span>Items on hire</span><b>${rows.reduce((n, r) => n + hireQty(r.x), 0)}</b></div>
+      <div class="stat"><span>Suppliers</span><b>${suppliers}</b></div>
+      <div class="stat"><span>Weekly cost</span><b>${money(weekly)}</b></div></div>
+    <div class="panel">${rows.length ? hireTable(jobId, rows, true)
+      : emptyState("Nothing on hire", "Add what's been hired in — it also shows on the right register in the app.",
+          canAddHire() ? `<button class="btn" data-addhire="${jobId}">+ Add hire item</button>` : "")}</div>`);
 }
-function bindHire(jobId){
+/* the hire controller's whole world: live hire on every job */
+let hireFind = "";
+async function viewHireAll(){
+  await loadJobs();
+  const live = S.jobs.filter(j => j.status !== "archived");
+  await Promise.all(live.map(j => loadItems(j.id, true)));
+  const q = hireFind.trim().toLowerCase();
+  const match = r => !q || [r.x.hireCompany, r.x.item, r.x.hireRef, r.l].some(v => String(v || "").toLowerCase().includes(q));
+  const per = live.map(j => ({ j, rows:hireRows(j.id).filter(match) }));
+  const all = per.flatMap(p => p.rows);
+  const weekly = all.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
+  const jobWeekly = rows => rows.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
+  return shell("hire", `
+    <div class="title"><h1>Live hire</h1><span class="sub">Every job</span><span class="sp"></span>
+      <input class="in" style="max-width:280px" type="search" placeholder="Search supplier, item or contract" data-hirefind value="${esc(hireFind)}"></div>
+    <div class="stats">${stat("Items on hire", all.reduce((n, r) => n + hireQty(r.x), 0))}${stat("Weekly cost", money(weekly))}
+      ${stat("Suppliers", new Set(all.map(r => r.x.hireCompany || "Not set")).size)}${stat("Jobs with hire", per.filter(p => p.rows.length).length)}</div>
+    ${per.length ? per.filter(p => p.rows.length || !q).map(p => `<div class="panel"><h2>${esc(p.j.name)}<span class="note">${esc([p.j.code, p.j.principal_contractor].filter(Boolean).join(" · "))}</span>
+        <span class="sp"></span>${p.rows.length ? `<span class="note">${money(jobWeekly(p.rows))} / week</span>` : ""}
+        ${canAddHire() ? `<button class="btn sm" data-addhire="${p.j.id}">+ Add hire item</button>` : ""}</h2>
+      ${p.rows.length ? hireTable(p.j.id, p.rows, false) : `<p class="fn" style="margin:0 2px 6px">Nothing on hire on this job.</p>`}</div>`).join("")
+      || emptyState("Nothing matches “" + hireFind + "”", "Try a supplier, an item or a contract number.")
+    : emptyState("No live jobs yet", "Jobs set up by the office show here.")}`);
+}
+function isHireOnly(){ return !isAdmin() && ((S.me || {}).role || {}).key === "hire_controller"; }
+function hireForm(jobId, kind, item){
+  const isNew = !item;
+  const v = Object.assign({ hireCompany:"", item:"", hireRef:"", onDate:today(), qty:1, hireRate:"" }, item || {});
+  const kinds = HIRE_KINDS.filter(([k]) => can(HIRE_MOD[k], isNew ? "create" : "edit"));
+  modal(`<h3>${isNew ? "Add hire item" : "Edit hire item"}</h3>
+    <p class="lead">${isNew ? "It goes on the job's live hire, and on the right register in the app." : "Changes show in the app the next time it syncs."}</p>
+    <div class="g2">
+      <div class="f"><label>Supplier *</label><input class="in" data-k="hireCompany" value="${esc(v.hireCompany)}" placeholder="e.g. Hewden"></div>
+      <div class="f"><label>Item *</label><input class="in" data-k="item" value="${esc(v.item)}" placeholder="e.g. Heras fencing panels"></div>
+      <div class="f"><label>Contract number</label><input class="in" data-k="hireRef" value="${esc(v.hireRef)}"></div>
+      <div class="f"><label>Date on hire *</label><input class="in" type="date" data-k="onDate" value="${esc(v.onDate)}"></div>
+    </div>
+    <div class="g3">
+      <div class="f"><label>Quantity</label><input class="in" type="number" min="1" step="1" data-k="qty" value="${esc(hireQty(v))}"></div>
+      <div class="f"><label>Rate (£ per week)</label><input class="in" type="number" min="0" step="0.01" data-k="hireRate" value="${esc(v.hireRate)}" placeholder="0.00"></div>
+      <div class="f"><label>Weekly cost</label><input class="in" data-weekly disabled></div>
+    </div>
+    ${isNew ? `<div class="f"><label>Which register in the app</label><select class="in" data-kind>${kinds.map(([k, l]) =>
+      `<option value="${k}" ${k === kind ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <div class="hint">Work equipment covers welfare, fencing, pumps, generators, tools and the like.</div></div>` : ""}
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${isNew ? "Add" : "Save"}</button></div>`,
+  (d, close) => {
+    const k = n => d.querySelector(`[data-k="${n}"]`);
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    const calc = () => { const w = hireWeekly({ qty:k("qty").value, hireRate:k("hireRate").value === "" ? null : k("hireRate").value });
+      d.querySelector("[data-weekly]").value = w == null ? "Add a rate" : money(w); };
+    k("qty").oninput = calc; k("hireRate").oninput = calc; calc();
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const kd = isNew ? d.querySelector("[data-kind]").value : kind;
+      const out = Object.assign({}, item || { id:newId({ plant:"pl", lifting:"lf", tools:"tl" }[kd]), type:"Other", offDate:"" });
+      ["hireCompany","item","hireRef","onDate"].forEach(n => out[n] = k(n).value.trim());
+      if(!out.hireCompany) return err("Who is it hired from?");
+      if(!out.item) return err("Say what the item is.");
+      if(!out.onDate) return err("Add the date it went on hire.");
+      const q = Math.round(Number(k("qty").value));
+      if(!(q >= 1)) return err("Quantity needs to be 1 or more.");
+      const rate = k("hireRate").value.trim();
+      if(rate !== "" && !(Number(rate) >= 0)) return err("The rate needs to be a number.");
+      out.qty = q; out.hireRate = rate === "" ? "" : round2(Number(rate)); out.owner = "Hired";
+      out.weeklyCost = hireWeekly(out) == null ? "" : hireWeekly(out);
+      d.querySelector("[data-yes]").disabled = true;
+      try{ await saveItem(jobId, kd, out); close(); toast(isNew ? "Added to live hire" : "Saved"); route(); }
+      catch(e){ d.querySelector("[data-yes]").disabled = false; err(words(e)); }
+    };
+  });
+}
+function bindHire(){
+  document.querySelectorAll("[data-addhire]").forEach(b => b.onclick = () => hireForm(b.dataset.addhire, "tools", null));
+  const find = v => { const [jobId, k, id] = v.split("|"); return { jobId, k, x:list(jobId, k).find(i => String(i.id) === id) }; };
+  document.querySelectorAll("[data-edithire]").forEach(b => b.onclick = () => { const f = find(b.dataset.edithire); hireForm(f.jobId, f.k, f.x); });
   document.querySelectorAll("[data-hireoff]").forEach(b => b.onclick = () => {
-    const [k, id] = b.dataset.hireoff.split(":");
-    const x = list(jobId, k).find(i => String(i.id) === id);
-    confirmBox("Off hire " + x.item + " today?", "Remember to call it off with " + (x.hireCompany || "the supplier") + (x.hireRef ? " (ref " + x.hireRef + ")" : "") + ".",
+    const { jobId, k, x } = find(b.dataset.hireoff);
+    confirmBox("Off hire " + x.item + " today?", "Remember to call it off with " + (x.hireCompany || "the supplier") + (x.hireRef ? " (contract " + x.hireRef + ")" : "") + ".",
       "Off hire", async () => { try{ await saveItem(jobId, k, Object.assign({}, x, { offDate:today() })); toast("Off hired"); route(); }catch(e){ toast(words(e)); } }, false);
   });
+  const f = $("[data-hirefind]");
+  if(f){ f.oninput = () => { hireFind = f.value; clearTimeout(f._t); f._t = setTimeout(() => { route().then(() => { const g = $("[data-hirefind]"); if(g){ g.focus(); g.setSelectionRange(g.value.length, g.value.length); } }); }, 250); }; }
 }
 
 /* --------------------------------------------------------------- delays */
@@ -720,7 +942,7 @@ function delaysView(jobId){
     <div class="panel">${all.length ? `<table class="t"><tr><th>Date</th><th>Cause</th><th>What happened</th><th>Who it held up</th><th class="num">Time lost</th></tr>
       ${all.map(x => `<tr class="${x.counted ? "" : "off"}"><td>${short(x.date)}</td><td>${esc(x.cause)}</td><td>${esc(x.detail || "—")}</td>
         <td>${esc(x.affected || "—")}</td><td class="num">${hm(x.mins)}${x.counted ? "" : " (not counted)"}</td></tr>`).join("")}</table>`
-      : `<p class="empty">No delays recorded in the diaries.</p>`}</div>`);
+      : emptyState("No delays recorded", "Delays logged in the submitted site diaries add up here.")}</div>`);
 }
 
 /* ----------------------------------------------------------- deliveries */
@@ -745,7 +967,8 @@ function deliveriesView(jobId){
         <td><span class="pill ${s.cls}">${s.label}</span></td>
         <td class="acts">${edit ? `<button class="lnk" data-editdel="${esc(d.id)}">Edit</button>
           ${!d.cancelled && s.key !== "complete" ? `<button class="lnk red" data-canceldel="${esc(d.id)}">Cancel</button>` : ""}` : ""}</td></tr>`; }).join("")}</table>`
-      : `<p class="empty">No deliveries here.</p>`}</div>`);
+      : emptyState(delShow === "done" ? "Nothing received yet" : "No deliveries booked", "Booked deliveries show on site, ready to book in when they arrive.",
+          edit && delShow !== "done" ? `<button class="btn" data-adddel>+ Book a delivery</button>` : "")}</div>`);
 }
 function deliveryForm(jobId, d){
   const isNew = !d;
@@ -783,7 +1006,7 @@ function deliveryForm(jobId, d){
 }
 function bindDeliveries(jobId){
   document.querySelectorAll("[data-delshow]").forEach(b => b.onclick = () => { delShow = b.dataset.delshow; route(); });
-  const a = $("[data-adddel]"); if(a) a.onclick = () => deliveryForm(jobId, null);
+  document.querySelectorAll("[data-adddel]").forEach(b => b.onclick = () => deliveryForm(jobId, null));
   const find = id => list(jobId, "deliveries").find(x => String(x.id) === id);
   document.querySelectorAll("[data-editdel]").forEach(b => b.onclick = () => deliveryForm(jobId, find(b.dataset.editdel)));
   document.querySelectorAll("[data-canceldel]").forEach(b => b.onclick = () => {
@@ -812,63 +1035,219 @@ function timesheetsView(jobId){
         ${ts.days.map(d => { const x = p.days[d]; return `<td class="num">${!x ? "" : x.leave ? `<span class="pill">${esc(x.leave)}</span>` : x.hours + (x.manual ? "*" : "")}</td>`; }).join("")}
         <td class="num"><b>${round2(p.total)}</b></td></tr>`).join("")}</table>
       <p class="fn">* added on the timesheet rather than a diary</p>`
-      : `<p class="empty">No hours for this week yet.</p>`}</div>`);
+      : emptyState("No hours for this week yet", "Hours come from the submitted site diaries and the timesheet in the app.")}</div>`);
 }
 function bindTimesheets(){
   document.querySelectorAll("[data-tsw]").forEach(b => b.onclick = () => { tsWeek = addDays(tsWeek, Number(b.dataset.tsw)); route(); });
 }
 
 /* ------------------------------------------------- health & safety + library */
-let LIB = null;
+/* The rules for what's due follow the app: daily forms are chased on working
+   days from the day the form was first used; weekly forms on their day of the
+   week (toolbox talk Monday, PUWER and LOLER Friday); an excavation inspection
+   is due the morning after a diary says it was left open. */
+const HS_WEEKLY_DAY = { toolboxtalk:0, puwer:4, loler:4 };
+const HS_LOOKBACK = 60;
+const recsOf = (jobId, form) => list(jobId, "records").filter(r => r.form === form);
+const doneRecs = (jobId, form) => recsOf(jobId, form).filter(r => r.status === "submitted");
+const isWorkingDay = (jobId, d) => !!weekOf(jobId)[dayIdx(d)].working;
+const jobStart = jobId => { const m = (S.items[jobId] || {}).meta || {}, j = jobById(jobId) || {}; return m.start || j.start_date || ""; };
+function firstDone(jobId, form){
+  const ds = doneRecs(jobId, form).map(r => r.date).filter(Boolean).sort();
+  return ds[0] || null;
+}
+/* working days from `from` up to and including `to`, newest first, capped */
+function workingDays(jobId, from, to){
+  const out = []; let d = to;
+  for(let i = 0; i < HS_LOOKBACK && d >= from; i++, d = addDays(d, -1)) if(isWorkingDay(jobId, d)) out.push(d);
+  return out;
+}
+const byNewest = (a, b) => String(b.date || "").localeCompare(String(a.date || "")) || (b.submittedAt || 0) - (a.submittedAt || 0);
+const statusPill = r => `<span class="pill ${r.status === "submitted" ? "ok" : "amber"}">${r.status === "submitted" ? "Done" : "In progress"}</span>`;
+
+/* daily: briefing ------------------------------------------------------ */
+function dailyDue(jobId, form){
+  const from = [firstDone(jobId, form), jobStart(jobId)].filter(Boolean).sort().pop();
+  const t = today(), done = new Set(doneRecs(jobId, form).map(r => r.date));
+  const overdue = from ? workingDays(jobId, from, addDays(t, -1)).filter(d => !done.has(d)) : [];
+  const dueToday = isWorkingDay(jobId, t) && !done.has(t);
+  return { overdue, dueToday, started:!!firstDone(jobId, form) };
+}
+/* plant inspections: one per machine on site per working day (paper sheets
+   scanned in for the week count too) ------------------------------------- */
+function plantOnDay(jobId, d){ return list(jobId, "plant").filter(p => (!p.onDate || p.onDate <= d) && (!p.offDate || p.offDate > d)); }
+function plantDue(jobId){
+  const firstScan = list(jobId, "scans").filter(x => x.plantId).map(x => x.week).filter(Boolean).sort()[0];
+  const first = [firstDone(jobId, "plantcheck"), firstScan].filter(Boolean).sort()[0];
+  const from = [first, jobStart(jobId)].filter(Boolean).sort().pop();
+  const t = today();
+  const checked = new Set(doneRecs(jobId, "plantcheck").map(r => r.date + "|" + r.plantId));
+  const paper = new Set(list(jobId, "scans").filter(x => x.plantId).map(x => x.week + "|" + x.plantId));
+  const ok = (d, m) => checked.has(d + "|" + m.id) || paper.has(weekStart(d) + "|" + m.id);
+  const overdue = [];
+  if(first) workingDays(jobId, from, addDays(t, -1)).forEach(d => plantOnDay(jobId, d).forEach(m => { if(!ok(d, m)) overdue.push({ date:d, m }); }));
+  const dueToday = isWorkingDay(jobId, t) ? plantOnDay(jobId, t).filter(m => !ok(t, m)) : [];
+  return { overdue, dueToday, started:!!first };
+}
+/* excavations: what the latest diary left open, and inspections missed --- */
+function diaryOn(jobId, d){ return list(jobId, "records").find(r => (r.form || "diary") === "diary" && r.status === "submitted" && r.date === d); }
+function openList(diary){
+  if(!diary || !diary.data || diary.data.excavationsOpen !== true) return [];
+  return (Array.isArray(diary.data.excavationList) ? diary.data.excavationList : []).filter(x => x && x.ref);
+}
+function prevWorkingDay(jobId, d){ let p = addDays(d, -1); for(let i = 0; i < 10 && !isWorkingDay(jobId, p); i++) p = addDays(p, -1); return p; }
+function excDue(jobId){
+  const t = today(), start = jobStart(jobId) || addDays(t, -HS_LOOKBACK);
+  const done = new Set(doneRecs(jobId, "excavation").map(r => r.date + "|" + (r.excRef || (r.data || {}).ref || "")));
+  const missed = [];
+  workingDays(jobId, start, addDays(t, -1)).forEach(d => openList(diaryOn(jobId, prevWorkingDay(jobId, d)))
+    .forEach(x => { if(!done.has(d + "|" + x.ref)) missed.push({ date:d, ref:x.ref, location:x.location || "" }); }));
+  const latest = list(jobId, "records").filter(r => (r.form || "diary") === "diary" && r.status === "submitted" && r.date <= t).sort(byNewest)[0];
+  const open = openList(latest).map(x => Object.assign({}, x, { since:latest.date }));
+  const todayDue = isWorkingDay(jobId, t) ? openList(diaryOn(jobId, prevWorkingDay(jobId, t))).filter(x => !done.has(t + "|" + x.ref)) : [];
+  const unsafe = doneRecs(jobId, "excavation").filter(r => (r.data || {}).safe === false);
+  return { missed, open, todayDue, unsafe };
+}
+/* weekly: toolbox talk, PUWER, LOLER ------------------------------------- */
+function weeklyDue(jobId, form){
+  const t = today(), first = firstDone(jobId, form), day = HS_WEEKLY_DAY[form] || 0;
+  const doneWeeks = new Set(doneRecs(jobId, form).map(r => weekStart(r.date)));
+  const overdue = [];
+  let ws = first ? weekStart([first, jobStart(jobId)].filter(Boolean).sort().pop()) : weekStart(t);
+  for(let i = 0; i < 52 && ws <= weekStart(t); i++, ws = addDays(ws, 7)){
+    const due = addDays(ws, day);
+    if(due < t && !doneWeeks.has(ws) && (first || ws === weekStart(t))) overdue.push({ week:ws, due });
+  }
+  const dueNow = addDays(weekStart(t), day) === t && !doneWeeks.has(weekStart(t));
+  return { overdue, dueNow, doneThisWeek:doneWeeks.has(weekStart(t)) };
+}
+/* RAMS ----------------------------------------------------------------- */
+const ramsAll = jobId => list(jobId, "rams").slice().sort((a, b) => (b.revNo || 0) - (a.revNo || 0));
+const ramsCurrent = jobId => ramsAll(jobId).find(r => r.status === "current") || null;
+const revText = r => r ? String(r.revLabel || r.revNo || "") : "";
+function ramsUnsigned(jobId){
+  const cur = ramsCurrent(jobId); if(!cur) return [];
+  const signed = new Set((cur.sigs || []).map(s => s.personId));
+  return list(jobId, "labour").filter(onSite).filter(p => !signed.has(p.id));
+}
+/* temporary works ------------------------------------------------------- */
+const TW_CATS = ["Category 0","Category 1","Category 2","Category 3"];
+const TW_STATUS = ["Design in progress","Design checked","Permit to load","In use","Permit to dismantle","Removed"];
+const twAll = jobId => list(jobId, "tempworks").slice().sort((a, b) => String(a.ref || "").localeCompare(String(b.ref || ""), "en", { numeric:true }));
+
+/* files: kept in the job's photo store exactly as the app keeps them ---- */
+const readDataUrl = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
+async function shaHex(v){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+}
+const EXT = { "application/pdf":"pdf", "image/jpeg":"jpg", "image/png":"png", "image/webp":"webp" };
+async function uploadJobFile(jobId, file){
+  if(file.size > 20 * 1024 * 1024) throw new Error(file.name + " is over 20 MB — please make it smaller.");
+  const url = await readDataUrl(file);
+  const type = url.slice(5, url.indexOf(";")), ext = EXT[type];
+  if(!ext) throw new Error(file.name + " needs to be a PDF or a photo.");
+  const path = S.me.company_id + "/" + jobId + "/" + (await shaHex(url)) + "." + ext;
+  const { error } = await sb.storage.from("job-photos").upload(path, file, { contentType:type, upsert:false });
+  if(error && !/exists|duplicate/i.test(error.message || "")) throw error;
+  const doc = { src:"sbimg:" + path, name:file.name, scannedAt:Date.now() };
+  if(ext === "pdf") doc.pdf = true;
+  return doc;
+}
+async function openDoc(doc){
+  if(!doc || !doc.src) return toast("No document attached.");
+  const w = window.open("about:blank", "_blank");
+  let href = doc.src;
+  try{
+    if(href.indexOf("sbimg:") === 0){
+      const { data, error } = await sb.storage.from("job-photos").createSignedUrl(href.slice(6), 300);
+      if(error || !data) throw error || new Error("missing");
+      href = data.signedUrl;
+    } else if(href.indexOf("data:") === 0){
+      href = URL.createObjectURL(await (await fetch(href)).blob());
+    }
+    if(w) w.location = href; else location.href = href;
+  }catch(e){ if(w) w.close(); toast("That document couldn't be opened — " + words(e)); }
+}
+function bindDocs(find){
+  document.querySelectorAll("[data-doc]").forEach(b => b.onclick = () => openDoc(find(b.dataset.doc)));
+}
+
+/* toolbox talk library ------------------------------------------------- */
+const TBT_CATS = ["Health and safety","Environmental"];
+let LIB = null, libCat = "all";
 async function loadLibrary(){
-  const { data, error } = await sb.from("tbt_library").select("id, title, topic, file_path, file_name, size_bytes, created_at, archived")
+  let r = await sb.from("tbt_library").select("id, title, topic, category, file_path, file_name, size_bytes, created_at, archived")
     .eq("archived", false).order("title");
-  if(error){ LIB = { error:words(error), items:[] }; return LIB; }
-  LIB = { items:data || [] }; return LIB;
+  if(r.error && /category/i.test(r.error.message || ""))      /* 09_hs.sql not run yet */
+    r = await sb.from("tbt_library").select("id, title, topic, file_path, file_name, size_bytes, created_at, archived").eq("archived", false).order("title");
+  if(r.error){ LIB = { error:words(r.error), items:[] }; return LIB; }
+  LIB = { items:(r.data || []).map(x => Object.assign({ category:"Health and safety" }, x)) }; return LIB;
 }
 function libraryPanel(){
   const manage = can("health_safety", "manage") === "all";
   if(!LIB) return `<div class="panel"><h2>Toolbox talk library</h2><p class="empty">Loading…</p></div>`;
+  const items = LIB.items.filter(x => libCat === "all" || x.category === libCat);
+  const n = c => LIB.items.filter(x => x.category === c).length;
   return `<div class="panel"><h2>Toolbox talk library <span class="note">
       Shared with every job — site managers pick a talk in the app and it goes into their Toolbox Talk record</span>
       <span class="sp"></span>${manage ? `<button class="btn sm" data-libup>+ Upload PDF</button>` : ""}</h2>
-    ${LIB.error ? `<p class="empty">${esc(LIB.error)}</p>` : LIB.items.length ? `<table class="t"><tr><th>Title</th><th>Topic</th><th>Added</th><th class="num">Size</th><th></th></tr>
-      ${LIB.items.map(x => `<tr><td><b>${esc(x.title)}</b></td><td>${esc(x.topic || "—")}</td><td>${nice(iso(x.created_at))}</td>
+    ${LIB.items.length ? `<div class="bar"><div class="chips">${[["all","All " + LIB.items.length]].concat(TBT_CATS.map(c => [c, c + " " + n(c)])).map(([k, l]) =>
+      `<button class="${libCat === k ? "on" : ""}" data-libcat="${esc(k)}">${esc(l)}</button>`).join("")}</div></div>` : ""}
+    ${LIB.error ? `<p class="empty">${esc(LIB.error)}</p>` : items.length ? `<table class="t"><tr><th>Title</th><th>Category</th><th>Topic</th><th>Added</th><th class="num">Size</th><th></th></tr>
+      ${items.map(x => `<tr><td><b>${esc(x.title)}</b></td><td><span class="pill ${x.category === "Environmental" ? "env" : "ok"}">${esc(x.category)}</span></td>
+        <td>${esc(x.topic || "—")}</td><td>${nice(iso(x.created_at))}</td>
         <td class="num">${x.size_bytes ? Math.max(1, Math.round(x.size_bytes / 1024)) + " KB" : "—"}</td>
-        <td class="acts"><button class="lnk" data-libview="${x.id}">Open</button>${manage ? `<button class="lnk red" data-libdel="${x.id}">Remove</button>` : ""}</td></tr>`).join("")}</table>`
-      : `<p class="empty">No toolbox talks yet.${manage ? " Upload your first PDF." : ""}</p>`}</div>`;
+        <td class="acts"><button class="lnk" data-libview="${x.id}">Open</button>${manage ? `<button class="lnk" data-libedit="${x.id}">Edit</button><button class="lnk red" data-libdel="${x.id}">Remove</button>` : ""}</td></tr>`).join("")}</table>`
+      : emptyState(LIB.items.length ? "No " + libCat.toLowerCase() + " talks yet" : "No toolbox talks yet", "Upload a PDF and site managers can pick it in the app.", manage ? `<button class="btn" data-libup>+ Upload PDF</button>` : "")}</div>`;
+}
+function libForm(x){
+  const isNew = !x;
+  modal(`<h3>${isNew ? "Upload a toolbox talk" : "Edit toolbox talk"}</h3>
+    <p class="lead">${isNew ? "A PDF of the talk. On site it's added to the Toolbox Talk record page by page, just like a scanned sheet." : "Changes show in the app's library straight away."}</p>
+    ${isNew ? `<div class="f"><label>PDF file *</label><input class="in" type="file" accept="application/pdf,.pdf" data-file></div>` : ""}
+    <div class="f"><label>Title *</label><input class="in" data-title value="${esc(x ? x.title : "")}" placeholder="e.g. Working near buried services"></div>
+    <div class="g2"><div class="f"><label>Category *</label><select class="in" data-cat>${TBT_CATS.map(c =>
+      `<option ${(x ? x.category : (libCat !== "all" ? libCat : "Health and safety")) === c ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+      <div class="f"><label>Topic</label><input class="in" data-topic value="${esc(x ? x.topic || "" : "")}" placeholder="e.g. Excavations"></div></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${isNew ? "Upload" : "Save"}</button></div>`, (d, close) => {
+    const fileIn = d.querySelector("[data-file]"), title = d.querySelector("[data-title]");
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    if(fileIn) fileIn.onchange = () => { const f = fileIn.files[0]; if(f && !title.value) title.value = f.name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " "); };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const row = { title:title.value.trim(), topic:d.querySelector("[data-topic]").value.trim() || null, category:d.querySelector("[data-cat]").value };
+      if(!row.title) return err("Give it a title.");
+      const btn = d.querySelector("[data-yes]");
+      if(!isNew){
+        btn.disabled = true;
+        const { error } = await sb.from("tbt_library").update(row).eq("id", x.id);
+        if(error){ btn.disabled = false; return err(/category/i.test(error.message) ? "Run 09_hs.sql in Supabase first to switch categories on." : words(error)); }
+        close(); toast("Saved"); await loadLibrary(); return route();
+      }
+      const f = fileIn.files[0];
+      if(!f) return err("Choose the PDF.");
+      if(!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) return err("That isn't a PDF.");
+      if(f.size > 20 * 1024 * 1024) return err("That PDF is over 20 MB — please make it smaller.");
+      btn.disabled = true; btn.textContent = "Uploading…";
+      const path = S.me.company_id + "/" + (crypto.randomUUID ? crypto.randomUUID() : newId("tbt")) + ".pdf";
+      try{
+        const u = await sb.storage.from("company-library").upload(path, f, { contentType:"application/pdf", upsert:false });
+        if(u.error) throw u.error;
+        let { error } = await sb.from("tbt_library").insert(Object.assign({}, row, { file_path:path, file_name:f.name, size_bytes:f.size }));
+        if(error && /category/i.test(error.message || "")){ delete row.category;
+          ({ error } = await sb.from("tbt_library").insert(Object.assign({}, row, { file_path:path, file_name:f.name, size_bytes:f.size }))); }
+        if(error){ await sb.storage.from("company-library").remove([path]); throw error; }
+        close(); toast("Added to the library"); await loadLibrary(); route();
+      }catch(e){ btn.disabled = false; btn.textContent = "Upload"; err(words(e)); }
+    };
+  });
 }
 function bindLibrary(){
-  const up = $("[data-libup]");
-  if(up) up.onclick = () => modal(`<h3>Upload a toolbox talk</h3>
-    <p class="lead">A PDF of the talk. On site it's added to the Toolbox Talk record page by page, just like a scanned sheet.</p>
-    <div class="f"><label>PDF file *</label><input class="in" type="file" accept="application/pdf,.pdf" data-file></div>
-    <div class="f"><label>Title *</label><input class="in" data-title placeholder="e.g. Working near buried services"></div>
-    <div class="f"><label>Topic</label><input class="in" data-topic placeholder="e.g. Excavations"></div>
-    <p class="err" hidden></p>
-    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Upload</button></div>`, (d, close) => {
-      const fileIn = d.querySelector("[data-file]"), title = d.querySelector("[data-title]");
-      const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
-      fileIn.onchange = () => { const f = fileIn.files[0]; if(f && !title.value) title.value = f.name.replace(/\.pdf$/i, "").replace(/[_-]+/g, " "); };
-      d.querySelector("[data-no]").onclick = close;
-      d.querySelector("[data-yes]").onclick = async () => {
-        const f = fileIn.files[0];
-        if(!f) return err("Choose the PDF.");
-        if(!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) return err("That isn't a PDF.");
-        if(f.size > 20 * 1024 * 1024) return err("That PDF is over 20 MB — please make it smaller.");
-        if(!title.value.trim()) return err("Give it a title.");
-        const btn = d.querySelector("[data-yes]"); btn.disabled = true; btn.textContent = "Uploading…";
-        const path = S.me.company_id + "/" + (crypto.randomUUID ? crypto.randomUUID() : newId("tbt")) + ".pdf";
-        try{
-          const u = await sb.storage.from("company-library").upload(path, f, { contentType:"application/pdf", upsert:false });
-          if(u.error) throw u.error;
-          const { error } = await sb.from("tbt_library").insert({ title:title.value.trim(), topic:d.querySelector("[data-topic]").value.trim() || null,
-            file_path:path, file_name:f.name, size_bytes:f.size });
-          if(error){ await sb.storage.from("company-library").remove([path]); throw error; }
-          close(); toast("Added to the library"); await loadLibrary(); route();
-        }catch(e){ btn.disabled = false; btn.textContent = "Upload"; err(words(e)); }
-      };
-    });
+  document.querySelectorAll("[data-libup]").forEach(b => b.onclick = () => libForm(null));
+  document.querySelectorAll("[data-libcat]").forEach(b => b.onclick = () => { libCat = b.dataset.libcat; route(); });
+  document.querySelectorAll("[data-libedit]").forEach(b => b.onclick = () => libForm(LIB.items.find(i => i.id === b.dataset.libedit)));
   document.querySelectorAll("[data-libview]").forEach(b => b.onclick = async () => {
     const x = LIB.items.find(i => i.id === b.dataset.libview);
     const w = window.open("about:blank", "_blank");
@@ -888,28 +1267,351 @@ function bindLibrary(){
       });
   });
 }
-let hsShow = "all";
-function hsView(jobId){
+
+/* HAVs tool library ---------------------------------------------------- */
+let HAVT = null;
+async function loadHavsTools(){
+  const { data, error } = await sb.from("havs_tools").select("id, name, magnitude, source, notes").eq("archived", false).order("name");
+  HAVT = error ? { error:/havs_tools|relation|schema cache/i.test(error.message || "") ? "Run 09_hs.sql in Supabase to switch the tool library on." : words(error), items:[] } : { items:data || [] };
+  return HAVT;
+}
+const toEav = a => a > 0 ? 8 * Math.pow(2.5 / a, 2) : null;
+const toElv = a => a > 0 ? 8 * Math.pow(5 / a, 2) : null;
+const hrsText = h => h == null ? "—" : h >= 24 ? "over a day" : hm(Math.round(h * 60));
+function havsToolsPanel(){
+  const manage = can("health_safety", "manage") === "all";
+  if(!HAVT) return `<div class="panel"><h2>Tools library</h2><p class="empty">Loading…</p></div>`;
+  return `<div class="panel"><h2>Tools library <span class="note">Picked from a list on the HAVs form in the app — the magnitude fills itself in</span>
+      <span class="sp"></span>${manage && !HAVT.error ? `<button class="btn sm" data-tooladd>+ Add tool</button>` : ""}</h2>
+    ${HAVT.error ? emptyState("Tool library not switched on", HAVT.error) : HAVT.items.length ? `<table class="t"><tr><th>Tool</th><th class="num">Vibration magnitude</th>
+        <th class="num">Time to EAV</th><th class="num">Time to ELV</th><th>Source</th><th></th></tr>
+      ${HAVT.items.map(x => `<tr><td><b>${esc(x.name)}</b>${x.notes ? `<span class="sub2">${esc(x.notes)}</span>` : ""}</td>
+        <td class="num">${Number(x.magnitude)} m/s²</td><td class="num">${hrsText(toEav(Number(x.magnitude)))}</td><td class="num">${hrsText(toElv(Number(x.magnitude)))}</td>
+        <td>${esc(x.source || "—")}</td>
+        <td class="acts">${manage ? `<button class="lnk" data-tooledit="${x.id}">Edit</button><button class="lnk red" data-tooldel="${x.id}">Remove</button>` : ""}</td></tr>`).join("")}</table>`
+      : emptyState("No tools in the library yet", "Add each tool with its vibration magnitude — from the manufacturer's handbook or the tool's plate.",
+          manage ? `<button class="btn" data-tooladd>+ Add tool</button>` : "")}</div>`;
+}
+function toolForm(x){
+  modal(`<h3>${x ? "Edit tool" : "Add a tool"}</h3>
+    <p class="lead">Use the manufacturer's figure or one from the tool's plate where you have it. Exposure times are worked out using the HSE points system.</p>
+    <div class="g2"><div class="f"><label>Tool *</label><input class="in" data-k="name" value="${esc(x ? x.name : "")}" placeholder="e.g. Hilti TE 1000 breaker"></div>
+      <div class="f"><label>Vibration magnitude (m/s²) *</label><input class="in" type="number" min="0.1" max="99" step="0.1" data-k="magnitude" value="${esc(x ? Number(x.magnitude) : "")}"></div>
+      <div class="f"><label>Source</label><select class="in" data-k="source">${["Manufacturer","Tool plate","Measured","HSE typical","Other"].map(s =>
+        `<option ${x && x.source === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+      <div class="f"><label>Time to EAV / ELV</label><input class="in" data-times disabled></div></div>
+    <div class="f"><label>Notes</label><input class="in" data-k="notes" value="${esc(x ? x.notes || "" : "")}" placeholder="e.g. with anti-vibration handle"></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${x ? "Save" : "Add tool"}</button></div>`, (d, close) => {
+    const k = n => d.querySelector(`[data-k="${n}"]`);
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    const calc = () => { const a = Number(k("magnitude").value); d.querySelector("[data-times]").value = a > 0 ? hrsText(toEav(a)) + " / " + hrsText(toElv(a)) : ""; };
+    k("magnitude").oninput = calc; calc();
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const row = { name:k("name").value.trim(), magnitude:round2(Number(k("magnitude").value)), source:k("source").value, notes:k("notes").value.trim() || null };
+      if(!row.name) return err("Name the tool.");
+      if(!(row.magnitude > 0 && row.magnitude < 100)) return err("Enter the vibration magnitude in m/s² — e.g. 7.5.");
+      d.querySelector("[data-yes]").disabled = true;
+      const { error } = x ? await sb.from("havs_tools").update(row).eq("id", x.id) : await sb.from("havs_tools").insert(row);
+      if(error){ d.querySelector("[data-yes]").disabled = false; return err(/duplicate/i.test(error.message || "") ? "There's already a tool with that name." : words(error)); }
+      close(); toast(x ? "Saved" : "Tool added"); await loadHavsTools(); route();
+    };
+  });
+}
+function bindHavsTools(){
+  document.querySelectorAll("[data-tooladd]").forEach(b => b.onclick = () => toolForm(null));
+  document.querySelectorAll("[data-tooledit]").forEach(b => b.onclick = () => toolForm(HAVT.items.find(i => i.id === b.dataset.tooledit)));
+  document.querySelectorAll("[data-tooldel]").forEach(b => b.onclick = () => {
+    const x = HAVT.items.find(i => i.id === b.dataset.tooldel);
+    confirmBox("Remove " + x.name + "?", "HAVs records already filled in keep their figures. It just won't be on the list in the app any more.", "Remove",
+      async () => { const { error } = await sb.from("havs_tools").update({ archived:true }).eq("id", x.id); if(error) return toast(words(error)); toast("Removed"); await loadHavsTools(); route(); });
+  });
+}
+
+/* the hub: 9 tiles ------------------------------------------------------ */
+const HS_SECTIONS = [
+  ["briefings","Daily Activity Briefings"],["excavations","Excavation Inspections"],["havs","HAVs Records"],
+  ["plant","Plant Inspections"],["puwer","PUWER Inspections"],["loler","LOLER Inspections"],
+  ["toolbox","Toolbox Talks"],["rams","RAMS"],["tempworks","Temporary Works"]
+];
+function hsTileState(jobId, key){
+  const n = (form) => doneRecs(jobId, form).length;
+  const late = (count, word) => count ? { cls:"red", label:count + " " + word } : null;
+  if(key === "briefings"){ const s = dailyDue(jobId, "briefing"); return { v:plural(n("briefing"), "briefing"), flag:late(s.overdue.length, "overdue") || (s.dueToday ? { cls:"amber", label:"Due today" } : null) }; }
+  if(key === "excavations"){ const s = excDue(jobId); return { v:plural(n("excavation"), "inspection") + (s.open.length ? "\n" + s.open.length + " left open" : ""),
+    flag:late(s.missed.length, "missed") || (s.unsafe.length ? { cls:"red", label:s.unsafe.length + " not safe" } : s.todayDue.length ? { cls:"amber", label:"Due today" } : null) }; }
+  if(key === "havs"){ const ws = weekStart(today()); const c = doneRecs(jobId, "havs").filter(r => weekStart(r.date) === ws).length; return { v:plural(c, "record") + " this week" }; }
+  if(key === "plant"){ const s = plantDue(jobId); return { v:plural(n("plantcheck"), "inspection"), flag:late(s.overdue.length, "overdue") || (s.dueToday.length ? { cls:"amber", label:s.dueToday.length + " due today" } : null) }; }
+  if(["puwer","loler"].includes(key)){ const s = weeklyDue(jobId, key); return { v:plural(n(key), "week") + " done", flag:late(s.overdue.length, "overdue") || (s.dueNow ? { cls:"amber", label:"Due today" } : null) }; }
+  if(key === "toolbox"){ const s = weeklyDue(jobId, "toolboxtalk"); return { v:plural(n("toolboxtalk"), "talk"), flag:late(s.overdue.length, "overdue") || (s.dueNow ? { cls:"amber", label:"Due today" } : null) }; }
+  if(key === "rams"){ const c = ramsCurrent(jobId); if(!c) return { v:"None uploaded", flag:{ cls:"amber", label:"No RAMS" } };
+    const u = ramsUnsigned(jobId).length; return { v:"Rev " + revText(c) + "\n" + plural((c.sigs || []).length, "signature"), flag:u ? { cls:"amber", label:u + " to sign" } : null }; }
+  if(key === "tempworks"){ const a = twAll(jobId), live = a.filter(x => x.status !== "Removed"); return { v:plural(a.length, "item") + (live.length ? "\n" + live.length + " in place" : "") }; }
+  return { v:"" };
+}
+function hsHub(jobId){
   const job = jobById(jobId);
-  const recs = hsRecords(jobId).filter(r => hsShow === "all" || r.form === hsShow)
-    .sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.submittedAt || 0) - (a.submittedAt || 0));
-  const counts = {}; hsRecords(jobId).forEach(r => counts[r.form] = (counts[r.form] || 0) + 1);
-  const by = r => { const d = r.data || {}; return [d.subject, d.deliveredBy || d.inspectedBy || d.operator || d.completedBy || d.name].filter(Boolean).join(" — ") || "—"; };
   return shell("dash", `
     <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Health and safety</div>
-    <div class="title"><h1>Health and safety</h1></div>
-    ${libraryPanel()}
-    <div class="bar"><div class="chips">${[["all","All"]].concat(Object.keys(HS_FORMS).filter(k => counts[k]).map(k => [k, HS_FORMS[k]])).map(([k, l]) =>
-      `<button class="${hsShow === k ? "on" : ""}" data-hsshow="${k}">${esc(l)}${k === "all" ? "" : " " + counts[k]}</button>`).join("")}</div></div>
-    <div class="panel"><h2>Records on this job</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Record</th><th>Ref</th><th>Subject / by</th><th>Status</th></tr>
-      ${recs.slice(0, 300).map(r => `<tr><td>${short(r.date)}</td><td>${esc(HS_FORMS[r.form])}</td><td>${esc(r.ref || "—")}</td>
-        <td>${esc(by(r))}${(r.data || {}).libraryTalk ? ` <span class="pill ok">From library</span>` : ""}</td>
-        <td><span class="pill ${r.status === "submitted" ? "ok" : "amber"}">${r.status === "submitted" ? "Done" : "In progress"}</span></td></tr>`).join("")}</table>`
-      : `<p class="empty">No health and safety records yet.</p>`}</div>`);
+    <div class="jobbar">${esc(job.name)}<span class="ref">Health and safety</span></div>
+    <div class="sectiles three">${HS_SECTIONS.map(([k, t]) => { const s = hsTileState(jobId, k);
+      return `<a class="st" href="#/job/${jobId}/hs/${k}">${s.flag ? `<span class="flag ${s.flag.cls}">${esc(s.flag.label)}</span>` : ""}
+        <span class="ic">${HSI[k]}</span><span class="t">${t}</span><span class="v">${esc(s.v)}</span></a>`; }).join("")}</div>`);
 }
-function bindHs(){
-  document.querySelectorAll("[data-hsshow]").forEach(b => b.onclick = () => { hsShow = b.dataset.hsshow; route(); });
-  bindLibrary();
+const hsHead = (jobId, title, sub, action) => { const job = jobById(jobId); return `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › <a href="#/job/${jobId}/hs">Health and safety</a> › ${esc(title)}</div>
+    <div class="title"><h1>${esc(title)}</h1>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}<span class="sp"></span>${action || ""}</div>`; };
+const stat = (label, n, warn) => `<div class="stat${warn && n ? " warn" : ""}"><span>${label}</span><b>${n}</b></div>`;
+const attnList = (title, rows) => rows.length ? `<div class="attn panel" style="margin-top:0"><h2>${esc(title)}</h2><ul>${rows.map(r =>
+  `<li class="${r.cls || "red"}">${TI.alert}<span class="tag">${esc(r.tag)}</span><span class="what">${r.what}</span><span class="when">${esc(r.when || "")}</span></li>`).join("")}</ul></div>` : "";
+const allClear = text => `<div class="attn" style="margin:0 0 24px"><div class="clear">${TI.ok}${esc(text)}</div></div>`;
+
+/* 1. daily activity briefings */
+function hsBriefings(jobId){
+  const s = dailyDue(jobId, "briefing"), recs = recsOf(jobId, "briefing").sort(byNewest);
+  const att = r => ((r.data || {}).attendees || []).filter(x => x && (x.attended === true || (x.sig && x.sig.src))).length;
+  return shell("dash", hsHead(jobId, "Daily Activity Briefings", "One every working day") + `
+    <div class="stats">${stat("Completed", doneRecs(jobId, "briefing").length)}${stat("Overdue", s.overdue.length, true)}${stat("Today", s.dueToday ? "Due" : "Done")}</div>
+    ${s.overdue.length || s.dueToday ? attnList("Outstanding", s.overdue.map(d => ({ tag:"Overdue", what:"No briefing submitted", when:short(d) }))
+        .concat(s.dueToday ? [{ cls:"amber", tag:"Due today", what:"Today's briefing hasn't been submitted yet", when:short(today()) }] : []))
+      : s.started ? allClear("Every working day has its briefing.") : ""}
+    <div class="panel"><h2>Briefings</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Ref</th><th>Delivered by</th><th>CGC activities</th><th class="num">Attended</th><th>Status</th></tr>
+      ${recs.map(r => { const d = r.data || {}; return `<tr><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td><td>${esc(d.deliveredBy || "—")}${d.position ? `<span class="sub2">${esc(d.position)}</span>` : ""}</td>
+        <td>${esc(String(d.cgcActivities || "—").slice(0, 90))}</td><td class="num">${att(r)}</td><td>${statusPill(r)}</td></tr>`; }).join("")}</table>`
+      : emptyState("No briefings yet", "Daily activity briefings done in the app show here.")}</div>`);
+}
+/* 2. excavation inspections */
+function hsExcavations(jobId){
+  const s = excDue(jobId), recs = recsOf(jobId, "excavation").sort(byNewest);
+  return shell("dash", hsHead(jobId, "Excavation Inspections", "Due each morning an excavation has been left open") + `
+    <div class="stats">${stat("Inspections", doneRecs(jobId, "excavation").length)}${stat("Left open", s.open.length)}${stat("Missed", s.missed.length, true)}${stat("Not safe", s.unsafe.length, true)}</div>
+    ${attnList("Needs attention", s.missed.map(x => ({ tag:"Missed", what:`<b>${esc(x.ref)}</b>${x.location ? " · " + esc(x.location) : ""} — no inspection`, when:short(x.date) }))
+      .concat(s.todayDue.map(x => ({ cls:"amber", tag:"Due today", what:`<b>${esc(x.ref)}</b>${x.location ? " · " + esc(x.location) : ""}`, when:short(today()) })))
+      .concat(s.unsafe.map(r => ({ tag:"Not safe", what:`<b>${esc((r.data || {}).ref || r.excRef || "")}</b> — ${esc((r.data || {}).action || "see the record")}`, when:short(r.date) }))))}
+    <div class="panel"><h2>Left open</h2>${s.open.length ? `<table class="t"><tr><th>Excavation</th><th>Where</th><th>Left open on</th></tr>
+      ${s.open.map(x => `<tr><td><b>${esc(x.ref)}</b></td><td>${esc(x.location || "—")}</td><td>${short(x.since)}</td></tr>`).join("")}</table>`
+      : emptyState("Nothing left open", "The latest site diary has no excavations left open.")}</div>
+    <div class="panel"><h2>Inspections</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Ref</th><th>Excavation</th><th>Where</th><th class="num">Depth</th><th>Support</th><th>Result</th><th>Status</th></tr>
+      ${recs.map(r => { const d = r.data || {}; return `<tr><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td><td><b>${esc(d.ref || r.excRef || "—")}</b></td><td>${esc(d.location || "—")}</td>
+        <td class="num">${d.depth ? esc(d.depth) + " m" : "—"}</td><td>${esc(d.support || "—")}</td>
+        <td>${d.safe === false ? `<span class="pill red">Not safe</span>` : d.safe === true ? `<span class="pill ok">Safe</span>` : "—"}</td><td>${statusPill(r)}</td></tr>`; }).join("")}</table>`
+      : emptyState("No inspections yet", "Excavation inspections done in the app show here.")}</div>`);
+}
+/* 3. HAVs */
+let havsWeek = null;
+const havsPts = (a, hrs) => Math.round(2 * (Number(a) || 0) * (Number(a) || 0) * hrs);
+const durH = v => !v ? 0 : typeof v === "number" ? v : (Number(v.h) || 0) + (Number(v.m) || 0) / 60;
+const ptsCls = p => p >= 400 ? "red" : p >= 100 ? "amber" : "ok";
+function hsHavs(jobId){
+  havsWeek = havsWeek || weekStart(today());
+  const days = [0,1,2,3,4,5,6].map(i => addDays(havsWeek, i));
+  const recs = recsOf(jobId, "havs").filter(r => days.includes(r.date)).sort(byNewest);
+  const ops = {};
+  recs.filter(r => r.status === "submitted").forEach(r => (((r.data || {}).entries) || []).forEach(e => {
+    if(!e || !e.operative) return;
+    const o = ops[e.operative] = ops[e.operative] || { name:e.operative, days:{}, max:0 };
+    o.days[r.date] = (o.days[r.date] || 0) + havsPts(e.magnitude, durH(e.triggerTime));
+    o.max = Math.max(o.max, o.days[r.date]);
+  }));
+  const people = Object.values(ops).sort((a, b) => b.max - a.max);
+  const over = c => people.filter(p => p.max >= c).length;
+  const recMax = r => { const by = {}; (((r.data || {}).entries) || []).forEach(e => { if(e && e.operative) by[e.operative] = (by[e.operative] || 0) + havsPts(e.magnitude, durH(e.triggerTime)); }); return Math.max(0, ...Object.values(by)); };
+  return shell("dash", hsHead(jobId, "HAVs Records", "Hand-arm vibration — points per operative per day (EAV 100, ELV 400)") + `
+    <div class="bar"><button class="btn line sm" data-havsw="-7">‹ Previous</button><b style="font-size:15px">Week commencing ${nice(havsWeek)}</b>
+      <button class="btn line sm" data-havsw="7">Next ›</button></div>
+    <div class="stats">${stat("Records", recs.filter(r => r.status === "submitted").length)}${stat("Operatives", people.length)}${stat("Over EAV", over(100), true)}${stat("Over ELV", over(400), true)}</div>
+    <div class="panel"><h2>Exposure by operative</h2>${people.length ? `<table class="t"><tr><th>Operative</th>${days.map((d, i) => `<th class="num">${WEEKDAYS[i]} ${parse(d).getDate()}</th>`).join("")}<th class="num">Highest</th></tr>
+      ${people.map(p => `<tr><td><b>${esc(p.name)}</b></td>${days.map(d => `<td class="num">${p.days[d] == null ? "" : `<span class="pill ${ptsCls(p.days[d])}">${p.days[d]}</span>`}</td>`).join("")}
+        <td class="num"><b>${p.max}</b></td></tr>`).join("")}</table>`
+      : emptyState("No HAVs records this week", "HAVs records are only needed on days vibrating tools are used.")}</div>
+    <div class="panel"><h2>Records this week</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Ref</th><th>Supervisor</th><th class="num">Entries</th><th class="num">Highest exposure</th><th>Status</th></tr>
+      ${recs.map(r => { const d = r.data || {}, m = recMax(r); return `<tr><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td><td>${esc(d.supervisor || "—")}</td>
+        <td class="num">${(d.entries || []).length}</td><td class="num">${m ? `<span class="pill ${ptsCls(m)}">${m} points</span>` : "—"}</td><td>${statusPill(r)}</td></tr>`; }).join("")}</table>`
+      : emptyState("Nothing this week", "")}</div>
+    ${havsToolsPanel()}`);
+}
+/* 4. plant inspections */
+function hsPlant(jobId){
+  const s = plantDue(jobId), recs = recsOf(jobId, "plantcheck").sort(byNewest);
+  const m = id => list(jobId, "plant").find(p => String(p.id) === String(id)) || {};
+  const name = x => `<b>${esc(x.item || "Machine")}</b>${x.fleetNo ? " · " + esc(x.fleetNo) : ""}`;
+  return shell("dash", hsHead(jobId, "Plant Inspections", "Daily pre-use checks for every machine on site") + `
+    <div class="stats">${stat("Inspections", doneRecs(jobId, "plantcheck").length)}${stat("Overdue", s.overdue.length, true)}${stat("Due today", s.dueToday.length)}${stat("Machines on site", list(jobId, "plant").filter(onSite).length)}</div>
+    ${s.overdue.length || s.dueToday.length ? attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:name(x.m), when:short(x.date) }))
+        .concat(s.dueToday.map(x => ({ cls:"amber", tag:"Due today", what:name(x), when:short(today()) }))))
+      : s.started ? allClear("Every machine has been checked each working day.") : ""}
+    <div class="panel"><h2>Inspections</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Ref</th><th>Machine</th><th>Result</th><th>Notes</th><th>Status</th></tr>
+      ${recs.map(r => { const d = r.data || {}, x = m(r.plantId); return `<tr><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td><td>${name(x)}</td>
+        <td>${d.safe === false ? `<span class="pill red">Not fit for use</span>` : d.safe === true ? `<span class="pill ok">Fit for use</span>` : "—"}</td>
+        <td>${esc(String(d.engineerNote || "").slice(0, 80) || "—")}</td><td>${statusPill(r)}</td></tr>`; }).join("")}</table>`
+      : emptyState("No inspections yet", "Plant inspections done in the app show here.")}</div>`);
+}
+/* 5–6. PUWER / LOLER (weekly) */
+function hsWeekly(jobId, form){
+  const s = weeklyDue(jobId, form), recs = recsOf(jobId, form).sort(byNewest);
+  const isP = form === "puwer", title = isP ? "PUWER Inspections" : "LOLER Inspections";
+  const rows = r => ((r.data || {})[isP ? "tools" : "items"] || []);
+  return shell("dash", hsHead(jobId, title, (isP ? "Tools and small plant" : "Lifting equipment") + " — once a week, due Friday") + `
+    <div class="stats">${stat("Weeks done", doneRecs(jobId, form).length)}${stat("Overdue", s.overdue.length, true)}${stat("This week", s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
+    ${s.overdue.length || s.dueNow ? attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:"Week commencing " + nice(x.week), when:"due " + short(x.due) }))
+        .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:"This week's " + (isP ? "PUWER register" : "LOLER inspection"), when:short(today()) }] : [])) : ""}
+    <div class="panel"><h2>Completed</h2>${recs.length ? `<table class="t"><tr><th>Week commencing</th><th>Done on</th><th>Ref</th><th class="num">Items inspected</th><th>Defects</th><th>Status</th></tr>
+      ${recs.map(r => { const it = rows(r), bad = it.filter(x => x && x.ok === false); return `<tr><td>${nice(weekStart(r.date))}</td><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td>
+        <td class="num">${it.length}</td><td>${bad.length ? `<span class="pill red">${plural(bad.length, "defect")}</span><span class="sub2">${esc(bad.map(x => x.tool || x.description).filter(Boolean).join(", "))}</span>` : `<span class="pill ok">None</span>`}</td>
+        <td>${statusPill(r)}</td></tr>`; }).join("")}</table>`
+      : emptyState("None completed yet", "Weekly " + (isP ? "PUWER registers" : "LOLER inspections") + " done in the app show here.")}</div>`);
+}
+/* 7. toolbox talks */
+function hsToolbox(jobId){
+  const s = weeklyDue(jobId, "toolboxtalk"), recs = recsOf(jobId, "toolboxtalk").sort(byNewest);
+  const att = r => ((r.data || {}).attendees || []).filter(x => x && (x.attended === true || (x.sig && x.sig.src))).length;
+  const cat = r => { const t = (r.data || {}).libraryTalk; const l = t && LIB && LIB.items.find(x => x.id === t.id); return l ? l.category : null; };
+  return shell("dash", hsHead(jobId, "Toolbox Talks", "Once a week, due Monday") + `
+    <div class="stats">${stat("Talks done", doneRecs(jobId, "toolboxtalk").length)}${stat("Overdue", s.overdue.length, true)}${stat("This week", s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
+    ${attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:"Week commencing " + nice(x.week), when:"due " + short(x.due) }))
+      .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:"This week's toolbox talk", when:short(today()) }] : []))}
+    <div class="panel"><h2>Completed talks</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Ref</th><th>Subject</th><th>Delivered by</th><th class="num">Attended</th><th>Status</th></tr>
+      ${recs.map(r => { const d = r.data || {}, c = cat(r); return `<tr><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td>
+        <td><b>${esc(d.subject || "—")}</b>${d.libraryTalk ? ` <span class="pill ${c === "Environmental" ? "env" : "ok"}">From library${c ? " · " + esc(c) : ""}</span>` : ""}</td>
+        <td>${esc(d.deliveredBy || "—")}</td><td class="num">${att(r)}</td><td>${statusPill(r)}</td></tr>`; }).join("")}</table>`
+      : emptyState("No toolbox talks yet", "Toolbox talks done in the app show here.")}</div>
+    ${libraryPanel()}`);
+}
+/* 8. RAMS */
+function hsRams(jobId){
+  const all = ramsAll(jobId), cur = ramsCurrent(jobId), old = all.filter(r => r !== cur), un = ramsUnsigned(jobId);
+  const docs = r => [["raDoc","Risk assessment"],["msDoc","Method statement"],["doc","Document"]].filter(([f]) => r[f])
+    .map(([f, l]) => `<button class="lnk" data-doc="${esc(r.id)}:${f}">${l}</button>`).join("") || "—";
+  const sigImg = s => s.sigSrc && String(s.sigSrc).indexOf("data:") === 0 ? `<img class="sig" src="${s.sigSrc}" alt="Signature of ${esc(s.name)}">` : `<span class="pill ok">Signed</span>`;
+  const when = v => v ? new Date(v).toLocaleString("en-GB", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
+  const edit = !!can("rams", "create");
+  return shell("dash", hsHead(jobId, "RAMS", "Risk assessments and method statements", edit ? `<button class="btn" data-ramsup>+ Upload RAMS</button>` : "") + `
+    <div class="stats">${stat("Current revision", cur ? "Rev " + revText(cur) : "None")}${stat("Signed", cur ? (cur.sigs || []).length : 0)}${stat("Still to sign", un.length, true)}${stat("Superseded", old.length)}</div>
+    ${cur ? `<div class="panel"><h2>Current — Rev ${esc(revText(cur))}</h2><table class="t"><tr><th>Title</th><th>Revision</th><th>Uploaded</th><th>Documents</th></tr>
+        <tr><td><b>${esc(cur.title || "RAMS")}</b></td><td>Rev ${esc(revText(cur))}</td><td>${when(cur.uploadedAt)}</td><td>${docs(cur)}</td></tr></table></div>
+      <div class="panel"><h2>Signed onto Rev ${esc(revText(cur))}</h2>${(cur.sigs || []).length ? `<table class="t"><tr><th>Name</th><th>Signed</th><th>Signature</th></tr>
+        ${(cur.sigs || []).slice().sort((a, b) => (b.signedAt || 0) - (a.signedAt || 0)).map(s => `<tr><td><b>${esc(s.name || "—")}</b></td><td>${when(s.signedAt)}</td><td>${sigImg(s)}</td></tr>`).join("")}</table>`
+        : emptyState("Nobody has signed yet", "Everyone on site signs it in the app, under RAMS.")}</div>
+      ${un.length ? `<div class="panel"><h2>Still to sign</h2><table class="t"><tr><th>Name</th><th>Trade</th><th>Company</th></tr>
+        ${un.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.trade || "—")}</td><td>${esc(p.company || "—")}</td></tr>`).join("")}</table></div>` : ""}
+      ${(cur.addendums || []).length ? `<div class="panel"><h2>Addendums</h2><table class="t"><tr><th>Addendum</th><th>Uploaded</th><th class="num">Signed</th><th>Document</th></tr>
+        ${cur.addendums.map((a, i) => `<tr><td><b>${esc(a.title || "Addendum")}</b></td><td>${when(a.uploadedAt)}</td><td class="num">${(a.sigs || []).length}</td>
+          <td>${a.doc ? `<button class="lnk" data-doc="${esc(cur.id)}:add${i}">Open</button>` : "—"}</td></tr>`).join("")}</table></div>` : ""}`
+      : `<div class="panel">${emptyState("No RAMS on this job yet", "Upload the risk assessment and method statement — everyone on site then signs it in the app.",
+          edit ? `<button class="btn" data-ramsup>+ Upload RAMS</button>` : "")}</div>`}
+    ${old.length ? `<div class="panel"><h2>Previous revisions — superseded</h2><table class="t"><tr><th>Revision</th><th>Title</th><th>Uploaded</th><th>Superseded</th><th class="num">Signatures</th><th>Documents</th></tr>
+      ${old.map(r => `<tr class="off"><td>Rev ${esc(revText(r))}</td><td>${esc(r.title || "RAMS")}</td><td>${when(r.uploadedAt)}</td><td>${when(r.supersededAt)}</td>
+        <td class="num">${(r.sigs || []).length}</td><td>${docs(r)}</td></tr>`).join("")}</table></div>` : ""}`);
+}
+function ramsForm(jobId){
+  const cur = ramsCurrent(jobId), next = cur && cur.revLabel ? (m => m ? m[1] + String(Number(m[2]) + 1).padStart(m[2].length, "0") : "")(String(cur.revLabel).match(/^(.*?)(\d+)$/)) : "";
+  modal(`<h3>Upload RAMS</h3>
+    <p class="lead">${cur ? "This becomes the current revision. Rev " + esc(revText(cur)) + " is marked superseded and keeps its signatures — everyone signs the new one in the app." : "Everyone on site then signs it in the app, under RAMS."}</p>
+    <div class="g2"><div class="f"><label>Title *</label><input class="in" data-k="title" value="${esc(cur ? cur.title || "" : "")}" placeholder="e.g. Drainage installation"></div>
+      <div class="f"><label>Revision *</label><input class="in" data-k="rev" value="${esc(next)}" placeholder="e.g. P01"></div></div>
+    <div class="f"><label>Risk assessment (PDF)</label><input class="in" type="file" accept="application/pdf,.pdf,image/*" data-f="raDoc"></div>
+    <div class="f"><label>Method statement (PDF)</label><input class="in" type="file" accept="application/pdf,.pdf,image/*" data-f="msDoc">
+      <div class="hint">Add one or both. If they're one document, upload it as the risk assessment.</div></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Upload</button></div>`, (d, close) => {
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const title = d.querySelector('[data-k="title"]').value.trim();
+      const label = d.querySelector('[data-k="rev"]').value.trim().replace(/^rev(ision)?\.?\s*/i, "").toUpperCase().slice(0, 12);
+      const ra = d.querySelector('[data-f="raDoc"]').files[0], ms = d.querySelector('[data-f="msDoc"]').files[0];
+      if(!title) return err("Give the RAMS a title.");
+      if(!label) return err("Add the revision, as it's printed on the document.");
+      if(ramsAll(jobId).some(r => String(r.revLabel || "").toUpperCase() === label)) return err("Rev " + label + " is already on this job — check the revision.");
+      if(!ra && !ms) return err("Add the risk assessment or the method statement.");
+      const btn = d.querySelector("[data-yes]"); btn.disabled = true; btn.textContent = "Uploading…";
+      try{
+        const rev = { id:"rams_" + Date.now(), revNo:Math.max(0, ...ramsAll(jobId).map(r => r.revNo || 0)) + 1, revLabel:label, title,
+          raDoc:ra ? await uploadJobFile(jobId, ra) : null, msDoc:ms ? await uploadJobFile(jobId, ms) : null,
+          uploadedAt:Date.now(), status:"current", addendums:[], sigs:[], distribution:[] };
+        if(cur) await saveItem(jobId, "rams", Object.assign({}, cur, { status:"superseded", supersededAt:Date.now() }));
+        await saveItem(jobId, "rams", rev);
+        close(); toast(cur ? "New revision uploaded — signatures start again" : "RAMS uploaded — ready to sign"); route();
+      }catch(e){ btn.disabled = false; btn.textContent = "Upload"; err(e.message || words(e)); }
+    };
+  });
+}
+/* 9. temporary works */
+function hsTempworks(jobId){
+  const all = twAll(jobId), edit = !!can("health_safety", "create");
+  const live = all.filter(x => x.status !== "Removed");
+  const twCls = s => s === "Removed" ? "" : s === "In use" || s === "Permit to load" ? "ok" : "amber";
+  return shell("dash", hsHead(jobId, "Temporary Works", "Temporary works register", edit ? `<button class="btn" data-twadd>+ Add to register</button>` : "") + `
+    <div class="stats">${stat("On the register", all.length)}${stat("In place", live.filter(x => ["Permit to load","In use","Permit to dismantle"].includes(x.status)).length)}
+      ${stat("Awaiting design / check", live.filter(x => ["Design in progress","Design checked"].includes(x.status)).length)}</div>
+    <div class="panel"><h2>Temporary works register</h2>${all.length ? `<table class="t"><tr><th>TW ref</th><th>Description</th><th>Category</th><th>Designer</th><th>Status</th><th>Date</th><th>Document</th><th></th></tr>
+      ${all.map(x => `<tr class="${x.status === "Removed" ? "off" : ""}"><td><b>${esc(x.ref || "—")}</b></td><td>${esc(x.description || "—")}${x.notes ? `<span class="sub2">${esc(x.notes)}</span>` : ""}</td>
+        <td>${esc(x.category || "—")}</td><td>${esc(x.designer || "—")}</td><td><span class="pill ${twCls(x.status)}">${esc(x.status || "—")}</span></td>
+        <td>${short(x.date)}</td><td>${x.doc ? `<button class="lnk" data-doc="${esc(x.id)}:doc">Open</button>` : "—"}</td>
+        <td class="acts">${edit ? `<button class="lnk" data-twedit="${esc(x.id)}">Edit</button><button class="lnk red" data-twdel="${esc(x.id)}">Delete</button>` : ""}</td></tr>`).join("")}</table>`
+      : emptyState("Nothing on the register yet", "Add each temporary works item with its design or permit — PDF or photo.", edit ? `<button class="btn" data-twadd>+ Add to register</button>` : "")}</div>`);
+}
+function twForm(jobId, x){
+  const isNew = !x, n = twAll(jobId).length + 1;
+  const v = Object.assign({ ref:"TW" + String(n).padStart(3, "0"), description:"", category:"Category 1", designer:"", status:"Design in progress", date:today(), notes:"" }, x || {});
+  modal(`<h3>${isNew ? "Add temporary works" : "Edit " + esc(v.ref)}</h3>
+    <p class="lead">One line per temporary works item — the design, check and permits can be added as the item moves on.</p>
+    <div class="g2"><div class="f"><label>TW ref *</label><input class="in" data-k="ref" value="${esc(v.ref)}"></div>
+      <div class="f"><label>Category</label><select class="in" data-k="category">${TW_CATS.map(c => `<option ${c === v.category ? "selected" : ""}>${c}</option>`).join("")}</select></div></div>
+    <div class="f"><label>Description *</label><input class="in" data-k="description" value="${esc(v.description)}" placeholder="e.g. Trench box to S12 manhole, 3.2m deep"></div>
+    <div class="g3"><div class="f"><label>Designer</label><input class="in" data-k="designer" value="${esc(v.designer)}"></div>
+      <div class="f"><label>Status</label><select class="in" data-k="status">${TW_STATUS.map(c => `<option ${c === v.status ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+      <div class="f"><label>Date</label><input class="in" type="date" data-k="date" value="${esc(v.date)}"></div></div>
+    <div class="f"><label>${x && x.doc ? "Replace the document" : "Document (PDF or photo)"}</label><input class="in" type="file" accept="application/pdf,.pdf,image/*" data-file>
+      ${x && x.doc ? `<div class="hint">Current: ${esc(x.doc.name || "document")}</div>` : ""}</div>
+    <div class="f"><label>Notes</label><input class="in" data-k="notes" value="${esc(v.notes)}"></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${isNew ? "Add" : "Save"}</button></div>`, (d, close) => {
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const out = Object.assign({}, x || { id:newId("tw") });
+      d.querySelectorAll("[data-k]").forEach(el => out[el.dataset.k] = el.value.trim());
+      if(!out.ref) return err("Give it a TW reference.");
+      if(!out.description) return err("Describe the temporary works.");
+      if(twAll(jobId).some(t => t.id !== out.id && String(t.ref).toUpperCase() === out.ref.toUpperCase())) return err(out.ref + " is already on the register.");
+      const btn = d.querySelector("[data-yes]"); btn.disabled = true;
+      try{
+        const f = d.querySelector("[data-file]").files[0];
+        if(f){ btn.textContent = "Uploading…"; out.doc = await uploadJobFile(jobId, f); }
+        await saveItem(jobId, "tempworks", out); close(); toast(isNew ? "Added to the register" : "Saved"); route();
+      }catch(e){ btn.disabled = false; btn.textContent = isNew ? "Add" : "Save"; err(e.message || words(e)); }
+    };
+  });
+}
+
+function hsOverdueCount(jobId){
+  return dailyDue(jobId, "briefing").overdue.length + plantDue(jobId).overdue.length + excDue(jobId).missed.length
+    + ["toolboxtalk","puwer","loler"].reduce((n, f) => n + weeklyDue(jobId, f).overdue.length, 0);
+}
+function hsPage(jobId, sub){
+  if(sub === "briefings") return { html:hsBriefings(jobId) };
+  if(sub === "excavations") return { html:hsExcavations(jobId) };
+  if(sub === "havs") return { html:hsHavs(jobId), bind:() => {
+    document.querySelectorAll("[data-havsw]").forEach(b => b.onclick = () => { havsWeek = addDays(havsWeek, Number(b.dataset.havsw)); route(); });
+    bindHavsTools(); } };
+  if(sub === "plant") return { html:hsPlant(jobId) };
+  if(sub === "puwer" || sub === "loler") return { html:hsWeekly(jobId, sub) };
+  if(sub === "toolbox") return { html:hsToolbox(jobId), bind:bindLibrary };
+  if(sub === "rams") return { html:hsRams(jobId), bind:() => {
+    document.querySelectorAll("[data-ramsup]").forEach(b => b.onclick = () => ramsForm(jobId));
+    bindDocs(key => { const [id, f] = key.split(":"); const r = list(jobId, "rams").find(x => String(x.id) === id) || {};
+      return /^add\d+$/.test(f) ? ((r.addendums || [])[Number(f.slice(3))] || {}).doc : r[f]; }); } };
+  if(sub === "tempworks") return { html:hsTempworks(jobId), bind:() => {
+    document.querySelectorAll("[data-twadd]").forEach(b => b.onclick = () => twForm(jobId, null));
+    const find = id => list(jobId, "tempworks").find(x => String(x.id) === id);
+    document.querySelectorAll("[data-twedit]").forEach(b => b.onclick = () => twForm(jobId, find(b.dataset.twedit)));
+    document.querySelectorAll("[data-twdel]").forEach(b => b.onclick = () => { const x = find(b.dataset.twdel);
+      confirmBox("Delete " + x.ref + " from the register?", "It's removed for everyone. If the temporary works has simply come out, set its status to Removed instead so the history is kept.", "Delete",
+        async () => { try{ await deleteItem(jobId, "tempworks", x.id); toast("Deleted"); route(); }catch(e){ toast(words(e)); } }); });
+    bindDocs(key => { const x = find(key.split(":")[0]); return x && x.doc; }); } };
+  return { html:hsHub(jobId) };
 }
 
 /* ---------------------------------------------------------------- staff */
@@ -920,7 +1622,7 @@ async function loadTeam(){
   S.team = p.data || []; S.roles = r.data || []; S.teamJobs = (j.data || []).filter(x => x.status !== "archived"); S.members = m.data || [];
 }
 const jobsOf = uid => S.members.filter(m => m.user_id === uid).map(m => m.job_id);
-const SEES_ALL = ["admin", "director_qs"];
+const SEES_ALL = ["admin", "director_qs", "hire_controller"];
 async function viewStaff(){
   await loadTeam();
   const manage = !!can("team", "manage"), invite = !!can("invites", "manage");
@@ -929,7 +1631,7 @@ async function viewStaff(){
     const status = !p.active ? `<span class="pill red">Access off</span>` : !p.joined ? `<span class="pill amber">Invite sent</span>` : `<span class="pill ok">Active</span>`;
     return `<tr class="${p.active ? "" : "off"}"><td><b>${esc(p.full_name || "—")}</b>${p.id === S.me.id ? ` <span class="muted">(you)</span>` : ""}</td>
       <td>${esc(p.email || "")}</td><td>${esc(p.role_name || "No role")}</td>
-      <td>${SEES_ALL.includes(p.role_key) ? "All jobs" : js.length ? esc(js.join(", ")) : `<span class="muted">Not on a job</span>`}</td>
+      <td>${p.role_key === "hire_controller" ? "All jobs — live hire only" : SEES_ALL.includes(p.role_key) ? "All jobs" : js.length ? esc(js.join(", ")) : `<span class="muted">Not on a job</span>`}</td>
       <td>${status}</td><td class="acts">${manage || can("labour", "allocate") ? `<button class="lnk" data-manage="${p.id}">Manage</button>` : ""}</td></tr>`; };
   return shell("staff", `
     <div class="title"><h1>Staff</h1><span class="sub">${plural(S.team.length, "person")}</span><span class="sp"></span>
@@ -960,7 +1662,7 @@ function inviteForm(){
       <div class="f"><label>Last name *</label><input class="in" data-k="last"></div></div>
     <div class="f"><label>Email *</label><input class="in" type="email" data-k="email"></div>
     <div class="f"><label>Role</label><select class="in" data-k="role">${S.roles.map(r => `<option value="${r.key}" ${r.key === "site_manager" ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select></div>
-    <div class="f"><label>Jobs</label><div class="hint">Admin and Director / QS see every job anyway.</div>${jobChips(chosen)}</div>
+    <div class="f"><label>Jobs</label><div class="hint">Admin, Director / QS and Hire Controller see every job anyway.</div>${jobChips(chosen)}</div>
     <p class="err" hidden></p>
     <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Send invite</button></div>`, (d, close) => {
     bindChips(d, chosen);
@@ -1054,11 +1756,14 @@ let fresh = true;      /* moving page fetches the latest; redrawing after a save
 async function route(){
   const my = ++routing;
   const wasFresh = fresh; fresh = false;
+  const slow = setTimeout(() => { document.body.classList.add("busy"); $("#root").setAttribute("aria-busy", "true"); }, 120);
+  const done = () => { clearTimeout(slow); if(my === routing){ document.body.classList.remove("busy"); $("#root").removeAttribute("aria-busy"); } };
   const root = $("#root");
   const h = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   try{
     let html, bind = () => {};
-    if(h[0] === "staff"){ html = await viewStaff(); bind = () => {
+    if(isHireOnly()){ html = await viewHireAll(); bind = bindHire; }
+    else if(h[0] === "staff"){ html = await viewStaff(); bind = () => {
       const i = $("[data-invite]"); if(i) i.onclick = inviteForm;
       document.querySelectorAll("[data-manage]").forEach(b => b.onclick = () => manageForm(b.dataset.manage)); }; }
     else if(h[0] === "admin"){ html = await viewAdmin(); bind = bindLibrary; }
@@ -1072,21 +1777,28 @@ async function route(){
         else{
           await loadItems(id, wasFresh);
           if(REG[sec]){ html = registerView(id, sec); bind = () => bindRegister(id, sec); }
-          else if(sec === "hire"){ html = hireView(id); bind = () => bindHire(id); }
+          else if(sec === "hire"){ html = hireView(id); bind = bindHire; }
           else if(sec === "delays"){ html = delaysView(id); }
           else if(sec === "deliveries"){ html = deliveriesView(id); bind = () => bindDeliveries(id); }
           else if(sec === "timesheets"){ html = timesheetsView(id); bind = bindTimesheets; }
-          else if(sec === "hs"){ if(!LIB) loadLibrary().then(() => { if(location.hash.endsWith("/hs")) route(); }); html = hsView(id); bind = bindHs; }
+          else if(sec === "hs"){
+            const sub = h[3] || "";
+            if(sub === "toolbox" && !LIB) await loadLibrary();
+            if(sub === "havs" && !HAVT) await loadHavsTools();
+            const pg = hsPage(id, sub); html = pg.html; bind = pg.bind || (() => {});
+          }
           else html = await viewJob(id);
         }
       }
     }
     else { html = await viewDashboard(); bind = () => { const n = $("[data-newjob]"); if(n) n.onclick = () => jobForm(null, null); }; }
+    done();
     if(my !== routing) return;
     root.innerHTML = html;
     const so = $("[data-signout]"); if(so) so.onclick = async () => { await sb.auth.signOut(); location.reload(); };
     bind();
   }catch(e){
+    done();
     if(my !== routing) return;
     root.innerHTML = shell("dash", `<div class="panel"><div class="body"><p class="err">${esc(words(e))}</p>
       <button class="btn line" onclick="route()">Try again</button></div></div>`);
@@ -1118,7 +1830,7 @@ async function start(){
   try{ me = await loadMe(); }catch(e){ return signIn(words(e)); }
   if(!me) return signIn();
   if(!me.active || !me.company_id) return signIn("Your account isn't set up for SiteHUB. Speak to your admin.");
-  if(!isAdmin()){
+  if(!isAdmin() && !isHireOnly()){
     $("#root").innerHTML = `<div class="gate"><div class="card"><img src="logo.png" alt=""><h1>Use the SiteHUB app</h1>
       <p>The admin console is for admins. Everything for your role is in the SiteHUB app.</p>
       <a class="btn" style="display:block;text-decoration:none" href="./">Open the app</a>
