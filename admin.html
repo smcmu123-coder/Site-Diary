@@ -268,6 +268,71 @@ body.busy main .content{opacity:.6;transition:opacity .2s .15s}
 .stat.warn{background:var(--red-50)} .stat.warn span,.stat.warn b{color:var(--red)}
 .pill.env{background:#E4EEF6;color:var(--blue)}
 img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:#fff}
+/* top-right profile button + the panel it opens */
+.topbar{display:flex;justify-content:flex-end;margin:-6px 0 10px}
+.mebtn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 12px 4px 4px;font:inherit;color:var(--ink)}
+.mebtn:hover{background:var(--tint);border-color:var(--tint-2)}
+.mebtn .nm{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
+.mebtn .nm b{font-size:13.5px;font-weight:600} .mebtn .nm em{font-style:normal;font-size:11.5px;color:var(--ink-3)}
+.mebtn .ico{width:16px;height:16px;fill:none;stroke:var(--ink-3);stroke-width:2}
+.av{width:34px;height:34px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700;letter-spacing:.03em;flex:none}
+.av.lg{width:48px;height:48px;font-size:17px;background:#fff;color:var(--green)}
+.drawer-wrap{position:fixed;inset:0;background:rgba(26,26,26,0);z-index:55;transition:background .2s}
+.drawer-wrap.open{background:rgba(26,26,26,.38)}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(440px,100%);background:#fff;box-shadow:-12px 0 40px rgba(0,0,0,.18);display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .22s ease-out}
+.drawer-wrap.open .drawer{transform:none}
+.drawer .dh{background:var(--green);color:#fff;padding:20px 20px 18px;display:flex;align-items:center;gap:14px}
+.drawer .dh b{display:block;font-size:17px} .drawer .dh span:not(.av){display:block;font-size:13px;color:rgba(255,255,255,.82)}
+.drawer .dh > div{flex:1;min-width:0}
+.drawer .dx{background:none;border:none;color:#fff;font-size:28px;line-height:1;padding:4px 8px;border-radius:8px}
+.drawer .dx:hover{background:rgba(255,255,255,.14)}
+.drawer .db{overflow-y:auto;padding:6px 20px 24px}
+.drawer section{padding:18px 0;border-bottom:1px solid var(--line)}
+.drawer section.out{border-bottom:none}
+.drawer h4{margin:0 0 12px;font-size:12.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em}
+.drawer .cur{margin:0 0 10px;font-size:14px;color:var(--ink-2)}
+.drawer .hint{font-size:12.5px;color:var(--ink-3);margin:0 0 10px}
+.drawer .note-amber{background:var(--amber-50);color:var(--amber);font-size:13px;border-radius:8px;padding:8px 10px;margin:0 0 10px}
+.pw{position:relative} .pw .in{padding-right:42px}
+.pw .eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;padding:6px;border-radius:6px;color:var(--ink-3);display:grid;place-items:center}
+.pw .eye:hover{background:var(--tint)} .pw .eye.on{color:var(--green)}
+.pw .eye .ico{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8}
+@media (prefers-reduced-motion:reduce){ .drawer,.drawer-wrap{transition:none} }
+.dlg:has(table.t){max-width:860px}
+.side .me .links{flex-wrap:wrap;gap:6px 14px} .side .me .links a,.side .me .links button{white-space:nowrap}
+/* certificate window */
+.dlg.dlg-cert{max-width:820px;padding:0}
+.cm-h{background:var(--green);color:#fff;padding:16px 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.cm-h .cm-k{display:block;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.cm-h b{font-size:19px;font-weight:700} .cm-h .cm-no{margin-left:10px;font-size:13px;background:rgba(255,255,255,.16);border-radius:99px;padding:2px 10px;vertical-align:3px}
+.cm-h .dx{background:none;border:none;color:#fff;font-size:28px;line-height:1;padding:2px 8px;border-radius:8px} .cm-h .dx:hover{background:rgba(255,255,255,.14)}
+.cm-b{padding:16px 20px 20px}
+.cm-sum{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2);margin:0 0 12px}
+.cm-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.cm-list li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.cm-list li:last-child{border-bottom:none}
+.cm-list li:hover{background:var(--tint)}
+.cm-ic{width:38px;height:38px;border-radius:10px;background:var(--tint);color:var(--green);display:grid;place-items:center;flex:none}
+.cm-list li:hover .cm-ic{background:#fff}
+.cm-ic .ico{width:20px;height:20px}
+.cm-t{flex:1;min-width:180px} .cm-t b{display:block;font-size:14.5px;color:var(--ink)} .cm-t em{display:block;font-style:normal;font-size:12.5px;color:var(--ink-3);margin-top:1px}
+.cm-a{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.btn.cm-del{color:var(--red)} .btn.cm-del:hover{background:var(--red-50)}
+.cm-add .g3{grid-template-columns:1.5fr 1fr 1fr}
+@media (max-width:860px){ .cm-add .g3{grid-template-columns:1fr} }
+.cm-none{border:1px dashed var(--line);border-radius:12px;padding:18px;text-align:center;color:var(--ink-3);font-size:14px}
+.cm-add{margin-top:20px}
+.cm-add h4{margin:0 0 10px;font-size:12.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em}
+.drop{display:flex;align-items:center;gap:14px;border:2px dashed var(--tint-2);border-radius:12px;padding:16px 18px;cursor:pointer;background:#fff;margin:0 0 14px;transition:background .12s,border-color .12s}
+.drop:hover,.drop.over{background:var(--tint);border-color:var(--green)}
+.drop.has{border-style:solid;border-color:var(--green);background:var(--tint)}
+.drop-ic{width:42px;height:42px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;flex:none}
+.drop-ic .ico{width:20px;height:20px;stroke-width:2}
+.drop-t b{display:block;font-size:14.5px;color:var(--ink);word-break:break-all} .drop-t em{display:block;font-style:normal;font-size:12.5px;color:var(--ink-3)}
+.cm-go{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:4px;padding-top:14px;border-top:1px solid var(--line)}
+.cm-go .hint{font-size:12.5px;color:var(--ink-3);max-width:420px}
+.certadd h4{margin:0 0 10px;font-size:12.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.06em}
 .today{font-size:13px;color:var(--ink-3);padding-bottom:3px;margin-left:16px}
 @media (max-width:1150px){ .kpis{grid-template-columns:repeat(3,minmax(0,1fr))} .kpi:nth-child(3){border-right:none} .kpi:nth-child(-n+3){border-bottom:1px solid var(--line)} }
 @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} .jt:hover,.st:hover{transform:none} }
@@ -576,9 +641,12 @@ function shell(active, inner){
       </nav>
       <div class="me"><b>${esc(me.full_name || me.email || "")}</b>${esc((me.role || {}).name || "")}
         · ${esc((me.company || {}).name || "")}<br>
-        <div class="links">${isHireOnly() ? "" : `<a href="./">Open the site app</a>`}<button data-signout>Sign out</button></div></div>
+        <div class="links"><button data-profile>Your profile</button>${isHireOnly() ? "" : `<a href="./">Open the site app</a>`}<button data-signout>Sign out</button></div></div>
     </aside>
-    <main><div class="content">${inner}</div>
+    <main><div class="topbar"><button type="button" class="mebtn" data-profile aria-label="Your profile"><span class="av">${esc(initialsOf(me.full_name || me.email))}</span>
+        <span class="nm"><b>${esc(me.full_name || me.email || "")}</b><em>${esc((me.role || {}).name || "")}</em></span>
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>
+      <div class="content">${inner}</div>
       <footer class="foot"><span>Cheltenham Green Civils · SiteHUB admin</span>
         <span>Updated ${new Date().toLocaleString("en-GB", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" })}</span></footer></main>
   </div>`;
@@ -899,7 +967,7 @@ function registerView(jobId, key){
       `<button class="${regShow === k ? "on" : ""}" data-regshow="${k}">${l}</button>`).join("")}</div></div>
     <div class="panel">${rows.length ? `<table class="t"><tr>${R.cols.map(c => `<th>${c[0]}</th>`).join("")}<th></th></tr>
       ${rows.map(x => `<tr class="${onSite(x) ? "" : "off"}">${R.cols.map(c => `<td>${c[1](x)}</td>`).join("")}
-        <td class="acts">${editable ? `<button class="lnk" data-edit="${esc(x.id)}">Edit</button>
+        <td class="acts">${R.kind === "plant" || R.kind === "lifting" ? `<button class="lnk" data-certs="${esc(x.id)}">Certificates${(x.docs || []).length ? " (" + x.docs.length + ")" : ""}</button>` : ""}${editable ? `<button class="lnk" data-edit="${esc(x.id)}">Edit</button>
           ${onSite(x) ? `<button class="lnk" data-offhire="${esc(x.id)}">${offWord}</button>` : ""}
           <button class="lnk red" data-del="${esc(x.id)}">Delete</button>` : ""}</td></tr>`).join("")}</table>`
       : emptyState(regShow === "off" ? "Nothing gone off site yet" : "No " + R.noun + "s " + (regShow === "on" ? "on site" : "yet"),
@@ -907,6 +975,7 @@ function registerView(jobId, key){
           editable && regShow !== "off" ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : "")}</div>`);
 }
 function bindRegister(jobId, key){
+  document.querySelectorAll("[data-certs]").forEach(b => b.onclick = () => certModal(jobId, REG[key].kind, b.dataset.certs));
   document.querySelectorAll("[data-fromfleet]").forEach(b => b.onclick = () => fromFleetForm(jobId, key));
   const R = REG[key];
   document.querySelectorAll("[data-regshow]").forEach(b => b.onclick = () => { regShow = b.dataset.regshow; route(); });
@@ -946,16 +1015,16 @@ function hireRows(jobId){
 function hireTable(jobId, rows, withTotal){
   const weekly = rows.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
   const priced = rows.filter(r => hireWeekly(r.x) != null).length;
-  return `<table class="t"><tr><th>Supplier</th><th>Item</th><th>Contract number</th><th>Date on hire</th>
+  return `<table class="t"><tr><th>Supplier</th><th>Item</th><th>Serial no</th><th>Contract number</th><th>Date on hire</th>
         <th class="num">Quantity</th><th class="num">Rate</th><th class="num">Weekly cost</th><th></th></tr>
       ${rows.map(r => { const w = hireWeekly(r.x), key = jobId + "|" + r.k + "|" + esc(r.x.id); return `<tr><td>${esc(r.x.hireCompany || "—")}</td>
         <td><b>${esc(r.x.item)}</b><span class="sub2">${esc(r.l)}${r.x.fleetNo || r.x.idNo ? " · " + esc(r.x.fleetNo || r.x.idNo) : ""}</span></td>
-        <td>${esc(r.x.hireRef || "—")}</td><td>${short(r.x.onDate)}<span class="sub2">${r.x.onDate ? plural(Math.max(0, daysBetween(r.x.onDate, today())), "day") + " on hire" : ""}</span></td>
+        <td>${esc(r.x.serialNo || "—")}</td><td>${esc(r.x.hireRef || "—")}</td><td>${short(r.x.onDate)}<span class="sub2">${r.x.onDate ? plural(Math.max(0, daysBetween(r.x.onDate, today())), "day") + " on hire" : ""}</span></td>
         <td class="num">${hireQty(r.x)}</td><td class="num">${r.x.hireRate === "" || r.x.hireRate == null ? "—" : money(r.x.hireRate) + "<span class=\"sub2\">per week</span>"}</td>
         <td class="num"><b>${w == null ? "—" : money(w)}</b></td>
         <td class="acts">${can(HIRE_MOD[r.k], "edit") ? `<button class="lnk" data-edithire="${key}">Edit</button>
           <button class="lnk" data-hireoff="${key}">Off hire</button>` : ""}</td></tr>`; }).join("")}
-      ${withTotal ? `<tr class="total"><td colspan="6"><b>Total per week</b>${priced < rows.length ? `<span class="sub2">${plural(rows.length - priced, "item")} without a rate</span>` : ""}</td>
+      ${withTotal ? `<tr class="total"><td colspan="7"><b>Total per week</b>${priced < rows.length ? `<span class="sub2">${plural(rows.length - priced, "item")} without a rate</span>` : ""}</td>
         <td class="num"><b>${money(weekly)}</b></td><td></td></tr>` : ""}</table>`;
 }
 const canAddHire = () => HIRE_KINDS.some(([k]) => can(HIRE_MOD[k], "create"));
@@ -981,14 +1050,14 @@ async function viewHireAll(){
   const live = S.jobs.filter(j => j.status !== "archived");
   await Promise.all(live.map(j => loadItems(j.id, true)));
   const q = hireFind.trim().toLowerCase();
-  const match = r => !q || [r.x.hireCompany, r.x.item, r.x.hireRef, r.l].some(v => String(v || "").toLowerCase().includes(q));
+  const match = r => !q || [r.x.hireCompany, r.x.item, r.x.hireRef, r.x.serialNo, r.l].some(v => String(v || "").toLowerCase().includes(q));
   const per = live.map(j => ({ j, rows:hireRows(j.id).filter(match) }));
   const all = per.flatMap(p => p.rows);
   const weekly = all.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
   const jobWeekly = rows => rows.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
   return shell("hire", `
     <div class="title"><h1>Live hire</h1><span class="sub">Every job</span><span class="sp"></span>
-      <input class="in" style="max-width:280px" type="search" placeholder="Search supplier, item or contract" data-hirefind value="${esc(hireFind)}"></div>
+      <input class="in" style="max-width:280px" type="search" placeholder="Search supplier, item, serial or contract" data-hirefind value="${esc(hireFind)}"></div>
     <div class="stats">${stat("Items on hire", all.reduce((n, r) => n + hireQty(r.x), 0))}${stat("Weekly cost", money(weekly))}
       ${stat("Suppliers", new Set(all.map(r => r.x.hireCompany || "Not set")).size)}${stat("Jobs with hire", per.filter(p => p.rows.length).length)}</div>
     ${per.length ? per.filter(p => p.rows.length || !q).map(p => `<div class="panel"><h2>${esc(p.j.name)}<span class="note">${esc([p.j.code, p.j.principal_contractor].filter(Boolean).join(" · "))}</span>
@@ -1001,13 +1070,14 @@ async function viewHireAll(){
 function isHireOnly(){ return !isAdmin() && ((S.me || {}).role || {}).key === "hire_controller"; }
 function hireForm(jobId, kind, item){
   const isNew = !item;
-  const v = Object.assign({ hireCompany:"", item:"", hireRef:"", onDate:today(), qty:1, hireRate:"" }, item || {});
+  const v = Object.assign({ hireCompany:"", item:"", serialNo:"", hireRef:"", onDate:today(), qty:1, hireRate:"" }, item || {});
   const kinds = HIRE_KINDS.filter(([k]) => can(HIRE_MOD[k], isNew ? "create" : "edit"));
   modal(`<h3>${isNew ? "Add hire item" : "Edit hire item"}</h3>
     <p class="lead">${isNew ? "It goes on the job's live hire, and on the right register in the app." : "Changes show in the app the next time it syncs."}</p>
     <div class="g2">
       <div class="f"><label>Supplier *</label><input class="in" data-k="hireCompany" value="${esc(v.hireCompany)}" placeholder="e.g. Hewden"></div>
       <div class="f"><label>Item *</label><input class="in" data-k="item" value="${esc(v.item)}" placeholder="e.g. Heras fencing panels"></div>
+      <div class="f"><label>Serial number</label><input class="in" data-k="serialNo" value="${esc(v.serialNo || "")}" placeholder="From the item's plate"></div>
       <div class="f"><label>Contract number</label><input class="in" data-k="hireRef" value="${esc(v.hireRef)}"></div>
       <div class="f"><label>Date on hire *</label><input class="in" type="date" data-k="onDate" value="${esc(v.onDate)}"></div>
     </div>
@@ -1031,7 +1101,7 @@ function hireForm(jobId, kind, item){
     d.querySelector("[data-yes]").onclick = async () => {
       const kd = isNew ? d.querySelector("[data-kind]").value : kind;
       const out = Object.assign({}, item || { id:newId({ plant:"pl", lifting:"lf", tools:"tl" }[kd]), type:"Other", offDate:"" });
-      ["hireCompany","item","hireRef","onDate"].forEach(n => out[n] = k(n).value.trim());
+      ["hireCompany","item","serialNo","hireRef","onDate"].forEach(n => out[n] = k(n).value.trim());
       if(!out.hireCompany) return err("Who is it hired from?");
       if(!out.item) return err("Say what the item is.");
       if(!out.onDate) return err("Add the date it went on hire.");
@@ -1800,7 +1870,12 @@ async function fleetAllocate(f, jobId, date){
   if(cur && cur.jobId === jobId) throw new Error("It's already on that job.");
   if(cur){ await loadItems(cur.jobId); await saveItem(cur.jobId, cur.kind, Object.assign({}, cur.x, { offDate:date })); }
   await loadItems(jobId);
-  await saveItem(jobId, f.kind, fleetToJobItem(f, jobId, date));
+  const item = fleetToJobItem(f, jobId, date);
+  /* its certificates go with it — from where it is now, or the last job it was on */
+  const prev = cur || (FLOC.history[f.id] || [])[0];
+  if(prev && (prev.x.docs || []).length) item.docs = await carryDocs(prev.x.docs, jobId);
+  if(prev && prev.x.examDate && (!item.examDate || prev.x.examDate > item.examDate)) item.examDate = prev.x.examDate;
+  await saveItem(jobId, f.kind, item);
 }
 async function fleetReturn(f, date){
   const cur = FLOC.at[f.id]; if(!cur) return;
@@ -1849,6 +1924,7 @@ async function viewFleet(){
         ${kk !== "tools" ? `<td>${e ? `<span class="pill ${e.cls}">${esc(e.label)}</span>` : "—"}</td>` : ""}
         <td class="acts">${canEdit ? `<button class="lnk" data-fleetmove="${f.id}">${at ? "Move" : "Allocate"}</button>
           ${at ? `<button class="lnk" data-fleetyard="${f.id}">Back to yard</button>` : ""}
+          ${at && kk !== "tools" ? `<button class="lnk" data-fleetcerts="${f.id}">Certificates${(at.x.docs || []).length ? " (" + at.x.docs.length + ")" : ""}</button>` : ""}
           <button class="lnk" data-fleetedit="${f.id}">Edit</button>` : ""}<button class="lnk" data-fleethist="${f.id}">History</button></td></tr>`; }).join("")}</table>`
       : mine.length ? emptyState("Nothing matches", "Try a different search or filter.")
       : emptyState("No " + label.toLowerCase() + " in the company list yet", "Add each owned " + noun + " once — then allocate it to jobs and move it between them from here.",
@@ -1948,6 +2024,8 @@ function bindFleet(){
   document.querySelectorAll("[data-fleetedit]").forEach(b => b.onclick = () => fleetForm(find(b.dataset.fleetedit)));
   document.querySelectorAll("[data-fleetmove]").forEach(b => b.onclick = () => fleetMoveForm(find(b.dataset.fleetmove)));
   document.querySelectorAll("[data-fleethist]").forEach(b => b.onclick = () => fleetHistory(find(b.dataset.fleethist)));
+  document.querySelectorAll("[data-fleetcerts]").forEach(b => b.onclick = async () => { const at = FLOC.at[b.dataset.fleetcerts];
+    await loadItems(at.jobId, true); certModal(at.jobId, at.kind, at.x.id); });
   document.querySelectorAll("[data-fleetyard]").forEach(b => b.onclick = () => { const f = find(b.dataset.fleetyard), at = FLOC.at[f.id];
     confirmBox("Bring " + f.item + " back to the yard today?", "It comes off " + ((jobById(at.jobId) || {}).name || "the job") + "'s register today. The job keeps its record of it.", "Back to yard",
       async () => { try{ await fleetReturn(f, today()); toast(f.item + " is back in the yard"); route(); }catch(e){ toast(words(e)); } }, false); });
@@ -2161,6 +2239,285 @@ function bindCalendar(jobId){
   });
 }
 
+/* ---------------------------------------------------------------- profile */
+/* The panel that slides in from the right: your name, email, password, sign out. */
+const PW_OK = pw => pw.length >= 8 && /[A-Z]/.test(pw) && /[0-9]/.test(pw);
+const initialsOf = n => String(n || "?").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+function eyeBtn(){ return `<button type="button" class="eye" aria-label="Show password" data-eye>${SVG('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>')}</button>`; }
+async function openProfile(){
+  const old = $(".drawer-wrap"); if(old) old.remove();
+  const { data:{ user } } = await sb.auth.getUser();
+  const me = S.me || {}, email = (user && user.email) || me.email || "";
+  const pending = user && user.new_email ? user.new_email : "";
+  const w = document.createElement("div"); w.className = "drawer-wrap";
+  w.innerHTML = `<aside class="drawer" role="dialog" aria-modal="true" aria-label="Your profile">
+    <div class="dh"><span class="av lg">${esc(initialsOf(me.full_name || email))}</span>
+      <div><b>${esc(me.full_name || email)}</b><span>${esc([(me.role || {}).name, (me.company || {}).name].filter(Boolean).join(" · "))}</span></div>
+      <button type="button" class="dx" aria-label="Close" data-close>&times;</button></div>
+    <div class="db">
+      <section><h4>Your name</h4>
+        <div class="g2"><div class="f"><label>First name</label><input class="in" data-first value="${esc(String(me.full_name || "").split(" ")[0] || "")}"></div>
+          <div class="f"><label>Last name</label><input class="in" data-last value="${esc(String(me.full_name || "").split(" ").slice(1).join(" "))}"></div></div>
+        <p class="err" data-nameerr hidden></p><button class="btn sm" data-savename>Save name</button></section>
+      <section><h4>Email address</h4>
+        <p class="cur">Signed in as <b>${esc(email)}</b></p>
+        ${pending ? `<p class="note-amber">Waiting for you to confirm <b>${esc(pending)}</b> — check that inbox for the link.</p>` : ""}
+        <div class="f"><label>New email address</label><input class="in" type="email" data-email autocomplete="email" placeholder="name@cgcivils.com"></div>
+        <p class="hint">We'll email a link to confirm it. Your sign-in changes once it's confirmed${pending ? "" : " — until then, keep using " + esc(email)}.</p>
+        <p class="err" data-emailerr hidden></p><button class="btn sm" data-saveemail>Change email</button></section>
+      <section><h4>Password</h4>
+        <div class="f"><label>Current password</label><div class="pw"><input class="in" type="password" data-pwcur autocomplete="current-password">${eyeBtn()}</div></div>
+        <div class="f"><label>New password</label><div class="pw"><input class="in" type="password" data-pwnew autocomplete="new-password">${eyeBtn()}</div>
+          <div class="hint">At least 8 characters, with a capital letter and a number.</div></div>
+        <div class="f"><label>Confirm new password</label><div class="pw"><input class="in" type="password" data-pwnew2 autocomplete="new-password">${eyeBtn()}</div></div>
+        <p class="err" data-pwerr hidden></p><button class="btn sm" data-savepw>Change password</button></section>
+      <section class="out"><button class="btn danger" data-signout2>Sign out</button>
+        <p class="hint">Signs you out of the console on this computer. The app on your phone stays signed in.</p></section>
+    </div></aside>`;
+  document.body.appendChild(w);
+  requestAnimationFrame(() => w.classList.add("open"));
+  const d = w.querySelector(".drawer");
+  const close = () => { w.classList.remove("open"); setTimeout(() => w.remove(), 200); document.removeEventListener("keydown", esc_); };
+  const esc_ = e => { if(e.key === "Escape") close(); };
+  document.addEventListener("keydown", esc_);
+  w.addEventListener("mousedown", e => { if(e.target === w) close(); });
+  d.querySelector("[data-close]").onclick = close;
+  d.querySelectorAll("[data-eye]").forEach(b => b.onclick = () => { const i = b.previousElementSibling; i.type = i.type === "password" ? "text" : "password";
+    b.setAttribute("aria-label", i.type === "password" ? "Show password" : "Hide password"); b.classList.toggle("on", i.type === "text"); });
+  const say = (sel, t) => { const e = d.querySelector(sel); e.textContent = t || ""; e.hidden = !t; };
+  const busy = (b, on, label) => { b.disabled = on; if(label) b.textContent = label; };
+
+  d.querySelector("[data-savename]").onclick = async e => {
+    const first = d.querySelector("[data-first]").value.trim(), last = d.querySelector("[data-last]").value.trim();
+    if(!first || !last) return say("[data-nameerr]", "Add your first and last name.");
+    say("[data-nameerr]"); busy(e.target, true);
+    const full = first + " " + last;
+    const { error } = await sb.from("profiles").update({ full_name:full }).eq("id", me.id);
+    busy(e.target, false);
+    if(error) return say("[data-nameerr]", words(error));
+    S.me.full_name = full; toast("Name saved"); close(); route();
+  };
+  d.querySelector("[data-saveemail]").onclick = async e => {
+    const v = d.querySelector("[data-email]").value.trim().toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return say("[data-emailerr]", "That email doesn't look right.");
+    if(v === email.toLowerCase()) return say("[data-emailerr]", "That's the address you already use.");
+    say("[data-emailerr]"); busy(e.target, true, "Sending…");
+    const { error } = await sb.auth.updateUser({ email:v }, { emailRedirectTo:location.origin + location.pathname });
+    busy(e.target, false, "Change email");
+    if(error) return say("[data-emailerr]", /already|registered|exists/i.test(error.message || "") ? "Someone already uses that email address." : /rate|seconds/i.test(error.message || "") ? "Please wait a minute before trying again." : words(error));
+    toast("Check " + v + " for a link to confirm the change", 6000); close();
+  };
+  d.querySelector("[data-savepw]").onclick = async e => {
+    const cur = d.querySelector("[data-pwcur]").value, n1 = d.querySelector("[data-pwnew]").value, n2 = d.querySelector("[data-pwnew2]").value;
+    if(!cur) return say("[data-pwerr]", "Enter your current password.");
+    if(!PW_OK(n1)) return say("[data-pwerr]", "The new password needs at least 8 characters, a capital letter and a number.");
+    if(n1 !== n2) return say("[data-pwerr]", "The two new passwords don't match.");
+    if(n1 === cur) return say("[data-pwerr]", "That's the same as your current password.");
+    say("[data-pwerr]"); busy(e.target, true, "Changing…");
+    /* make sure it's really you before changing it */
+    const chk = await sb.auth.signInWithPassword({ email, password:cur });
+    if(chk.error){ busy(e.target, false, "Change password"); return say("[data-pwerr]", /invalid/i.test(chk.error.message || "") ? "Your current password isn't right." : words(chk.error)); }
+    const { error } = await sb.auth.updateUser({ password:n1 });
+    busy(e.target, false, "Change password");
+    if(error) return say("[data-pwerr]", /weak|short|characters/i.test(error.message || "") ? "Supabase says that password is too weak — try a longer one." : words(error));
+    toast("Password changed — use it next time you sign in, here and on your phone", 6000); close();
+  };
+  d.querySelector("[data-signout2]").onclick = async () => { await sb.auth.signOut(); location.hash = ""; location.reload(); };
+  setTimeout(() => { const f = d.querySelector("[data-first]"); if(f) f.focus(); }, 60);
+}
+/* coming back from the "confirm your new email" link */
+function emailLinkNotice(){
+  const h = location.hash || "";
+  if(!/access_token=|error_description=|type=email_change|message=/.test(h)) return;
+  const q = new URLSearchParams(h.replace(/^#\/?/, ""));
+  const msg = q.get("error_description") ? "That link didn't work: " + q.get("error_description").replace(/\+/g, " ")
+    : q.get("message") ? q.get("message").replace(/\+/g, " ")
+    : "Email address confirmed — use it next time you sign in.";
+  history.replaceState(null, "", location.pathname + "#/");
+  setTimeout(() => toast(msg, 7000), 600);
+}
+
+/* ------------------------------------------------- certificates on plant & lifting */
+/* Kept exactly as the app keeps them: item.docs, newest first, each one a page
+   image with a type, reference and expiry. A PDF is opened into page images
+   here, one entry per page, so it opens, prints and goes into the register
+   pack on site just like a certificate scanned on a phone. */
+const DOC_TYPES = ["Thorough examination certificate","LOLER certificate","Test certificate","Service record","Hire agreement","Operator manual","Other"];
+const isCertType = t => /certificate|examination/i.test(t || "");
+function docStateC(d){
+  if(!d.expires) return null;
+  const left = daysBetween(today(), d.expires);
+  if(left < 0) return { cls:"red", label:"Expired " + nice(d.expires) };
+  if(left <= 30) return { cls:"amber", label:"Expires " + nice(d.expires) };
+  return { cls:"ok", label:"Valid to " + nice(d.expires) };
+}
+let PDFJS = null;
+async function pdfjs(){
+  if(PDFJS) return PDFJS;
+  for(const base of ["https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/", "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/"]){
+    try{ const lib = await import(base + "pdf.min.mjs"); lib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.mjs"; return (PDFJS = lib); }catch(e){}
+  }
+  throw new Error("The PDF reader couldn't load — check the connection and try again.");
+}
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+function toJpeg(source, w, h){
+  const sc = Math.min(1, 1700 / Math.max(w, h));
+  const cv = document.createElement("canvas"); cv.width = Math.round(w * sc); cv.height = Math.round(h * sc);
+  const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(source, 0, 0, cv.width, cv.height);
+  const out = cv.toDataURL("image/jpeg", 0.82); cv.width = cv.height = 0; return out;
+}
+async function fileToPages(file){
+  if(/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name)){
+    const lib = await pdfjs();
+    const pdf = await lib.getDocument({ data:new Uint8Array(await file.arrayBuffer()), isEvalSupported:false }).promise;
+    const out = [];
+    try{
+      for(let n = 1; n <= Math.min(pdf.numPages, 20); n++){
+        const pg = await pdf.getPage(n), base = pg.getViewport({ scale:1 });
+        const vp = pg.getViewport({ scale:Math.min(4, 1700 / Math.max(base.width, base.height)) });
+        const cv = document.createElement("canvas"); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+        const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height);
+        await pg.render({ canvasContext:g, viewport:vp }).promise;
+        out.push(toJpeg(cv, cv.width, cv.height)); cv.width = cv.height = 0;
+      }
+    } finally { if(pdf.destroy) pdf.destroy(); }
+    return out;
+  }
+  if(!/^image\//.test(file.type)) throw new Error("Choose a PDF or a photo.");
+  const img = await loadImg(await readDataUrl(file));
+  return [toJpeg(img, img.naturalWidth, img.naturalHeight)];
+}
+async function uploadDataUrl(jobId, url){
+  const blob = await (await fetch(url)).blob();
+  const path = S.me.company_id + "/" + jobId + "/" + (await shaHex(url)) + "." + (EXT[blob.type] || "jpg");
+  const { error } = await sb.storage.from("job-photos").upload(path, blob, { contentType:blob.type, upsert:false });
+  if(error && !/exists|duplicate/i.test(error.message || "")) throw error;
+  return "sbimg:" + path;
+}
+/* when a machine moves job its certificates go with it (copied into the new job's store) */
+async function carryDocs(docs, jobId){
+  const out = [];
+  for(const d of (docs || [])){
+    const c = Object.assign({}, d);
+    if(typeof d.src === "string" && d.src.indexOf("sbimg:") === 0){
+      const from = d.src.slice(6), parts = from.split("/");
+      if(parts[1] !== jobId){
+        const to = parts[0] + "/" + jobId + "/" + parts.slice(2).join("/");
+        const { error } = await sb.storage.from("job-photos").copy(from, to);
+        if(error && !/exists|duplicate/i.test(error.message || "")) throw error;
+        c.src = "sbimg:" + to;
+      }
+    }
+    out.push(c);
+  }
+  return out;
+}
+function certModal(jobId, kind, id){
+  const it = () => list(jobId, kind).find(x => String(x.id) === String(id)) || {};
+  const editable = !!can(kind === "lifting" ? "lifting" : "plant", "edit");
+  let file = null, changed = false;
+  /* pages of one upload share a group, so a 3-page PDF is one certificate here */
+  const groups = () => {
+    const by = new Map();
+    (it().docs || []).forEach(d => { const k = d.group || d.id; if(!by.has(k)) by.set(k, []); by.get(k).push(d); });
+    return [...by.values()].map(pages => { pages.sort((a, b) => (b.scannedAt || 0) - (a.scannedAt || 0));
+      const d = pages[0]; return { key:d.group || d.id, d, pages, ref:String(d.title || "").replace(/\s*—?\s*page \d+ of \d+$/i, "") }; })
+      .sort((a, b) => (b.d.scannedAt || b.d.addedAt || 0) - (a.d.scannedAt || a.d.addedAt || 0));
+  };
+  const DOCICO = SVG('<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="m9 14 2 2 4-4"/>');
+  const draw = () => {
+    const x = it(), gs = groups(), ex = examState(x);
+    return `<div class="cm">
+      <div class="cm-h"><div><span class="cm-k">Certificates</span><b>${esc(x.item || "")}</b>${x.fleetNo || x.idNo ? `<span class="cm-no">${esc(x.fleetNo || x.idNo)}</span>` : ""}</div>
+        <button type="button" class="dx" aria-label="Close" data-no>&times;</button></div>
+      <div class="cm-b">
+        <div class="cm-sum"><span>${kind === "lifting" ? "Lifting gear" : "Plant"} · shows in the app on this job's register</span>
+          ${ex ? `<span class="pill ${ex.cls}">${esc(ex.label)}</span>` : `<span class="pill">No examination date</span>`}</div>
+        ${gs.length ? `<ul class="cm-list">${gs.map(g => { const st = docStateC(g.d); return `<li>
+            <span class="cm-ic">${DOCICO}</span>
+            <span class="cm-t"><b>${esc(g.d.type || "Document")}</b>
+              <em>${esc([g.ref || "", g.pages.length > 1 ? plural(g.pages.length, "page") : "", "added " + nice(iso(g.d.scannedAt || g.d.addedAt || Date.now()))].filter(Boolean).join(" · "))}</em></span>
+            ${st ? `<span class="pill ${st.cls}">${esc(st.label)}</span>` : ""}
+            <span class="cm-a">${g.pages.slice().reverse().map((p, i) => `<button type="button" class="btn line sm" data-docopen="${esc(p.id)}">${g.pages.length > 1 ? "Page " + (i + 1) : "Open"}</button>`).join("")}
+              ${editable ? `<button type="button" class="btn ghost sm cm-del" data-docdel="${esc(g.key)}" aria-label="Remove">Remove</button>` : ""}</span></li>`; }).join("")}</ul>`
+          : `<div class="cm-none">No certificates on this ${kind === "lifting" ? "item" : "machine"} yet.</div>`}
+        ${editable ? `<div class="cm-add">
+          <h4>Add a certificate</h4>
+          <label class="drop${file ? " has" : ""}" data-drop>
+            <input type="file" accept="application/pdf,.pdf,image/*" data-cfile hidden>
+            <span class="drop-ic">${SVG('<path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>')}</span>
+            <span class="drop-t">${file ? `<b>${esc(file.name)}</b><em>${Math.max(1, Math.round(file.size / 1024))} KB · click to choose a different file</em>`
+              : `<b>Drop the PDF or photo here</b><em>or click to choose a file</em>`}</span></label>
+          <div class="g3">
+            <div class="f"><label>What is it?</label><select class="in" data-ctype>${DOC_TYPES.map(t => `<option ${t === (kind === "lifting" ? "LOLER certificate" : "Thorough examination certificate") ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+            <div class="f"><label>Reference</label><input class="in" data-cref placeholder="Certificate number"></div>
+            <div class="f" data-cexpwrap><label>Valid until / next exam</label><input class="in" type="date" data-cexp></div></div>
+          <p class="err" hidden></p>
+          <div class="cm-go"><span class="hint">A PDF is added page by page, so it opens and prints on site like a scanned certificate.</span>
+            <button class="btn" data-cadd>Add certificate</button></div></div>` : ""}
+      </div></div>`;
+  };
+  modal(draw(), (d, close) => {
+    d.classList.add("dlg-cert");
+    const done = () => { close(); if(changed) route(); };
+    const bind = () => {
+      d.querySelectorAll("[data-no]").forEach(b => b.onclick = done);
+      const findDoc = docId => (it().docs || []).find(x => x.id === docId);
+      d.querySelectorAll("[data-docopen]").forEach(b => b.onclick = () => openDoc(findDoc(b.dataset.docopen)));
+      d.querySelectorAll("[data-docdel]").forEach(b => b.onclick = () => {
+        const g = groups().find(x => x.key === b.dataset.docdel); if(!g) return;
+        confirmBox("Remove this " + (g.d.type || "document").toLowerCase() + "?", (g.pages.length > 1 ? "All " + g.pages.length + " pages come" : "It comes") + " off the app too.", "Remove", async () => {
+          const gone = new Set(g.pages.map(p => p.id));
+          try{ await saveItem(jobId, kind, Object.assign({}, it(), { docs:(it().docs || []).filter(x => !gone.has(x.id)) })); changed = true; d.innerHTML = draw(); bind(); toast("Removed"); }
+          catch(e){ toast(words(e)); }
+        });
+      });
+      const type = d.querySelector("[data-ctype]");
+      if(!type) return;
+      const keep = { t:type.value };
+      const sync = () => { d.querySelector("[data-cexpwrap]").style.visibility = isCertType(type.value) ? "visible" : "hidden"; };
+      type.onchange = sync; sync();
+      const inp = d.querySelector("[data-cfile]"), drop = d.querySelector("[data-drop]");
+      const take = f => { if(!f) return; const t = type.value, r = d.querySelector("[data-cref]").value, e = d.querySelector("[data-cexp]").value;
+        file = f; d.innerHTML = draw(); bind();
+        d.querySelector("[data-ctype]").value = t; d.querySelector("[data-cref]").value = r; d.querySelector("[data-cexp]").value = e;
+        d.querySelector("[data-ctype]").onchange(); };
+      inp.onchange = () => take(inp.files[0]);
+      ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+      ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+      drop.addEventListener("drop", e => take(e.dataTransfer.files && e.dataTransfer.files[0]));
+      const add = d.querySelector("[data-cadd]");
+      add.onclick = async () => {
+        const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+        const t = type.value, ref = d.querySelector("[data-cref]").value.trim();
+        const exp = isCertType(t) ? d.querySelector("[data-cexp]").value : "";
+        if(!file) return err("Choose the certificate file first.");
+        if(file.size > 25 * 1024 * 1024) return err("That file is over 25 MB — please make it smaller.");
+        add.disabled = true; add.textContent = "Reading the file…"; err("");
+        try{
+          const pages = await fileToPages(file);
+          if(!pages.length) throw new Error("That PDF has no pages.");
+          add.textContent = pages.length > 1 ? "Uploading " + pages.length + " pages…" : "Uploading…";
+          const now = Date.now(), group = "grp_" + now, fresh = [];
+          for(let i = 0; i < pages.length; i++){
+            fresh.push({ id:"doc_" + (now + i), group, type:t, title:ref + (pages.length > 1 ? (ref ? " — " : "") + "page " + (i + 1) + " of " + pages.length : ""),
+              expires:exp || "", src:await uploadDataUrl(jobId, pages[i]), scannedAt:now + (pages.length - i) });
+          }
+          const x = it(), next = Object.assign({}, x, { docs:fresh.concat(x.docs || []) });
+          /* a certificate with a later date moves the item's examination date on (as the app does) */
+          if(exp && isCertType(t) && (!x.examDate || exp > x.examDate)) next.examDate = exp;
+          await saveItem(jobId, kind, next); changed = true;
+          /* company plant keeps the new examination date too, so it travels with the machine */
+          if(next.fleetId && next.examDate !== x.examDate) await sb.from("fleet_items").update({ exam_date:next.examDate }).eq("id", next.fleetId);
+          toast(pages.length > 1 ? "Certificate added — " + plural(pages.length, "page") : "Certificate added");
+          file = null; d.innerHTML = draw(); bind();
+        }catch(e){ add.disabled = false; add.textContent = "Add certificate"; err(e.message || words(e)); }
+      };
+    };
+    bind();
+  });
+}
+
 /* ---------------------------------------------------------------- staff */
 async function loadTeam(){
   const [p, r, j, m] = await Promise.all([ sb.rpc("team_list"), sb.from("roles").select("id, key, name, rank").order("rank", { ascending:false }),
@@ -2371,6 +2728,7 @@ async function route(){
     if(my !== routing) return;
     root.innerHTML = html;
     const so = $("[data-signout]"); if(so) so.onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    document.querySelectorAll("[data-profile]").forEach(b => b.onclick = openProfile);
     bind();
   }catch(e){
     done();
@@ -2401,6 +2759,7 @@ function signIn(msg){
 }
 async function start(){
   if(SUPABASE_URL.indexOf("https://") !== 0){ $("#root").innerHTML = `<div class="gate"><p>This copy isn't connected to a database yet.</p></div>`; return; }
+  emailLinkNotice();
   let me = null;
   try{ me = await loadMe(); }catch(e){ return signIn(words(e)); }
   if(!me) return signIn();
