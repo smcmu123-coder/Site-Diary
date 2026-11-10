@@ -270,6 +270,15 @@ body.busy main .content{opacity:.6;transition:opacity .2s .15s}
 img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:#fff}
 /* top-right profile button + the panel it opens */
 .topbar{display:flex;justify-content:flex-end;margin:-6px 0 10px}
+.topbar{align-items:center;gap:12px}
+.fdset{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+.fdset h4{margin:0 0 8px;font-size:14px;color:var(--green)}
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.formdays{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:0 0 14px;color:var(--ink-2,#444);font-size:14px}
+.formdays b{color:var(--ink,#1A1A1A);font-weight:650}
+.vo{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;background:var(--tint,#EDF2EE);color:var(--green,#1F5A2D);font-weight:700;font-size:13px;border:1px solid var(--line)}
+.vo .ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
 .mebtn{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 12px 4px 4px;font:inherit;color:var(--ink)}
 .mebtn:hover{background:var(--tint);border-color:var(--tint-2)}
 .mebtn .nm{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
@@ -439,13 +448,24 @@ function confirmBox(title, text, yes, onYes, danger){
 const S = { me:null, perms:{}, jobs:[], items:{}, team:null, roles:[], members:[] };
 const can = (m, a) => S.perms[m + "." + a] || "";
 const isAdmin = () => !!can("company_settings", "view");
+/* who gets what in the console:
+   Admin — everything · Contracts Manager — everything except the Admin page
+   Director / QS — look only · Hire Controller — live hire only
+   Project / Site Manager and operatives — the app, not the console */
+const roleKey = () => ((S.me || {}).role || {}).key || "";
+const myRank = () => Number(((S.me || {}).role || {}).rank) || 0;
+const isViewOnly = () => !isAdmin() && roleKey() === "director_qs";
+const consoleOK = () => isAdmin() || ["contracts_manager", "director_qs", "hire_controller"].includes(roleKey());
+/* only Admins hand out, change or remove Admins and Directors / QS */
+const rolesICanGive = () => isAdmin() ? S.roles : S.roles.filter(r => (Number(r.rank) || 0) <= myRank());
+const canHandle = p => isAdmin() || (Number(p.rank) || 0) <= myRank();
 
 /* ---------------------------------------------------------------- data */
 async function loadMe(){
   const { data:{ session } } = await sb.auth.getSession();
   if(!session) return null;
   const { data:p, error } = await sb.from("profiles")
-    .select("id, full_name, email, active, company_id, role:roles(key, name), company:companies(name)")
+    .select("id, full_name, email, active, company_id, role:roles(key, name, rank), company:companies(name)")
     .eq("id", session.user.id).maybeSingle();
   if(error) throw error;
   if(!p) return null;
@@ -638,13 +658,13 @@ function shell(active, inner){
         <a href="#/" class="${active === "dash" ? "on" : ""}">${ICON.dash}Dashboard</a>
         <a href="#/plant" class="${active === "fleet" ? "on" : ""}">${TI.plant}Plant</a>
         <a href="#/staff" class="${active === "staff" ? "on" : ""}">${ICON.staff}Staff</a>
-        <a href="#/admin" class="${active === "admin" ? "on" : ""}">${ICON.admin}Admin</a>`}
+        ${isAdmin() ? `<a href="#/admin" class="${active === "admin" ? "on" : ""}">${ICON.admin}Admin</a>` : ""}`}
       </nav>
       <div class="me"><b>${esc(me.full_name || me.email || "")}</b>${esc((me.role || {}).name || "")}
         · ${esc((me.company || {}).name || "")}<br>
-        <div class="links"><button data-profile>Your profile</button>${isHireOnly() ? "" : `<a href="./">Open the site app</a>`}<button data-signout>Sign out</button></div></div>
+        <div class="links"><button data-profile>Your profile</button>${isHireOnly() || isViewOnly() ? "" : `<a href="./">Open the site app</a>`}<button data-signout>Sign out</button></div></div>
     </aside>
-    <main><div class="topbar"><button type="button" class="mebtn" data-profile aria-label="Your profile"><span class="av">${esc(initialsOf(me.full_name || me.email))}</span>
+    <main><div class="topbar">${isViewOnly() ? `<span class="vo" title="You can look at everything but not change anything">${SVG('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>')}View only</span>` : ""}<button type="button" class="mebtn" data-profile aria-label="Your profile"><span class="av">${esc(initialsOf(me.full_name || me.email))}</span>
         <span class="nm"><b>${esc(me.full_name || me.email || "")}</b><em>${esc((me.role || {}).name || "")}</em></span>
         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>
       <div class="content">${inner}</div>
@@ -708,12 +728,12 @@ async function viewDashboard(){
           ${cell("Hours", s.hrs, "this week")}
           ${cell("Delays", days(s.lostMins), s.lostWeekMins ? hm(s.lostWeekMins) + " this week" : "time lost", s.lostWeekMins > 0)}
           ${cell("H&amp;S overdue", s.hs, s.hs ? "to catch up" : "all up to date", s.hs)}
-          ${cell("RAMS", s.cur ? "Rev " + esc(revText(s.cur)) : "None", s.cur ? (s.unsigned ? s.unsigned + " still to sign" : "everyone signed") : "upload one", !s.cur || s.unsigned)}
+          ${cell("RAMS", s.cur ? "Rev " + esc(revText(s.cur)) : "None", s.cur ? (s.unsigned ? s.unsigned + " still to sign" : "everyone signed") : (can("rams", "create") ? "upload one" : "not uploaded yet"), !s.cur || s.unsigned)}
         </div>
         ${s.prog ? `<div class="jp"><div class="jpl"><span>Programme</span><b>${s.prog.over ? "Past completion — " + nice(j.end_date) : "Week " + s.prog.week + " of " + s.prog.weeks}</b>
             <em>${s.prog.over ? "" : s.prog.left + " days to completion"}</em></div>
           <div class="bar2"><i style="width:${s.prog.pct}%"></i></div></div>`
-        : `<div class="jp"><div class="jpl"><span>Programme</span><em>${j.start_date ? "Started " + nice(j.start_date) + " — " : ""}add a completion date under Edit job details to track time used</em></div></div>`}
+        : `<div class="jp"><div class="jpl"><span>Programme</span><em>${j.start_date ? "Started " + nice(j.start_date) + " — " : ""}${can("jobs", "edit") ? "add a completion date under Edit job details to track time used" : "no completion date set yet"}</em></div></div>`}
         ${s.flags.length ? `<div class="jf">${s.flags.map(f => `<span>${TI.alert}${esc(f)}</span>`).join("")}</div>` : ""}
       </div></a>`;
   };
@@ -742,6 +762,7 @@ function jobForm(job, meta){
   const v = job ? { name:job.name, code:job.code, pc:job.principal_contractor || info.pc || "", address:job.address || info.address || "",
     theirRef:info.theirRef || "", start:job.start_date || (meta && meta.start) || "", end:job.end_date || "", status:job.status || "live" }
     : { name:"", code:"", pc:"", address:"", theirRef:"", start:today(), end:"", status:"live" };
+  const fd = job ? formDays(job.id) : Object.assign({}, HS_WEEKLY_DAY);
   modal(`<h3>${job ? "Edit job" : "Create new job"}</h3>
     <p class="lead">${job ? "Changes show in the app the next time it syncs." : "It appears in the app for everyone who can see this job."}</p>
     <div class="f"><label>Job name *</label>${job ? `<div class="hint">The name links the job to every record on site, so it can't be changed here.</div>` : ""}
@@ -758,6 +779,10 @@ function jobForm(job, meta){
       <div class="f"><label>Status</label><select class="in" data-k="status">${["tender","live","complete","archived"].map(s =>
         `<option ${s === v.status ? "selected" : ""} value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div>
     </div>
+    <div class="fdset"><h4>Weekly forms — the day each is due on site</h4>
+      <div class="g4">${FORM_DAYS.map(([k, l]) => `<div class="f"><label>${esc(l)}</label><select class="in" data-fd="${k}">${DAY_NAMES.map((n, i) =>
+        `<option value="${i}" ${i === fd[k] ? "selected" : ""}>${n}</option>`).join("")}</select></div>`).join("")}</div>
+      <div class="hint">The app chases each one from that day, and the console shows it overdue after it.</div></div>
     <p class="err" hidden></p>
     <div class="acts" style="justify-content:space-between"><span>${job && can("jobs", "delete") ? `<button class="btn danger sm" data-deljob>Delete job</button>` : ""}</span>
       <span><button class="btn ghost" data-no>Cancel</button> <button class="btn" data-yes>${job ? "Save" : "Create job"}</button></span></div>`,
@@ -788,6 +813,10 @@ function jobForm(job, meta){
         m.info = Object.assign({}, m.info || {}, { pc:val("pc"), address:val("address"), ref:code, theirRef:val("theirRef") });
         if(val("start")) m.start = val("start");
         await saveMeta(id, m);
+        /* the weekly form days — saved for a new job, and whenever they're changed */
+        const days = {}; FORM_DAYS.forEach(([k]) => days[k] = Number(d.querySelector(`[data-fd="${k}"]`).value));
+        const had = list(id, "_forms")[0];
+        if(!had || FORM_DAYS.some(([k]) => Number(had[k]) !== days[k])) await saveItem(id, "_forms", Object.assign({ id:"days" }, days));
         close(); toast(job ? "Job saved" : "Job created");
         await loadJobs(); route();
       }catch(e){ btn.disabled = false; err(words(e)); }
@@ -1249,7 +1278,16 @@ function bindTimesheets(){
    days from the day the form was first used; weekly forms on their day of the
    week (toolbox talk Monday, PUWER and LOLER Friday); an excavation inspection
    is due the morning after a diary says it was left open. */
-const HS_WEEKLY_DAY = { toolboxtalk:0, puwer:4, loler:4 };
+const HS_WEEKLY_DAY = { toolboxtalk:0, puwer:4, loler:4, pack:4 };
+/* the day each weekly form is due on this job (Monday is 0) — set in the job details */
+const FORM_DAYS = [["toolboxtalk","Toolbox talk"],["puwer","PUWER inspection"],["loler","LOLER inspection"],["pack","H&S pack"]];
+const DAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+function formDays(jobId){
+  const set = list(jobId, "_forms")[0] || {}, out = {};
+  Object.keys(HS_WEEKLY_DAY).forEach(k => { const n = Number(set[k]); out[k] = set[k] !== undefined && set[k] !== "" && n >= 0 && n <= 6 ? n : HS_WEEKLY_DAY[k]; });
+  return out;
+}
+const dueDay = (jobId, form) => DAY_NAMES[formDays(jobId)[form]];
 const HS_LOOKBACK = 60;
 const recsOf = (jobId, form) => list(jobId, "records").filter(r => r.form === form);
 const doneRecs = (jobId, form) => recsOf(jobId, form).filter(r => r.status === "submitted");
@@ -1313,7 +1351,7 @@ function excDue(jobId){
 }
 /* weekly: toolbox talk, PUWER, LOLER ------------------------------------- */
 function weeklyDue(jobId, form){
-  const t = today(), first = firstDone(jobId, form), day = HS_WEEKLY_DAY[form] || 0;
+  const t = today(), first = firstDone(jobId, form), day = formDays(jobId)[form] || 0;
   const doneWeeks = new Set(doneRecs(jobId, form).map(r => weekStart(r.date)));
   const overdue = [];
   let ws = first ? weekStart([first, jobStart(jobId)].filter(Boolean).sort().pop()) : weekStart(t);
@@ -1558,6 +1596,8 @@ function hsHub(jobId){
   return shell("dash", `
     <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Health and safety</div>
     <div class="jobbar">${esc(job.name)}<span class="ref">Health and safety</span></div>
+    <p class="formdays">Due each week: ${FORM_DAYS.map(([k, l]) => `<span><b>${esc(l)}</b> ${esc(dueDay(jobId, k))}</span>`).join("")}
+      ${can("jobs", "edit") ? `<button class="lnk" data-editjob="${jobId}">Change days</button>` : ""}</p>
     <div class="sectiles three">${HS_SECTIONS.map(([k, t]) => { const s = hsTileState(jobId, k);
       return `<a class="st" href="#/job/${jobId}/hs/${k}">${s.flag ? `<span class="flag ${s.flag.cls}">${esc(s.flag.label)}</span>` : ""}
         <span class="ic">${HSI[k]}</span><span class="t">${t}</span><span class="v">${esc(s.v)}</span></a>`; }).join("")}</div>`);
@@ -1655,7 +1695,7 @@ function hsWeekly(jobId, form){
   const s = weeklyDue(jobId, form), recs = recsOf(jobId, form).sort(byNewest);
   const isP = form === "puwer", title = isP ? "PUWER Inspections" : "LOLER Inspections";
   const rows = r => ((r.data || {})[isP ? "tools" : "items"] || []);
-  return shell("dash", hsHead(jobId, title, (isP ? "Tools and small plant" : "Lifting equipment") + " — once a week, due Friday") + `
+  return shell("dash", hsHead(jobId, title, (isP ? "Tools and small plant" : "Lifting equipment") + " — once a week, due " + dueDay(jobId, form)) + `
     <div class="stats">${stat("Weeks done", doneRecs(jobId, form).length)}${stat("Overdue", s.overdue.length, true)}${stat("This week", s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
     ${s.overdue.length || s.dueNow ? attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:"Week commencing " + nice(x.week), when:"due " + short(x.due) }))
         .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:"This week's " + (isP ? "PUWER register" : "LOLER inspection"), when:short(today()) }] : [])) : ""}
@@ -1670,7 +1710,7 @@ function hsToolbox(jobId){
   const s = weeklyDue(jobId, "toolboxtalk"), recs = recsOf(jobId, "toolboxtalk").sort(byNewest);
   const att = r => ((r.data || {}).attendees || []).filter(x => x && (x.attended === true || (x.sig && x.sig.src))).length;
   const cat = r => { const t = (r.data || {}).libraryTalk; const l = t && LIB && LIB.items.find(x => x.id === t.id); return l ? l.category : null; };
-  return shell("dash", hsHead(jobId, "Toolbox Talks", "Once a week, due Monday") + `
+  return shell("dash", hsHead(jobId, "Toolbox Talks", "Once a week, due " + dueDay(jobId, "toolboxtalk")) + `
     <div class="stats">${stat("Talks done", doneRecs(jobId, "toolboxtalk").length)}${stat("Overdue", s.overdue.length, true)}${stat("This week", s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
     ${attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:"Week commencing " + nice(x.week), when:"due " + short(x.due) }))
       .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:"This week's toolbox talk", when:short(today()) }] : []))}
@@ -2597,7 +2637,7 @@ async function loadTeam(){
   S.team = p.data || []; S.roles = r.data || []; S.teamJobs = (j.data || []).filter(x => x.status !== "archived" && x.status !== "deleted"); S.members = m.data || [];
 }
 const jobsOf = uid => S.members.filter(m => m.user_id === uid).map(m => m.job_id);
-const SEES_ALL = ["admin", "director_qs", "hire_controller"];
+const SEES_ALL = ["admin", "director_qs", "contracts_manager", "hire_controller"];
 async function viewStaff(){
   await Promise.all([loadTeam(), loadWorkers()]);
   await loadAllocations();
@@ -2664,8 +2704,8 @@ function inviteForm(){
     <div class="g2"><div class="f"><label>First name *</label><input class="in" data-k="first"></div>
       <div class="f"><label>Last name *</label><input class="in" data-k="last"></div></div>
     <div class="f"><label>Email *</label><input class="in" type="email" data-k="email"></div>
-    <div class="f"><label>Role</label><select class="in" data-k="role">${S.roles.map(r => `<option value="${r.key}" ${r.key === "site_manager" ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select></div>
-    <div class="f"><label>Jobs</label><div class="hint">Admin, Director / QS and Hire Controller see every job anyway.</div>${jobChips(chosen)}</div>
+    <div class="f"><label>Role</label><select class="in" data-k="role">${rolesICanGive().map(r => `<option value="${r.key}" ${r.key === "site_manager" ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select></div>
+    <div class="f"><label>Jobs</label><div class="hint">Admin, Director / QS, Contracts Manager and Hire Controller see every job anyway.</div>${jobChips(chosen)}</div>
     <p class="err" hidden></p>
     <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Send invite</button></div>`, (d, close) => {
     bindChips(d, chosen);
@@ -2686,10 +2726,10 @@ function inviteForm(){
 }
 function manageForm(uid){
   const p = S.team.find(x => x.id === uid); if(!p) return;
-  const isMe = p.id === S.me.id, manage = !!can("team", "manage"), alloc = !!can("labour", "allocate");
+  const isMe = p.id === S.me.id, manage = !!can("team", "manage") && canHandle(p), alloc = !!can("labour", "allocate");
   const chosen = jobsOf(uid).slice();
   modal(`<h3>${esc(p.full_name || p.email)}</h3><p class="lead">${esc(p.email || "")}</p>
-    ${manage && !isMe ? `<div class="f"><label>Role</label><select class="in" data-role>${S.roles.map(r => `<option value="${r.id}" ${r.id === p.role_id ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select></div>` : ""}
+    ${manage && !isMe ? `<div class="f"><label>Role</label><select class="in" data-role>${rolesICanGive().map(r => `<option value="${r.id}" ${r.id === p.role_id ? "selected" : ""}>${esc(r.name)}</option>`).join("")}</select></div>` : ""}
     ${alloc ? `<div class="f"><label>Jobs</label>${jobChips(chosen)}</div>` : ""}
     <p class="err" hidden></p>
     <div class="acts" style="justify-content:space-between;flex-wrap:wrap">
@@ -2768,7 +2808,7 @@ async function route(){
     if(isHireOnly()){ html = await viewHireAll(); bind = bindHire; }
     else if(h[0] === "plant"){ html = await viewFleet(); bind = bindFleet; }
     else if(h[0] === "staff"){ html = await viewStaff(); bind = bindStaff; }
-    else if(h[0] === "admin"){ html = await viewAdmin(); bind = bindLibrary; }
+    else if(h[0] === "admin" && isAdmin()){ html = await viewAdmin(); bind = bindLibrary; }
     else if(h[0] === "archived"){ html = await viewArchived(); }
     else if(h[0] === "job" && h[1]){
       const id = h[1], sec = h[2];
@@ -2801,6 +2841,7 @@ async function route(){
     const so = $("[data-signout]"); if(so) so.onclick = async () => { await sb.auth.signOut(); location.reload(); };
     document.querySelectorAll("[data-profile]").forEach(b => b.onclick = openProfile);
     bind();
+    document.querySelectorAll("[data-editjob]").forEach(b => { if(!b.onclick) b.onclick = () => jobForm(jobById(b.dataset.editjob), (S.items[b.dataset.editjob] || {}).meta); });
   }catch(e){
     done();
     if(my !== routing) return;
@@ -2835,9 +2876,9 @@ async function start(){
   try{ me = await loadMe(); }catch(e){ return signIn(words(e)); }
   if(!me) return signIn();
   if(!me.active || !me.company_id) return signIn("Your account isn't set up for SiteHUB. Speak to your admin.");
-  if(!isAdmin() && !isHireOnly()){
+  if(!consoleOK()){
     $("#root").innerHTML = `<div class="gate"><div class="card"><img src="logo.png" alt=""><h1>Use the SiteHUB app</h1>
-      <p>The admin console is for admins. Everything for your role is in the SiteHUB app.</p>
+      <p>The admin console is for the office. Everything for your role is in the SiteHUB app.</p>
       <a class="btn" style="display:block;text-decoration:none" href="./">Open the app</a>
       <p><button class="lnk" id="so">Sign out</button></p></div></div>`;
     $("#so").onclick = async () => { await sb.auth.signOut(); location.reload(); };
