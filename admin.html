@@ -39,7 +39,7 @@ a{color:var(--green)}
 .side .me b{color:#fff;font-weight:700;display:block;font-size:13.5px}
 .side .me a,.side .me button{color:#fff;background:none;border:none;padding:0;font-size:12.5px;text-decoration:underline;text-underline-offset:2px}
 .side .me .links{margin-top:8px;display:flex;gap:14px}
-main{padding:30px 44px 28px;min-width:0;display:flex;flex-direction:column;min-height:100vh}
+main{padding:clamp(18px,2.2vw,34px) clamp(16px,2.6vw,44px) 28px;min-width:0;display:flex;flex-direction:column;min-height:100vh}
 main > .content{flex:1}
 .foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:40px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3)}
 
@@ -57,7 +57,7 @@ main > .content{flex:1}
 .jobbar .lnk{color:#fff;text-transform:none;letter-spacing:0;text-decoration:underline;text-underline-offset:2px}
 
 /* ---------- tiles ---------- */
-.jobtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:26px;max-width:1080px}
+.jobtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:clamp(14px,1.6vw,26px)}
 .jt{min-height:200px;border-radius:22px;background:var(--green);color:#fff;border:none;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:22px;
   text-decoration:none;transition:transform .12s ease, background .12s ease, box-shadow .12s ease;font-family:var(--font)}
@@ -70,7 +70,7 @@ main > .content{flex:1}
 .jt.new:hover{background:var(--tint-2);box-shadow:none}
 .jt.new .plus{font-size:34px;line-height:1;font-weight:300}
 /* dashboard job cards: the job at a glance */
-.jobcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(500px,1fr));gap:24px;max-width:1240px}
+.jobcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:clamp(14px,1.6vw,24px)}
 .jobcards .jt.new{min-height:180px}
 .jc{display:flex;flex-direction:column;border-radius:22px;overflow:hidden;border:1.5px solid var(--green);background:#fff;color:var(--ink);text-decoration:none;
   transition:transform .12s ease, box-shadow .12s ease}
@@ -98,10 +98,10 @@ main > .content{flex:1}
 .jf{display:flex;flex-wrap:wrap;gap:6px}
 .jf span{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--red);background:var(--red-50);border-radius:99px;padding:4px 10px}
 .jf .ico{width:13px;height:13px;stroke-width:2.2}
-@media (max-width:1150px){ .jobcards{grid-template-columns:1fr} }
+
 @media (max-width:640px){ .jks{grid-template-columns:repeat(2,minmax(0,1fr))} .jk:nth-child(4n){border-right:1px solid var(--line)} .jk:nth-child(2n){border-right:none} .jk:nth-last-child(-n+4){border-bottom:1px solid var(--line)} .jk:nth-last-child(-n+2){border-bottom:none} }
-.sectiles{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:24px;max-width:1080px}
-.st{aspect-ratio:1/0.82;border-radius:22px;background:var(--green);color:#fff;
+.sectiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(14px,1.6vw,24px)}
+.st{min-height:clamp(170px,15vw,280px);border-radius:22px;background:var(--green);color:#fff;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:18px;
   text-decoration:none;position:relative;transition:transform .12s ease, background .12s ease, box-shadow .12s ease}
 .st:hover{background:var(--green-h);transform:translateY(-2px);box-shadow:0 8px 22px rgba(31,90,45,.22)}
@@ -109,7 +109,7 @@ main > .content{flex:1}
 .st .v{font-size:21px;line-height:1.3;white-space:pre-line;font-weight:400}
 .st .flag{position:absolute;top:12px;right:12px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:#fff}
 .st .flag.red{color:var(--red)} .st .flag.amber{color:var(--amber)}
-@media (max-width:1150px){ .sectiles,.sectiles.three{grid-template-columns:repeat(2,minmax(170px,1fr))} }
+@media (max-width:900px){ .sectiles,.sectiles.three{grid-template-columns:repeat(2,minmax(0,1fr))} }
 
 /* ---------- section bars + record tables ---------- */
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
@@ -148,6 +148,26 @@ table.t td.acts{text-align:right;white-space:nowrap;width:1%}
 .seg button{border:none;background:#fff;padding:7px 14px;font-size:13.5px;font-weight:600;color:var(--ink-2)}
 .seg button + button{border-left:1px solid var(--line)}
 .seg button.on{background:var(--green);color:#fff}
+.seg a.segl{display:inline-block;padding:7px 14px;font-size:13.5px;font-weight:600;color:var(--ink-2);text-decoration:none;background:#fff}
+.seg a.segl + a.segl{border-left:1px solid var(--line)} .seg a.segl.on{background:var(--green);color:#fff}
+/* job labour calendar */
+.cal{border:1px solid var(--line)}
+.cal-h{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--tint);border-bottom:1px solid var(--line)}
+.cal-h span{padding:8px 10px;font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em}
+.cal-g{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cal-d{min-height:clamp(96px,9vw,150px);border:none;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#fff;padding:7px 8px;text-align:left;
+  display:flex;flex-direction:column;gap:3px;font:inherit;color:inherit;cursor:pointer;min-width:0}
+.cal-d:nth-child(7n){border-right:none}
+.cal-d:hover{background:var(--tint)}
+.cal-d.off{background:#F7F8F7;cursor:default} .cal-d.off:hover{background:#F7F8F7}
+.cal-d.out .dn b{color:var(--ink-3);font-weight:400}
+.cal-d.today{box-shadow:inset 0 0 0 2px var(--green)}
+.cal-d .dn{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.cal-d .dn b{font-size:14px} .cal-d .dn em{font-style:normal;font-size:11.5px;font-weight:700;background:var(--green);color:#fff;border-radius:99px;padding:1px 8px}
+.cal-d .pn{display:block;font-size:12px;color:var(--blue);background:var(--tint);border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-d .pn.in{background:#E4EEF6;font-weight:600}
+.cal-d .pn.leave{background:none;color:var(--ink-3);padding:0 2px;font-size:11.5px}
+.cal-d .more{font-size:11.5px;color:var(--ink-3);padding:0 2px}
 
 /* ---------- buttons, forms ---------- */
 .btn{border:1.5px solid var(--green);background:var(--green);color:#fff;border-radius:10px;padding:9px 16px;font-weight:700;font-size:14px}
@@ -221,7 +241,7 @@ body.busy main .content{opacity:.6;transition:opacity .2s .15s}
 .st .ic{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;background:#fff;color:var(--green);flex:none;margin-bottom:4px}
 .st .ic .ico{width:30px;height:30px}
 /* the day at a glance (key facts) */
-.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);margin:0 0 26px;max-width:1080px}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);margin:0 0 26px}
 .kpi{padding:12px 16px;background:var(--tint);border-right:1px solid var(--line);min-width:0}
 .kpi:last-child{border-right:none}
 .kpi span{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -232,7 +252,7 @@ body.busy main .content{opacity:.6;transition:opacity .2s .15s}
 .jt .k span.bad{background:#fff;color:var(--red);display:inline-flex;align-items:center;gap:4px}
 .jt .k .ico{width:13px;height:13px;stroke-width:2.4}
 /* needs attention list under the job tiles */
-.attn{max-width:1080px;margin-top:34px}
+.attn{margin-top:34px}
 .attn ul{list-style:none;margin:0;padding:0;border:1px solid var(--line)}
 .attn li{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:14px}
 .attn li:last-child{border-bottom:none}
@@ -244,7 +264,7 @@ body.busy main .content{opacity:.6;transition:opacity .2s .15s}
 .attn li.red .tag{background:var(--red-50);color:var(--red)} .attn li.amber .tag{background:var(--amber-50);color:var(--amber)}
 .attn li .when{color:var(--ink-3);font-size:13px;white-space:nowrap;min-width:92px;text-align:right}
 .attn .clear{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);color:var(--green);font-weight:600;font-size:14px;background:var(--tint)}
-.sectiles.three{grid-template-columns:repeat(3,minmax(170px,1fr));max-width:900px}
+.sectiles.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .stat.warn{background:var(--red-50)} .stat.warn span,.stat.warn b{color:var(--red)}
 .pill.env{background:#E4EEF6;color:var(--blue)}
 img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:#fff}
@@ -872,6 +892,7 @@ function registerView(jobId, key){
   return shell("dash", `
     <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › ${R.title}</div>
     <div class="title"><h1>${R.title}</h1><span class="sub">${all.filter(onSite).length} on site</span><span class="sp"></span>
+      ${key === "labour" ? `<div class="seg"><a class="segl on" href="#/job/${jobId}/labour">Register</a><a class="segl" href="#/job/${jobId}/calendar">Calendar</a></div>` : ""}
       ${editable && (key === "plant" || key === "lifting") ? `<button class="btn line" data-fromfleet="${key}">+ From company plant</button>` : ""}
       ${editable ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : ""}</div>
     <div class="bar"><div class="seg">${[["on","On site"],["off","Gone"],["all","All"]].map(([k,l]) =>
@@ -1961,6 +1982,185 @@ async function fromFleetForm(jobId, kind){
   });
 }
 
+/* ------------------------------------------------- staff allocation */
+/* Allocating someone puts them on the job's labour register (the same list
+   site uses for diaries and timesheets), linked back by staffId. Moving them
+   from a date takes them off the old job that day and onto the new one, so
+   each job keeps its own history and the calendar reads straight off it. */
+let WORKERS = null, ALLOC = null, staffShow = "all", staffFind = "";
+async function loadWorkers(){
+  const { data, error } = await sb.from("workers").select("*").eq("archived", false).order("name");
+  WORKERS = error ? { error:/workers|relation|schema cache/i.test(error.message || "") ? "Run 12_staff.sql in Supabase to add people without a login." : words(error), items:[] } : { items:data || [] };
+  return WORKERS;
+}
+async function loadAllocations(){
+  await loadJobs();
+  const live = S.jobs.filter(j => j.status !== "archived"), rows = [];
+  if(live.length) for(let from = 0; ; from += 1000){
+    const { data, error } = await sb.from("job_items").select("job_id, item_id, data").eq("kind", "labour")
+      .eq("deleted", false).in("job_id", live.map(j => j.id)).range(from, from + 999);
+    if(error) throw error;
+    rows.push(...(data || []));
+    if(!data || data.length < 1000) break;
+  }
+  const by = {};
+  rows.forEach(r => { const x = Object.assign({}, r.data, { id:(r.data || {}).id != null ? r.data.id : r.item_id });
+    if(x.staffId) (by[x.staffId] = by[x.staffId] || []).push({ jobId:r.job_id, x }); });
+  Object.values(by).forEach(a => a.sort((p, q) => String(p.x.onDate || "").localeCompare(String(q.x.onDate || ""))));
+  ALLOC = { by };
+  return ALLOC;
+}
+const isOn = (x, d) => (!x.onDate || x.onDate <= d) && (!x.offDate || x.offDate > d);
+const allocNow = id => (ALLOC.by[id] || []).find(e => isOn(e.x, today())) || null;
+function allocNext(id){
+  const t = today(), cur = allocNow(id);
+  const nxt = (ALLOC.by[id] || []).find(e => e.x.onDate > t);
+  if(nxt) return { date:nxt.x.onDate, jobId:nxt.jobId };
+  if(cur && cur.x.offDate) return { date:cur.x.offDate, jobId:null };
+  return null;
+}
+/* everyone the office can allocate: SiteHUB users and people without a login */
+function staffPeople(){
+  const co = ((S.me || {}).company || {}).name || "";
+  const users = (S.team || []).filter(p => p.role_key !== "hire_controller").map(p => ({ id:p.id, user:true, name:p.full_name || p.email, trade:p.role_name || "",
+    company:co, email:p.email || "", phone:"", roleKey:p.role_key, active:p.active, joined:p.joined, roleName:p.role_name, raw:p }));
+  const others = (WORKERS ? WORKERS.items : []).map(w => ({ id:w.id, user:false, name:w.name, trade:w.trade || "", company:w.employer || co,
+    email:w.email || "", phone:w.phone || "", raw:w }));
+  return users.concat(others);
+}
+async function allocMove(person, jobId, date){
+  for(const e of (ALLOC.by[person.id] || [])){
+    const on = e.x.onDate || "", off = e.x.offDate || "";
+    await loadItems(e.jobId);
+    if(on >= date) await deleteItem(e.jobId, "labour", e.x.id);                      /* planned from then on — replaced */
+    else if(!off || off > date) await saveItem(e.jobId, "labour", Object.assign({}, e.x, { offDate:date }));
+  }
+  if(!jobId) return;
+  await loadItems(jobId);
+  await saveItem(jobId, "labour", { id:newId("lb"), name:person.name, trade:person.trade, company:person.company,
+    phone:person.phone, email:person.email, onDate:date, offDate:"", staffId:person.id });
+  /* a SiteHUB user also needs the job in their app */
+  if(person.user && !SEES_ALL.includes(person.roleKey) && !jobsOf(person.id).includes(jobId)){
+    const jr = ["contracts_manager","project_manager","site_manager","operative"].includes(person.roleKey) ? person.roleKey : "viewer";
+    const { error } = await sb.from("job_members").insert([{ job_id:jobId, user_id:person.id, job_role:jr }]);
+    if(error && !/duplicate/i.test(error.message || "")) throw new Error("Allocated, but their app access to the job couldn't be added: " + words(error));
+    S.members.push({ job_id:jobId, user_id:person.id });
+  }
+}
+function allocForm(person){
+  const cur = allocNow(person.id), jobs = S.jobs.filter(j => j.status !== "archived");
+  if(!jobs.length) return toast("Set up a job first.");
+  const jobName = id => (jobById(id) || {}).name || "";
+  modal(`<h3>${cur ? "Move " : "Allocate "}${esc(person.name)}</h3>
+    <p class="lead">${cur ? "On " + esc(jobName(cur.jobId)) + " since " + nice(cur.x.onDate) + ". From the date below they come off it and go onto the job you pick — pick a future date to plan ahead."
+      : "They go onto the job's labour register from the date below, so site sees them for diaries and timesheets."}</p>
+    <div class="g2"><div class="f"><label>Job *</label><select class="in" data-job>${jobs.map(j => `<option value="${j.id}" ${cur && cur.jobId === j.id ? "disabled" : ""}>${esc(j.name)}${j.code ? " · " + esc(j.code) : ""}${cur && cur.jobId === j.id ? " (now)" : ""}</option>`).join("")}
+        ${cur ? `<option value="">Off all jobs</option>` : ""}</select></div>
+      <div class="f"><label>From *</label><input class="in" type="date" data-date value="${today()}"></div></div>
+    ${allocNext(person.id) && allocNext(person.id).jobId ? `<p class="hint" style="margin:-4px 0 8px">Already planned: ${esc(jobName(allocNext(person.id).jobId))} from ${nice(allocNext(person.id).date)} — anything planned from your date onwards is replaced.</p>` : ""}
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${cur ? "Move" : "Allocate"}</button></div>`, (d, close) => {
+    const sel = d.querySelector("[data-job]");
+    if(sel.selectedOptions[0] && sel.selectedOptions[0].disabled){ const o = [...sel.options].find(o => !o.disabled); if(o) sel.value = o.value; }
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const jobId = sel.value, date = d.querySelector("[data-date]").value;
+      if(!date) return err("Pick the date.");
+      if(cur && cur.x.onDate && date <= cur.x.onDate) return err("Pick a date after they started on " + jobName(cur.jobId) + " (" + nice(cur.x.onDate) + ").");
+      d.querySelector("[data-yes]").disabled = true;
+      try{ await allocMove(person, jobId, date); close();
+        toast(jobId ? person.name + (date > today() ? " planned onto " : " now on ") + jobName(jobId) + (date > today() ? " from " + nice(date) : "") : person.name + " comes off " + jobName(cur.jobId) + " " + nice(date)); route(); }
+      catch(e){ d.querySelector("[data-yes]").disabled = false; err(e.message || words(e)); }
+    };
+  });
+}
+function allocHistory(person){
+  const h = (ALLOC.by[person.id] || []).slice().reverse();
+  modal(`<h3>${esc(person.name)}</h3><p class="lead">Every job they've been allocated to, newest first.</p>
+    ${h.length ? `<table class="t"><tr><th>Job</th><th>From</th><th>To</th><th class="num">Days</th></tr>
+      ${h.map(e => `<tr><td>${esc((jobById(e.jobId) || {}).name || "—")}</td><td>${short(e.x.onDate)}</td>
+        <td>${e.x.offDate ? short(e.x.offDate) : isOn(e.x, today()) ? `<span class="pill ok">Now</span>` : "—"}</td>
+        <td class="num">${e.x.onDate ? Math.max(0, daysBetween(e.x.onDate, e.x.offDate || today())) : "—"}</td></tr>`).join("")}</table>`
+      : emptyState("Not allocated to a job yet", "")}
+    <div class="acts"><button class="btn" data-no>Close</button></div>`, (d, close) => { d.querySelector("[data-no]").onclick = close; });
+}
+function workerForm(w){
+  const co = ((S.me || {}).company || {}).name || "";
+  const v = Object.assign({ name:"", trade:"Groundworker", employer:co, phone:"", email:"" }, w || {});
+  modal(`<h3>${w ? "Edit " + esc(w.name) : "Add someone without a login"}</h3>
+    <p class="lead">For operatives and anyone else who doesn't use SiteHUB themselves. They can be allocated to jobs and show on the job calendars.</p>
+    <div class="g2"><div class="f"><label>Name *</label><input class="in" data-k="name" value="${esc(v.name)}"></div>
+      <div class="f"><label>Trade</label><select class="in" data-k="trade">${TRADES.map(t => `<option ${t === v.trade ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></div>
+      <div class="f"><label>Company</label><input class="in" data-k="employer" value="${esc(v.employer || "")}"></div>
+      <div class="f"><label>Mobile</label><input class="in" data-k="phone" value="${esc(v.phone || "")}"></div></div>
+    <div class="f"><label>Email</label><input class="in" type="email" data-k="email" value="${esc(v.email || "")}"></div>
+    <p class="err" hidden></p>
+    <div class="acts" style="justify-content:space-between"><span>${w ? `<button class="btn danger sm" data-wrm>Remove</button>` : ""}</span>
+      <span><button class="btn ghost" data-no>Cancel</button> <button class="btn" data-yes>${w ? "Save" : "Add"}</button></span></div>`, (d, close) => {
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    const rm = d.querySelector("[data-wrm]");
+    if(rm) rm.onclick = () => { close(); confirmBox("Remove " + w.name + "?", "They come off the staff list. Jobs keep every record of them, including any current allocation until they're taken off.", "Remove",
+      async () => { const { error } = await sb.from("workers").update({ archived:true }).eq("id", w.id); if(error) return toast(words(error)); toast("Removed"); route(); }); };
+    d.querySelector("[data-yes]").onclick = async () => {
+      const row = {}; d.querySelectorAll("[data-k]").forEach(el => row[el.dataset.k] = el.value.trim() || null);
+      if(!row.name) return err("Add their name.");
+      d.querySelector("[data-yes]").disabled = true;
+      const { error } = w ? await sb.from("workers").update(row).eq("id", w.id) : await sb.from("workers").insert(row);
+      if(error){ d.querySelector("[data-yes]").disabled = false; return err(words(error)); }
+      close(); toast(w ? "Saved" : row.name + " added"); route();
+    };
+  });
+}
+
+/* ------------------------------------------------- job labour calendar */
+let calMonth = null;
+function labourCalendar(jobId){
+  const job = jobById(jobId);
+  calMonth = calMonth || today().slice(0, 7);
+  const [y, m] = calMonth.split("-").map(Number);
+  const first = calMonth + "-01", days = new Date(y, m, 0).getDate(), last = calMonth + "-" + String(days).padStart(2, "0");
+  const startGrid = weekStart(first), endGrid = addDays(weekStart(last), 6);
+  const people = list(jobId, "labour");
+  const on = d => people.filter(p => isOn(p, d)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const work = d => !!weekOf(jobId)[dayIdx(d)].working;
+  const cells = []; for(let d = startGrid; d <= endGrid; d = addDays(d, 1)) cells.push(d);
+  const inMonth = cells.filter(d => d >= first && d <= last && work(d));
+  const counts = inMonth.map(d => on(d).length);
+  const names = new Set(); inMonth.forEach(d => on(d).forEach(p => names.add(p.name)));
+  const monthName = new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month:"long", year:"numeric" });
+  const mv = n => { const dt = new Date(y, m - 1 + n, 1); return dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0"); };
+  return shell("dash", `
+    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Labour</div>
+    <div class="title"><h1>Labour</h1><span class="sub">Who's on site each working day</span><span class="sp"></span>
+      <div class="seg"><a class="segl" href="#/job/${jobId}/labour">Register</a><a class="segl on" href="#/job/${jobId}/calendar">Calendar</a></div></div>
+    <div class="bar"><button class="btn line sm" data-calm="${mv(-1)}">‹ ${new Date(y, m - 2, 1).toLocaleDateString("en-GB", { month:"short" })}</button>
+      <b style="font-size:17px;min-width:150px;text-align:center">${monthName}</b>
+      <button class="btn line sm" data-calm="${mv(1)}">${new Date(y, m, 1).toLocaleDateString("en-GB", { month:"short" })} ›</button>
+      ${calMonth !== today().slice(0, 7) ? `<button class="lnk" data-calm="${today().slice(0, 7)}">This month</button>` : ""}</div>
+    <div class="stats">${stat("Most on site", counts.length ? Math.max(...counts) : 0)}${stat("Average a day", counts.length ? round2(counts.reduce((a, b) => a + b, 0) / counts.length) : 0)}${stat("People this month", names.size)}</div>
+    <div class="cal"><div class="cal-h">${WEEKDAYS.map(d => `<span>${d}</span>`).join("")}</div>
+      <div class="cal-g">${cells.map(d => { const o = work(d) ? on(d) : [], out = d < first || d > last, arrivals = people.filter(p => p.onDate === d), leavers = people.filter(p => p.offDate === d);
+        return `<button type="button" class="cal-d${out ? " out" : ""}${work(d) ? "" : " off"}${d === today() ? " today" : ""}" data-calday="${d}" ${work(d) ? "" : "disabled"}>
+          <span class="dn"><b>${parse(d).getDate()}</b>${work(d) && o.length ? `<em>${o.length}</em>` : ""}</span>
+          ${work(d) ? o.slice(0, 5).map(p => `<span class="pn${arrivals.includes(p) ? " in" : ""}" title="${esc(p.name)}${p.trade ? " — " + esc(p.trade) : ""}">${arrivals.includes(p) ? "→ " : ""}${esc(p.name)}</span>`).join("")
+            + (o.length > 5 ? `<span class="more">+${o.length - 5} more</span>` : "")
+            + (leavers.length ? `<span class="pn leave">${leavers.length} left</span>` : "") : ""}</button>`; }).join("")}</div></div>
+    <p class="fn">→ starts that day. Built from the job's labour register — allocations from Staff and anyone added on site.</p>`);
+}
+function bindCalendar(jobId){
+  document.querySelectorAll("[data-calm]").forEach(b => b.onclick = () => { calMonth = b.dataset.calm; route(); });
+  document.querySelectorAll("[data-calday]").forEach(b => b.onclick = () => {
+    const d = b.dataset.calday, ppl = list(jobId, "labour").filter(p => isOn(p, d)).sort((a, c) => String(a.name).localeCompare(String(c.name)));
+    const left = list(jobId, "labour").filter(p => p.offDate === d);
+    modal(`<h3>${short(d)}</h3><p class="lead">${plural(ppl.length, "person")} on site${left.length ? " · " + esc(left.map(p => p.name).join(", ")) + " left" : ""}</p>
+      ${ppl.length ? `<table class="t"><tr><th>Name</th><th>Trade</th><th>Company</th><th>Since</th></tr>${ppl.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.trade || "—")}</td>
+        <td>${esc(p.company || "—")}</td><td>${short(p.onDate)}</td></tr>`).join("")}</table>` : emptyState("Nobody on site", "")}
+      <div class="acts"><button class="btn" data-no>Close</button></div>`, (dd, close) => { dd.querySelector("[data-no]").onclick = close; });
+  });
+}
+
 /* ---------------------------------------------------------------- staff */
 async function loadTeam(){
   const [p, r, j, m] = await Promise.all([ sb.rpc("team_list"), sb.from("roles").select("id, key, name, rank").order("rank", { ascending:false }),
@@ -1971,20 +2171,48 @@ async function loadTeam(){
 const jobsOf = uid => S.members.filter(m => m.user_id === uid).map(m => m.job_id);
 const SEES_ALL = ["admin", "director_qs", "hire_controller"];
 async function viewStaff(){
-  await loadTeam();
-  const manage = !!can("team", "manage"), invite = !!can("invites", "manage");
-  const jobName = id => (S.teamJobs.find(j => j.id === id) || {}).name || "";
-  const row = p => { const js = jobsOf(p.id).map(jobName).filter(Boolean);
-    const status = !p.active ? `<span class="pill red">Access off</span>` : !p.joined ? `<span class="pill amber">Invite sent</span>` : `<span class="pill ok">Active</span>`;
-    return `<tr class="${p.active ? "" : "off"}"><td><b>${esc(p.full_name || "—")}</b>${p.id === S.me.id ? ` <span class="muted">(you)</span>` : ""}</td>
-      <td>${esc(p.email || "")}</td><td>${esc(p.role_name || "No role")}</td>
-      <td>${p.role_key === "hire_controller" ? "All jobs — live hire only" : SEES_ALL.includes(p.role_key) ? "All jobs" : js.length ? esc(js.join(", ")) : `<span class="muted">Not on a job</span>`}</td>
-      <td>${status}</td><td class="acts">${manage || can("labour", "allocate") ? `<button class="lnk" data-manage="${p.id}">Manage</button>` : ""}</td></tr>`; };
+  await Promise.all([loadTeam(), loadWorkers()]);
+  await loadAllocations();
+  const manage = !!can("team", "manage"), invite = !!can("invites", "manage"), alloc = !!can("labour", "allocate") || isAdmin();
+  const jobName = id => (jobById(id) || {}).name || "";
+  const accessName = id => (S.teamJobs.find(j => j.id === id) || {}).name || "";
+  const all = staffPeople();
+  const q = staffFind.trim().toLowerCase();
+  const rows = all.filter(p => { const c = allocNow(p.id);
+      return (staffShow === "all" || (staffShow === "on" ? !!c : staffShow === "free" ? !c : !p.user))
+        && (!q || [p.name, p.trade, p.email, c ? jobName(c.jobId) : ""].some(v => String(v || "").toLowerCase().includes(q))); });
+  const onCount = all.filter(p => allocNow(p.id)).length;
+  const row = p => { const c = allocNow(p.id), n = allocNext(p.id);
+    const status = !p.user ? `<span class="pill">No login</span>` : !p.active ? `<span class="pill red">Access off</span>` : !p.joined ? `<span class="pill amber">Invite sent</span>` : `<span class="pill ok">Active</span>`;
+    const access = !p.user ? "—" : SEES_ALL.includes(p.roleKey) ? "All jobs" : (js => js.length ? esc(js.join(", ")) : `<span class="muted">None</span>`)(jobsOf(p.id).map(accessName).filter(Boolean));
+    return `<tr class="${p.user && !p.active ? "off" : ""}"><td><b>${esc(p.name || "—")}</b>${p.user && p.id === S.me.id ? ` <span class="muted">(you)</span>` : ""}<span class="sub2">${esc(p.trade || "")}</span></td>
+      <td>${c ? `<a href="#/job/${c.jobId}/calendar">${esc(jobName(c.jobId))}</a><span class="sub2">since ${short(c.x.onDate)}</span>` : `<span class="muted">Not allocated</span>`}</td>
+      <td>${n ? (n.jobId ? `<b>${esc(jobName(n.jobId))}</b><span class="sub2">from ${short(n.date)}</span>` : `<span class="sub2" style="margin:0">Off ${esc(jobName(c ? c.jobId : ""))} ${short(n.date)}</span>`) : "—"}</td>
+      <td>${access}</td><td>${status}</td>
+      <td class="acts">${alloc ? `<button class="lnk" data-alloc="${p.id}">${c ? "Move" : "Allocate"}</button>` : ""}<button class="lnk" data-allochist="${p.id}">History</button>
+        ${p.user ? (manage || can("labour", "allocate") ? `<button class="lnk" data-manage="${p.id}">Manage</button>` : "") : (can("labour", "manage") === "all" ? `<button class="lnk" data-wedit="${p.id}">Edit</button>` : "")}</td></tr>`; };
   return shell("staff", `
-    <div class="title"><h1>Staff</h1><span class="sub">${plural(S.team.length, "person")}</span><span class="sp"></span>
+    <div class="title"><h1>Staff</h1><span class="sub">${plural(all.length, "person")} · ${onCount} on a job</span><span class="sp"></span>
+      ${can("labour", "manage") === "all" && !(WORKERS && WORKERS.error) ? `<button class="btn line" data-wadd>+ Add someone without a login</button>` : ""}
       ${invite ? `<button class="btn" data-invite>+ Invite someone</button>` : ""}</div>
-    <div class="panel">${S.team.length ? `<table class="t"><tr><th>Name</th><th>Email</th><th>Role</th><th>Jobs</th><th>Status</th><th></th></tr>
-      ${S.team.map(row).join("")}</table>` : `<p class="empty">Nobody yet.</p>`}</div>`);
+    <div class="bar"><div class="seg">${[["all","Everyone"],["on","On a job"],["free","Not allocated"],["nologin","No login"]].map(([k, l]) =>
+      `<button class="${staffShow === k ? "on" : ""}" data-staffshow="${k}">${l}</button>`).join("")}</div><span class="sp"></span>
+      <input class="in" style="max-width:260px" type="search" placeholder="Search name, trade or job" data-stafffind value="${esc(staffFind)}"></div>
+    ${WORKERS && WORKERS.error ? `<p class="fn" style="margin:0 0 12px">${esc(WORKERS.error)}</p>` : ""}
+    <div class="panel">${rows.length ? `<table class="t"><tr><th>Name</th><th>Working on</th><th>Next move</th><th>App access</th><th>Status</th><th></th></tr>
+      ${rows.map(row).join("")}</table>` : emptyState(all.length ? "Nobody matches" : "Nobody yet", all.length ? "Try a different search or filter." : "")}</div>`);
+}
+function bindStaff(){
+  const i = $("[data-invite]"); if(i) i.onclick = inviteForm;
+  document.querySelectorAll("[data-manage]").forEach(b => b.onclick = () => manageForm(b.dataset.manage));
+  const person = id => staffPeople().find(p => p.id === id);
+  document.querySelectorAll("[data-alloc]").forEach(b => b.onclick = () => allocForm(person(b.dataset.alloc)));
+  document.querySelectorAll("[data-allochist]").forEach(b => b.onclick = () => allocHistory(person(b.dataset.allochist)));
+  document.querySelectorAll("[data-staffshow]").forEach(b => b.onclick = () => { staffShow = b.dataset.staffshow; route(); });
+  const wa = $("[data-wadd]"); if(wa) wa.onclick = () => workerForm(null);
+  document.querySelectorAll("[data-wedit]").forEach(b => b.onclick = () => workerForm(WORKERS.items.find(w => w.id === b.dataset.wedit)));
+  const f = $("[data-stafffind]");
+  if(f) f.oninput = () => { staffFind = f.value; clearTimeout(f._t); f._t = setTimeout(() => route().then(() => { const g = $("[data-stafffind]"); if(g){ g.focus(); g.setSelectionRange(g.value.length, g.value.length); } }), 250); };
 }
 async function invoke(body){
   const { data, error } = await sb.functions.invoke("invite-user", { body });
@@ -2111,9 +2339,7 @@ async function route(){
     let html, bind = () => {};
     if(isHireOnly()){ html = await viewHireAll(); bind = bindHire; }
     else if(h[0] === "plant"){ html = await viewFleet(); bind = bindFleet; }
-    else if(h[0] === "staff"){ html = await viewStaff(); bind = () => {
-      const i = $("[data-invite]"); if(i) i.onclick = inviteForm;
-      document.querySelectorAll("[data-manage]").forEach(b => b.onclick = () => manageForm(b.dataset.manage)); }; }
+    else if(h[0] === "staff"){ html = await viewStaff(); bind = bindStaff; }
     else if(h[0] === "admin"){ html = await viewAdmin(); bind = bindLibrary; }
     else if(h[0] === "archived"){ html = await viewArchived(); }
     else if(h[0] === "job" && h[1]){
@@ -2124,7 +2350,8 @@ async function route(){
         if(!jobById(id)){ html = shell("dash", `<p class="empty">That job can't be found.</p>`); }
         else{
           await loadItems(id, wasFresh);
-          if(REG[sec]){ html = registerView(id, sec); bind = () => bindRegister(id, sec); }
+          if(sec === "calendar"){ html = labourCalendar(id); bind = () => bindCalendar(id); }
+          else if(REG[sec]){ html = registerView(id, sec); bind = () => bindRegister(id, sec); }
           else if(sec === "hire"){ html = hireView(id); bind = bindHire; }
           else if(sec === "delays"){ html = delaysView(id); }
           else if(sec === "deliveries"){ html = deliveriesView(id); bind = () => bindDeliveries(id); }
