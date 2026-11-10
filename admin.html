@@ -519,6 +519,7 @@ function shell(active, inner){
       <div class="brand"><img src="logo.png" alt="Cheltenham Green Civils"></div>
       <nav>${isHireOnly() ? `<a href="#/" class="on">${TI.hire}Live hire</a>` : `
         <a href="#/" class="${active === "dash" ? "on" : ""}">${ICON.dash}Dashboard</a>
+        <a href="#/plant" class="${active === "fleet" ? "on" : ""}">${TI.plant}Plant</a>
         <a href="#/staff" class="${active === "staff" ? "on" : ""}">${ICON.staff}Staff</a>
         <a href="#/admin" class="${active === "admin" ? "on" : ""}">${ICON.admin}Admin</a>`}
       </nav>
@@ -763,6 +764,7 @@ function registerView(jobId, key){
   return shell("dash", `
     <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › ${R.title}</div>
     <div class="title"><h1>${R.title}</h1><span class="sub">${all.filter(onSite).length} on site</span><span class="sp"></span>
+      ${editable && (key === "plant" || key === "lifting") ? `<button class="btn line" data-fromfleet="${key}">+ From company plant</button>` : ""}
       ${editable ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : ""}</div>
     <div class="bar"><div class="seg">${[["on","On site"],["off","Gone"],["all","All"]].map(([k,l]) =>
       `<button class="${regShow === k ? "on" : ""}" data-regshow="${k}">${l}</button>`).join("")}</div></div>
@@ -776,6 +778,7 @@ function registerView(jobId, key){
           editable && regShow !== "off" ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : "")}</div>`);
 }
 function bindRegister(jobId, key){
+  document.querySelectorAll("[data-fromfleet]").forEach(b => b.onclick = () => fromFleetForm(jobId, key));
   const R = REG[key];
   document.querySelectorAll("[data-regshow]").forEach(b => b.onclick = () => { regShow = b.dataset.regshow; route(); });
   document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => itemForm(jobId, key, null));
@@ -1614,6 +1617,242 @@ function hsPage(jobId, sub){
   return { html:hsHub(jobId) };
 }
 
+/* ------------------------------------------------- company plant (fleet) */
+/* Owned kit is kept once, here. Allocating it to a job adds it to that job's
+   register exactly as the app would (with fleetId pointing back); moving it
+   off-hires it on the old job and adds it to the new one, so every job keeps
+   its own history and the app needs nothing new. */
+const FLEET_KINDS = [["plant","Plant","machine"],["lifting","Lifting gear","item"],["tools","Work equipment","item"]];
+const FLEET_TYPES = { plant:PLANT_TYPES, lifting:LIFTING_TYPES, tools:TOOL_TYPES };
+const FLEET_PREFIX = { plant:"pl", lifting:"lf", tools:"tl" };
+let FLEET = null, fleetKind = "plant", fleetFind = "", fleetWhere = "all";
+async function loadFleet(){
+  const { data, error } = await sb.from("fleet_items").select("*").eq("archived", false).order("item");
+  FLEET = error ? { error:/fleet_items|relation|schema cache/i.test(error.message || "") ? "Run 10_fleet.sql in Supabase to switch the company plant register on." : words(error), items:[] } : { items:data || [] };
+  return FLEET;
+}
+/* where everything is: every owned entry on every live job's registers */
+let FLOC = null;
+async function loadFleetLocations(){
+  if(!S.jobs.length) await loadJobs();
+  const live = S.jobs.filter(j => j.status !== "archived"), rows = [];
+  if(live.length) for(let from = 0; ; from += 1000){
+    const { data, error } = await sb.from("job_items").select("job_id, kind, item_id, data").in("kind", ["plant","lifting","tools"])
+      .eq("deleted", false).in("job_id", live.map(j => j.id)).range(from, from + 999);
+    if(error) throw error;
+    rows.push(...(data || []));
+    if(!data || data.length < 1000) break;
+  }
+  const at = {}, history = {}, loose = [];
+  rows.forEach(r => {
+    const x = Object.assign({}, r.data, { id:(r.data || {}).id != null ? r.data.id : r.item_id });
+    const e = { jobId:r.job_id, kind:r.kind, x };
+    if(x.fleetId){
+      (history[x.fleetId] = history[x.fleetId] || []).push(e);
+      if(onSite(x)) at[x.fleetId] = e;
+    } else if(x.owner === "Owned" && onSite(x)) loose.push(e);
+  });
+  Object.values(history).forEach(h => h.sort((a, b) => String(b.x.onDate || "").localeCompare(String(a.x.onDate || ""))
+    || String(b.x.offDate || "9999").localeCompare(String(a.x.offDate || "9999"))));
+  FLOC = { at, history, loose };
+  return FLOC;
+}
+const fleetNoOf = x => x.fleetNo || x.idNo || "";
+function fleetToJobItem(f, jobId, date){
+  const base = { item:f.item, owner:"Owned", onDate:date, offDate:"", fleetId:f.id };
+  const job = jobById(jobId);
+  if(f.kind === "plant") Object.assign(base, { fleetNo:f.fleet_no || "", model:f.make_model || "", type:f.type || "Other", examDate:f.exam_date || "" });
+  if(f.kind === "lifting") Object.assign(base, { idNo:f.fleet_no || "", type:f.type || "Other", swl:f.swl || "", examDate:f.exam_date || "" });
+  if(f.kind === "tools") Object.assign(base, { idNo:f.fleet_no || "", type:f.type || "Other" });
+  return Object.assign({ id:newId(FLEET_PREFIX[f.kind]), job:job ? job.name : "" }, base);
+}
+async function fleetAllocate(f, jobId, date){
+  const cur = FLOC.at[f.id];
+  if(cur && cur.jobId === jobId) throw new Error("It's already on that job.");
+  if(cur){ await loadItems(cur.jobId); await saveItem(cur.jobId, cur.kind, Object.assign({}, cur.x, { offDate:date })); }
+  await loadItems(jobId);
+  await saveItem(jobId, f.kind, fleetToJobItem(f, jobId, date));
+}
+async function fleetReturn(f, date){
+  const cur = FLOC.at[f.id]; if(!cur) return;
+  await loadItems(cur.jobId);
+  await saveItem(cur.jobId, cur.kind, Object.assign({}, cur.x, { offDate:date }));
+}
+/* keep the job's copy in step when the company record is edited */
+async function fleetSyncCurrent(f){
+  const cur = FLOC.at[f.id]; if(!cur) return;
+  const fresh = fleetToJobItem(f, cur.jobId, cur.x.onDate);
+  const keep = { id:cur.x.id, onDate:cur.x.onDate, offDate:cur.x.offDate || "" };
+  await loadItems(cur.jobId);
+  await saveItem(cur.jobId, cur.kind, Object.assign({}, cur.x, fresh, keep));
+}
+
+async function viewFleet(){
+  await Promise.all([loadFleet(), loadJobs()]);
+  await loadFleetLocations();
+  const manage = k => can(k === "lifting" ? "lifting" : k === "tools" ? "tools" : "plant", "manage") === "all";
+  const [kk, label, noun] = FLEET_KINDS.find(k => k[0] === fleetKind);
+  const mine = FLEET.items.filter(f => f.kind === fleetKind);
+  const q = fleetFind.trim().toLowerCase();
+  const jobName = id => (jobById(id) || {}).name || "a job";
+  const rows = mine.filter(f => !q || [f.item, f.fleet_no, f.make_model, f.type, FLOC.at[f.id] ? jobName(FLOC.at[f.id].jobId) : "yard"].some(v => String(v || "").toLowerCase().includes(q)))
+    .filter(f => fleetWhere === "all" || (fleetWhere === "yard" ? !FLOC.at[f.id] : !!FLOC.at[f.id]));
+  const onJob = mine.filter(f => FLOC.at[f.id]).length;
+  const overdue = mine.filter(f => { const e = examState({ examDate:f.exam_date }); return e && e.cls === "red"; }).length;
+  const loose = FLOC.loose.filter(e => e.kind === fleetKind);
+  const canEdit = manage(fleetKind) && !FLEET.error;
+  return shell("fleet", `
+    <div class="title"><h1>Plant</h1><span class="sub">Company-owned kit — kept once, allocated to jobs from here</span><span class="sp"></span>
+      ${canEdit ? `<button class="btn" data-fleetadd>+ Add ${esc(noun)}</button>` : ""}</div>
+    <div class="bar"><div class="seg">${FLEET_KINDS.map(([k, l]) => `<button class="${fleetKind === k ? "on" : ""}" data-fleetkind="${k}">${l} ${FLEET.items.filter(f => f.kind === k).length}</button>`).join("")}</div>
+      <span class="sp"></span><div class="seg">${[["all","All"],["jobs","On a job"],["yard","In the yard"]].map(([k, l]) => `<button class="${fleetWhere === k ? "on" : ""}" data-fleetwhere="${k}">${l}</button>`).join("")}</div>
+      <input class="in" style="max-width:240px" type="search" placeholder="Search item, fleet no or job" data-fleetfind value="${esc(fleetFind)}"></div>
+    ${FLEET.error ? emptyState("Company plant register not switched on", FLEET.error) : `
+    <div class="stats">${stat(label, mine.length)}${stat("On a job", onJob)}${stat("In the yard", mine.length - onJob)}${kk !== "tools" ? stat("Exams overdue", overdue, true) : ""}</div>
+    ${loose.length && canEdit ? `<div class="attn panel" style="margin-top:0"><h2>Owned kit already on jobs</h2><div class="clear" style="justify-content:space-between;color:var(--ink);font-weight:400">
+      <span>${plural(loose.length, noun)} marked as owned on job registers ${loose.length === 1 ? "isn't" : "aren't"} in the company list yet — ${loose.slice(0, 4).map(e => esc(e.x.item)).join(", ")}${loose.length > 4 ? "…" : ""}</span>
+      <button class="btn sm" data-fleetimport>Add ${loose.length === 1 ? "it" : "them"} to company plant</button></div></div>` : ""}
+    <div class="panel">${rows.length ? `<table class="t"><tr><th>Item</th><th>Fleet / ID no</th><th>Type</th><th>Where</th><th>Since</th>${kk !== "tools" ? "<th>Examination</th>" : ""}<th></th></tr>
+      ${rows.map(f => { const at = FLOC.at[f.id], e = examState({ examDate:f.exam_date }); return `<tr>
+        <td><b>${esc(f.item)}</b>${f.make_model ? `<span class="sub2">${esc(f.make_model)}</span>` : ""}</td><td>${esc(f.fleet_no || "—")}</td><td>${esc(f.type || "—")}</td>
+        <td>${at ? `<a href="#/job/${at.jobId}/${at.kind === "tools" ? "hire" : at.kind}">${esc(jobName(at.jobId))}</a>` : `<span class="pill">In the yard</span>`}</td>
+        <td>${at ? short(at.x.onDate) : "—"}</td>
+        ${kk !== "tools" ? `<td>${e ? `<span class="pill ${e.cls}">${esc(e.label)}</span>` : "—"}</td>` : ""}
+        <td class="acts">${canEdit ? `<button class="lnk" data-fleetmove="${f.id}">${at ? "Move" : "Allocate"}</button>
+          ${at ? `<button class="lnk" data-fleetyard="${f.id}">Back to yard</button>` : ""}
+          <button class="lnk" data-fleetedit="${f.id}">Edit</button>` : ""}<button class="lnk" data-fleethist="${f.id}">History</button></td></tr>`; }).join("")}</table>`
+      : mine.length ? emptyState("Nothing matches", "Try a different search or filter.")
+      : emptyState("No " + label.toLowerCase() + " in the company list yet", "Add each owned " + noun + " once — then allocate it to jobs and move it between them from here.",
+          canEdit ? `<button class="btn" data-fleetadd>+ Add ${esc(noun)}</button>` : "")}</div>`}`);
+}
+function fleetForm(f){
+  const kind = f ? f.kind : fleetKind, isNew = !f;
+  const v = Object.assign({ item:"", fleet_no:"", make_model:"", type:(FLEET_TYPES[kind] || ["Other"])[0], swl:"", serial:"", exam_date:"", notes:"" }, f || {});
+  const noun = FLEET_KINDS.find(k => k[0] === kind)[2];
+  modal(`<h3>${isNew ? "Add owned " + esc(noun) : "Edit " + esc(f.item)}</h3>
+    <p class="lead">${isNew ? "Kept in the company list. Allocate it to a job when it goes out." : "If it's on a job, that job's register is updated too."}</p>
+    <div class="g2"><div class="f"><label>Item *</label><input class="in" data-k="item" value="${esc(v.item)}" placeholder="${kind === "plant" ? "e.g. 8 tonne excavator" : kind === "lifting" ? "e.g. 2 leg chain 3.15t" : "e.g. Disc cutter"}"></div>
+      <div class="f"><label>${kind === "plant" ? "Fleet number" : "ID number"}</label><input class="in" data-k="fleet_no" value="${esc(v.fleet_no || "")}"></div>
+      ${kind === "plant" ? `<div class="f"><label>Make / model</label><input class="in" data-k="make_model" value="${esc(v.make_model || "")}"></div>` : ""}
+      <div class="f"><label>Type</label><select class="in" data-k="type">${FLEET_TYPES[kind].map(t => `<option ${t === v.type ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></div>
+      ${kind === "lifting" ? `<div class="f"><label>Safe working load</label><input class="in" data-k="swl" value="${esc(v.swl || "")}" placeholder="e.g. 3.15t"></div>` : ""}
+      <div class="f"><label>Serial number</label><input class="in" data-k="serial" value="${esc(v.serial || "")}"></div>
+      ${kind !== "tools" ? `<div class="f"><label>Thorough examination due</label><input class="in" type="date" data-k="exam_date" value="${esc(v.exam_date || "")}"></div>` : ""}</div>
+    <div class="f"><label>Notes</label><input class="in" data-k="notes" value="${esc(v.notes || "")}"></div>
+    <p class="err" hidden></p>
+    <div class="acts" style="justify-content:space-between"><span>${f ? `<button class="btn danger sm" data-fleetrm>Remove from company plant</button>` : ""}</span>
+      <span><button class="btn ghost" data-no>Cancel</button> <button class="btn" data-yes>${isNew ? "Add" : "Save"}</button></span></div>`, (d, close) => {
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    const rm = d.querySelector("[data-fleetrm]");
+    if(rm) rm.onclick = () => { close(); confirmBox("Remove " + f.item + " from company plant?",
+      (FLOC.at[f.id] ? "It stays on " + ((jobById(FLOC.at[f.id].jobId) || {}).name || "its job") + "'s register until it's off-hired there. " : "") + "Job histories keep every record of it.", "Remove",
+      async () => { const { error } = await sb.from("fleet_items").update({ archived:true }).eq("id", f.id); if(error) return toast(words(error)); toast("Removed"); route(); }); };
+    d.querySelector("[data-yes]").onclick = async () => {
+      const row = { kind };
+      d.querySelectorAll("[data-k]").forEach(el => row[el.dataset.k] = el.value.trim() || null);
+      if(!row.item) return err("Say what it is.");
+      d.querySelector("[data-yes]").disabled = true;
+      try{
+        if(isNew){ const { error } = await sb.from("fleet_items").insert(row); if(error) throw error; }
+        else{
+          const { error } = await sb.from("fleet_items").update(row).eq("id", f.id); if(error) throw error;
+          await fleetSyncCurrent(Object.assign({}, f, row));
+        }
+        close(); toast(isNew ? "Added to company plant" : "Saved"); route();
+      }catch(e){ d.querySelector("[data-yes]").disabled = false; err(/duplicate/i.test(e.message || "") ? "That number is already in the company list." : words(e)); }
+    };
+  });
+}
+function fleetMoveForm(f, presetJob){
+  const cur = FLOC.at[f.id], jobs = S.jobs.filter(j => j.status !== "archived" && (!cur || j.id !== cur.jobId));
+  if(!jobs.length) return toast("There's no other live job to send it to.");
+  modal(`<h3>${cur ? "Move " : "Allocate "}${esc(f.item)}</h3>
+    <p class="lead">${cur ? "It comes off " + esc((jobById(cur.jobId) || {}).name || "its job") + " on the date below and goes onto the new job's register the same day." : "It goes onto the job's register, ready for the site to check and use."}</p>
+    <div class="g2"><div class="f"><label>Job *</label><select class="in" data-job>${jobs.map(j => `<option value="${j.id}" ${j.id === presetJob ? "selected" : ""}>${esc(j.name)}${j.code ? " · " + esc(j.code) : ""}</option>`).join("")}</select></div>
+      <div class="f"><label>On site from *</label><input class="in" type="date" data-date value="${today()}"></div></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>${cur ? "Move it" : "Allocate"}</button></div>`, (d, close) => {
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const jobId = d.querySelector("[data-job]").value, date = d.querySelector("[data-date]").value;
+      if(!date) return err("Pick the date.");
+      if(cur && cur.x.onDate && date < cur.x.onDate) return err("That's before it went onto " + ((jobById(cur.jobId) || {}).name || "its current job") + ".");
+      d.querySelector("[data-yes]").disabled = true;
+      try{ await fleetAllocate(f, jobId, date); close(); toast(f.item + (cur ? " moved to " : " allocated to ") + (jobById(jobId) || {}).name); route(); }
+      catch(e){ d.querySelector("[data-yes]").disabled = false; err(e.message || words(e)); }
+    };
+  });
+}
+function fleetHistory(f){
+  const h = (FLOC.history[f.id] || []);
+  modal(`<h3>${esc(f.item)}${f.fleet_no ? " · " + esc(f.fleet_no) : ""}</h3><p class="lead">Every job it has been on, newest first.</p>
+    ${h.length ? `<table class="t"><tr><th>Job</th><th>On</th><th>Off</th><th class="num">Days</th></tr>
+      ${h.map(e => `<tr><td>${esc((jobById(e.jobId) || {}).name || "—")}</td><td>${short(e.x.onDate)}</td><td>${e.x.offDate ? short(e.x.offDate) : `<span class="pill ok">On site</span>`}</td>
+        <td class="num">${e.x.onDate ? Math.max(0, daysBetween(e.x.onDate, e.x.offDate || today())) : "—"}</td></tr>`).join("")}</table>`
+      : emptyState("Not been on a job yet", "")}
+    <div class="acts"><button class="btn" data-no>Close</button></div>`, (d, close) => { d.querySelector("[data-no]").onclick = close; });
+}
+async function fleetImport(){
+  const loose = FLOC.loose.filter(e => e.kind === fleetKind);
+  let made = 0, linked = 0;
+  for(const e of loose){
+    const no = fleetNoOf(e.x);
+    let f = no && FLEET.items.find(i => i.kind === e.kind && String(i.fleet_no || "").toLowerCase() === no.toLowerCase());
+    if(!f){
+      const row = { kind:e.kind, item:e.x.item || "Item", fleet_no:no || null, make_model:e.x.model || null, type:e.x.type || null, swl:e.x.swl || null, exam_date:e.x.examDate || null };
+      const { data, error } = await sb.from("fleet_items").insert(row).select().single();
+      if(error) throw error;
+      f = data; FLEET.items.push(f); made++;
+    } else linked++;
+    await loadItems(e.jobId);
+    await saveItem(e.jobId, e.kind, Object.assign({}, e.x, { fleetId:f.id }));
+  }
+  return { made, linked };
+}
+function bindFleet(){
+  document.querySelectorAll("[data-fleetkind]").forEach(b => b.onclick = () => { fleetKind = b.dataset.fleetkind; route(); });
+  document.querySelectorAll("[data-fleetwhere]").forEach(b => b.onclick = () => { fleetWhere = b.dataset.fleetwhere; route(); });
+  const find = id => FLEET.items.find(f => f.id === id);
+  document.querySelectorAll("[data-fleetadd]").forEach(b => b.onclick = () => fleetForm(null));
+  document.querySelectorAll("[data-fleetedit]").forEach(b => b.onclick = () => fleetForm(find(b.dataset.fleetedit)));
+  document.querySelectorAll("[data-fleetmove]").forEach(b => b.onclick = () => fleetMoveForm(find(b.dataset.fleetmove)));
+  document.querySelectorAll("[data-fleethist]").forEach(b => b.onclick = () => fleetHistory(find(b.dataset.fleethist)));
+  document.querySelectorAll("[data-fleetyard]").forEach(b => b.onclick = () => { const f = find(b.dataset.fleetyard), at = FLOC.at[f.id];
+    confirmBox("Bring " + f.item + " back to the yard today?", "It comes off " + ((jobById(at.jobId) || {}).name || "the job") + "'s register today. The job keeps its record of it.", "Back to yard",
+      async () => { try{ await fleetReturn(f, today()); toast(f.item + " is back in the yard"); route(); }catch(e){ toast(words(e)); } }, false); });
+  const imp = $("[data-fleetimport]");
+  if(imp) imp.onclick = async () => { imp.disabled = true; try{ const r = await fleetImport(); toast((r.made ? plural(r.made, "item") + " added" : "") + (r.made && r.linked ? ", " : "") + (r.linked ? plural(r.linked, "item") + " matched" : "") + " — now in company plant"); route(); }
+    catch(e){ imp.disabled = false; toast(words(e)); } };
+  const f = $("[data-fleetfind]");
+  if(f) f.oninput = () => { fleetFind = f.value; clearTimeout(f._t); f._t = setTimeout(() => route().then(() => { const g = $("[data-fleetfind]"); if(g){ g.focus(); g.setSelectionRange(g.value.length, g.value.length); } }), 250); };
+}
+/* on a job's Plant / Lifting page: pull something from the company list */
+async function fromFleetForm(jobId, kind){
+  try{ await Promise.all([loadFleet(), loadFleetLocations()]); }catch(e){ return toast(words(e)); }
+  if(FLEET.error) return toast(FLEET.error);
+  const items = FLEET.items.filter(f => f.kind === kind && !(FLOC.at[f.id] && FLOC.at[f.id].jobId === jobId))
+    .sort((a, b) => (FLOC.at[a.id] ? 1 : 0) - (FLOC.at[b.id] ? 1 : 0) || a.item.localeCompare(b.item));
+  if(!items.length) return toast("No company " + (kind === "plant" ? "plant" : "lifting gear") + " to add — set it up under Plant in the menu.");
+  modal(`<h3>From company plant</h3><p class="lead">Pick what's arriving. Anything on another job is moved here — it comes off that job on the same day.</p>
+    <div class="f"><label>Item *</label><select class="in" data-pick>${items.map(f => { const at = FLOC.at[f.id];
+      return `<option value="${f.id}">${esc(f.item)}${f.fleet_no ? " · " + esc(f.fleet_no) : ""} — ${at ? "on " + esc((jobById(at.jobId) || {}).name || "a job") : "in the yard"}</option>`; }).join("")}</select></div>
+    <div class="f"><label>On site from *</label><input class="in" type="date" data-date value="${today()}"></div>
+    <p class="err" hidden></p>
+    <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Add to this job</button></div>`, (d, close) => {
+    const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-yes]").onclick = async () => {
+      const f = FLEET.items.find(i => i.id === d.querySelector("[data-pick]").value), date = d.querySelector("[data-date]").value;
+      if(!date) return err("Pick the date.");
+      d.querySelector("[data-yes]").disabled = true;
+      try{ await fleetAllocate(f, jobId, date); close(); toast(f.item + " added"); route(); }
+      catch(e){ d.querySelector("[data-yes]").disabled = false; err(e.message || words(e)); }
+    };
+  });
+}
+
 /* ---------------------------------------------------------------- staff */
 async function loadTeam(){
   const [p, r, j, m] = await Promise.all([ sb.rpc("team_list"), sb.from("roles").select("id, key, name, rank").order("rank", { ascending:false }),
@@ -1763,6 +2002,7 @@ async function route(){
   try{
     let html, bind = () => {};
     if(isHireOnly()){ html = await viewHireAll(); bind = bindHire; }
+    else if(h[0] === "plant"){ html = await viewFleet(); bind = bindFleet; }
     else if(h[0] === "staff"){ html = await viewStaff(); bind = () => {
       const i = $("[data-invite]"); if(i) i.onclick = inviteForm;
       document.querySelectorAll("[data-manage]").forEach(b => b.onclick = () => manageForm(b.dataset.manage)); }; }
