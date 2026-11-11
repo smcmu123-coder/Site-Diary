@@ -1686,6 +1686,16 @@ html[data-theme="dark"] .navpill{background:var(--paper);border-color:var(--line
 .synccard.st-warn,.synccard.st-wait{background:var(--warn-bg);border-color:transparent}
 .synccard p{color:var(--ink)}
 
+/* --- your own signature ------------------------------------------------------ */
+.mysign{border-left:4px solid var(--green)}
+.mysign.todo{border-left-color:var(--warn);background:var(--warn-bg)}
+.mysign .msrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line-2)}
+.mysign .msrow .n{flex:1;min-width:0}
+.mysign .msrow .n b{display:block;font-size:15px;font-weight:640}
+.mysign .msrow .n span{display:block;font-size:13px;color:var(--ink-2)}
+.mysign .msrow .btns{display:flex;gap:8px;flex:none}
+.mysign .msrow .btn{margin:0;width:auto}
+
 /* --- the job switcher and the menu ------------------------------------------ */
 .sheetlist .sl{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:12px;
   max-height:56vh;overflow-y:auto}
@@ -3069,7 +3079,7 @@ function idbSet(key, value){
 function blankDB(){
   return { records:[], counter:0, config:JSON.parse(JSON.stringify(CONFIG)),
     job:CONFIG.jobs[0], plant:[], labour:[], lifting:[], tools:[], leave:[], vos:[], packs:[],
-    deliveries:[], events:[], rams:[] };
+    deliveries:[], events:[], rams:[], signs:[] };
 }
 
 /* Images that nothing points at any more -- a scan removed, a photograph taken
@@ -4662,8 +4672,8 @@ async function openPackSheet(ws, draft){
     sec.items.forEach(rec=>{
       const d = rec.data || {};
       if(sec.key === "briefing"){
-        /* attendees now sign for themselves; older records hold plain names */
-        const att = (d.attendees || []).map(a => typeof a === "string" ? { name:a } : a);
+        /* attendees sign on their own phones or on the day; older records hold plain names */
+        const att = briefingPrintList(rec);
         const signRows = att.map((a,i)=>[
           (i+1)+".",
           a.name || "",
@@ -6474,12 +6484,12 @@ function revLabelTaken(label, exceptId){
 
 function ramsOutstanding(rev){
   if(!rev) return [];
-  const signed = (rev.sigs||[]).map(s=>s.personId);
+  const signed = ramsSigsOf(rev).map(s=>s.personId);
   return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
 }
 function ramsAddendumOutstanding(add){
   if(!add) return [];
-  const signed = (add.sigs||[]).map(s=>s.personId);
+  const signed = ramsSigsOf(add).map(s=>s.personId);
   return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
 }
 function ramsOutstandingTotal(rev){
@@ -6487,6 +6497,193 @@ function ramsOutstandingTotal(rev){
   let n = ramsOutstanding(rev).length;
   (rev.addendums||[]).forEach(a=>{ n += ramsAddendumOutstanding(a).length; });
   return n;
+}
+
+
+/* ------------------------------------------------------------ signatures --
+   Each signature is an entry of its own (kind "signs"), not written into the
+   RAMS or the briefing. So people can sign on their own phones at the same
+   moment without overwriting each other, and a briefing never changes after
+   it's submitted. Once saved a signature can't be changed — a Site Manager or
+   above can remove one given by mistake (it's kept in the records) and the
+   person signs again. 17_signatures.sql makes the database hold to all that.
+
+   Who a signature belongs to: someone signing on their own account is matched
+   to the labour register by email; someone signed for on a manager's phone is
+   matched by their place on the register. Signatures taken before this
+   change sit inside the document itself and are read from there too. */
+function meUser(){ const u = window.sitehubAuth && sitehubAuth.user; return u && u.id ? u : null; }
+const sameEmail = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+const maySign = () => mayUse("signatures", "create");
+const mayRemoveSig = () => mayUse("signatures", "delete");
+/* "asks me to sign" is for people who sign rather than chase signatures */
+const signsForSelf = () => !!meUser() && maySign() && !mayRemoveSig();
+
+function signRows(doc, ref){
+  return (DB.signs||[]).filter(s => s && s.job === DB.job && s.doc === doc && s.ref === ref);
+}
+/* person = someone on the register a manager is signing for; none = signing for yourself */
+function addSign(doc, ref, person, src){
+  const me = meUser();
+  const who = person ? person.id : "u:" + (me ? me.id : "me");
+  const row = { id:[doc, ref, who, Date.now().toString(36)].join("~"), job:DB.job, doc, ref, who,
+    name: person ? person.name : (me ? me.name : cfg().user.name),
+    email: person ? (person.email || "") : (me ? me.email || "" : ""),
+    userId: person ? "" : (me ? me.id : ""),
+    sigSrc: src, signedAt: Date.now(),
+    by: me ? me.id : "", byName: me ? me.name : cfg().user.name };
+  DB.signs = DB.signs || [];
+  DB.signs.push(row);
+  lateCache.at = 0;                     /* the Tasks dot is worked out again */
+  save();
+  return row;
+}
+function removeSign(id){
+  DB.signs = (DB.signs||[]).filter(s => s.id !== id);
+  lateCache.at = 0;
+  save();
+}
+function confirmRemoveSign(name, onYes){
+  if(!mayRemoveSig()) return toast("Only a Site Manager or above can remove a signature.", 5000);
+  askConfirm("Remove " + (name ? name + "'s" : "this") + " signature?",
+    "Use this when the wrong signature was saved. They'll be asked to sign again, and the removed one stays in the records.",
+    "Remove signature", onYes);
+}
+
+/* --- RAMS: the revision's own id, or "revision/addendum" for an addendum */
+function ramsRefOf(target){
+  if(!target) return "";
+  if((DB.rams||[]).some(r => r.id === target.id)) return target.id;
+  const rev = (DB.rams||[]).find(r => (r.addendums||[]).some(a => a.id === target.id));
+  return rev ? rev.id + "/" + target.id : target.id;
+}
+/* everyone who has signed a revision or addendum, in the shape the RAMS
+   screens and the printed pack have always used, one per person */
+function ramsSigsOf(target){
+  if(!target) return [];
+  const out = (target.sigs||[]).filter(s => s && s.sigSrc).map(s => Object.assign({ embedded:true }, s));
+  signRows("rams", ramsRefOf(target)).forEach(r => out.push({ personId:r.who, name:r.name, email:r.email || "",
+    userId:r.userId || "", sigSrc:r.sigSrc, signedAt:r.signedAt, signId:r.id, byName:r.userId ? "" : r.byName }));
+  out.forEach(s => {
+    const onReg = (DB.labour||[]).filter(l => l && l.job === DB.job);
+    if(String(s.personId).indexOf("u:") === 0 && s.email){       /* signed on their own phone */
+      const p = onReg.find(l => sameEmail(l.email, s.email));
+      if(p) s.personId = p.id;
+    }
+    if(!s.email){ const p = onReg.find(l => l.id === s.personId); if(p && p.email) s.email = p.email; }
+  });
+  const seen = {};
+  return out.sort((a, b) => (a.signedAt||0) - (b.signedAt||0))
+    .filter(s => seen[s.personId] ? false : (seen[s.personId] = true));
+}
+function mySig(list){
+  const me = meUser();
+  return me ? (list||[]).find(s => (s.userId && s.userId === me.id) || sameEmail(s.email, me.email)) || null : null;
+}
+/* the current RAMS and its addendums, each with whether I've signed it */
+function ramsMine(){
+  const rev = currentRams();
+  if(!rev) return [];
+  return [{ key:"rev:" + rev.id, label:"Rev " + revText(rev), sig:mySig(ramsSigsOf(rev)) }]
+    .concat((rev.addendums||[]).map(a => ({ key:"add:" + rev.id + ":" + a.id,
+      label:"Addendum — " + (a.title || "Addendum"), sig:mySig(ramsSigsOf(a)) })));
+}
+function ramsMyPanel(){
+  if(!meUser() || !maySign()) return "";
+  const mine = ramsMine();
+  if(!mine.length) return "";
+  const todo = mine.filter(m => !m.sig).length;
+  return `<div class="card mysign ${todo ? "todo" : "done"}">
+    <h3 style="margin:0 0 4px">${todo ? "Your signature is needed" : "You've signed this RAMS"}</h3>
+    <p class="hint" style="margin:0 0 6px">${todo
+      ? "Read the document, then sign to say you've read and understood it."
+      : "Nothing more to do until a new revision or addendum is uploaded."}</p>
+    ${mine.map(m => `<div class="msrow">
+      <span class="n"><b>${esc(m.label)}</b><span>${m.sig ? "Signed " + stamp(m.sig.signedAt) : "Not signed yet"}</span></span>
+      ${m.sig ? `<span class="pill ok">Signed</span>`
+        : `<span class="btns"><button type="button" class="btn line sm" data-ramsdoc="${m.key}">Read it</button>
+           <button type="button" class="btn sm" data-ramsme="${m.key}">Sign</button></span>`}
+    </div>`).join("")}
+  </div>`;
+}
+
+/* --- daily briefings: each attendee with their signature, wherever it was given */
+function briefingAttendees(rec){
+  const d = (rec && rec.data) || {};
+  const rows = rec ? signRows("briefing", rec.id) : [];
+  return (d.attendees||[]).map(a => typeof a === "string" ? { name:a } : a).filter(Boolean).map(a => {
+    if(a.sig && a.sig.src) return Object.assign({}, a, { signed:{ src:a.sig.src, at:a.sig.signedAt || rec.submittedAt || 0, embedded:true } });
+    const r = rows.filter(x => (a.id && x.who === a.id) || (a.email && sameEmail(x.email, a.email)))
+      .sort((x, y) => x.signedAt - y.signedAt)[0];
+    return Object.assign({}, a, { signed:r ? { src:r.sigSrc, at:r.signedAt, signId:r.id, own:!!r.userId,
+      byName:r.userId ? "" : r.byName } : null });
+  });
+}
+/* the attendee list as printed: name against signature */
+function briefingPrintList(rec){
+  return briefingAttendees(rec).map(a => ({ name:a.name, sig:a.signed ? { src:a.signed.src } : null }));
+}
+const BRIEF_DAYS = 14;    /* how far back a briefing still asks for signatures */
+function recentBriefings(){
+  const from = addDays(todayISO(), -BRIEF_DAYS);
+  return DB.records.filter(r => r.job === DB.job && r.form === "briefing" && r.status === "submitted" && r.date >= from)
+    .sort((a, b) => b.date < a.date ? -1 : 1);
+}
+/* briefings I attended and haven't signed */
+function myBriefingAsks(){
+  const me = meUser();
+  if(!signsForSelf()) return [];
+  return recentBriefings().filter(r => briefingAttendees(r).some(a => sameEmail(a.email, me.email) && !a.signed));
+}
+/* for whoever chases: recent briefings someone still has to sign */
+function briefingChase(){
+  if(!mayRemoveSig()) return [];
+  return recentBriefings().map(r => ({ rec:r, out:briefingAttendees(r).filter(a => !a.signed).length }))
+    .filter(x => x.out);
+}
+function briefingMyPanel(rec){
+  const me = meUser();
+  if(!me || !maySign()) return "";
+  const a = briefingAttendees(rec).find(x => sameEmail(x.email, me.email));
+  if(!a) return "";
+  return `<div class="card mysign ${a.signed ? "done" : "todo"}">
+    <h3 style="margin:0 0 4px">${a.signed ? "You've signed this briefing" : "Sign to confirm you were briefed"}</h3>
+    <p class="hint" style="margin:0">${a.signed ? "Signed " + stamp(a.signed.at)
+      : "Read through the activities and hazards below, then sign."}</p>
+    ${a.signed ? "" : `<button class="btn" style="margin:12px 0 0" data-brme="${esc(rec.id)}">Sign</button>`}
+  </div>`;
+}
+/* the attendee list on a submitted briefing: who has signed, and how */
+function briefingSignBlock(rec, f){
+  const list = briefingAttendees(rec);
+  const done = list.filter(a => a.signed).length;
+  const canSignFor = maySign() && mayUse("site_diary");    /* managers, who can see the register */
+  const rows = list.map(a => {
+    const s = a.signed;
+    const how = !s ? (a.email ? "Waiting — they can sign on their own phone" : "Not signed yet")
+      : s.own ? "Signed on their own phone, " + stamp(s.at)
+      : s.byName ? "Signed on " + s.byName.split(" ")[0] + "'s phone, " + stamp(s.at)
+      : "Signed " + (s.at ? stamp(s.at) : "on the day");
+    return `<div class="trow"><div class="main">
+        <span class="c1"><b>${esc(a.name || "Someone")}</b><span>${esc(how)}</span></span>
+        ${s ? `<span class="pill ok">Signed</span>` : `<span class="pill amber">To sign</span>`}
+      </div>
+      <div class="more">${s
+        ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <img src="${s.src}" alt="Signature" style="height:40px;background:#fff;border-radius:8px;padding:3px 8px;border:1px solid var(--line-2)">
+            ${mayRemoveSig() ? `<button type="button" style="margin-left:auto;font-size:13px;font-weight:650;color:var(--bad)"
+              ${s.signId ? `data-unsign="${esc(s.signId)}"` : `data-brunsign="${esc(rec.id)}:${esc(a.id || "")}"`}>Remove</button>` : ""}
+          </div>`
+        : canSignFor && a.id ? `<button type="button" class="btn line sm" style="margin:0"
+            data-brsign="${esc(rec.id)}:${esc(a.id)}">Sign for ${esc((a.name || "them").split(" ")[0])}</button>` : ""}
+      </div></div>`;
+  }).join("");
+  return `<div class="kv" style="display:block"><span class="k">${esc(f.label)}</span>
+    <div class="ttable" style="margin-top:10px">
+      <div class="thead"><span class="c1">Name</span><span class="c3">Signed</span></div>
+      ${rows || `<div class="tempty">Nobody recorded</div>`}
+      <div class="tfoot"><span>${done} of ${list.length} signed</span></div>
+    </div></div>`;
 }
 
 /* ------------------------------------------------------- dayworks / VOs -- */
@@ -6692,16 +6889,30 @@ const tabRootFor = name => TAB_OF[name] || "home";
    (first opening, demo) everything shows and the database still decides.
    Module names are the ones the database files each kind of record under
    (item_kind_modules). */
-const FORM_MODULE = { diary:"site_diary", briefing:"health_safety", excavation:"health_safety", havs:"health_safety",
+const FORM_MODULE = { diary:"site_diary", briefing:"briefings", excavation:"health_safety", havs:"health_safety",
   toolboxtalk:"health_safety", plantcheck:"plant_checks", scan:"plant_checks", puwer:"plant", loler:"lifting" };
+const PERM_FALLBACK = { briefings:"health_safety", signatures:"rams" };
 function mayUse(module, action){
   if(IS_DEMO) return true;
   const a = window.sitehubAuth;
   if(!a || typeof a.can !== "function") return true;
+  const perms = a.user && a.user.perms;
+  if(perms && PERM_FALLBACK[module] && !Object.keys(perms).some(k => k.indexOf(module + ".") === 0)
+     && !(a.user.permModules || []).includes(module)) module = PERM_FALLBACK[module];
   const s = a.can(module, action || "view");
   return s === null ? true : !!s;
 }
 const mayFill = key => mayUse(FORM_MODULE[key] || "forms", "create");
+/* "own" scope means records this person submitted; anything wider, any record */
+function mayChangeRecord(r){
+  if(!mayUse(FORM_MODULE[r.form || "diary"] || "forms", "edit")) return false;
+  const a = window.sitehubAuth;
+  if(IS_DEMO || !a || typeof a.can !== "function") return true;
+  const sc = a.can(FORM_MODULE[r.form || "diary"] || "forms", "edit");
+  if(sc !== "own") return true;
+  const me = a.user || {};
+  return !!r.byEmail && String(r.byEmail).toLowerCase() === String(me.email || "").toLowerCase();
+}
 const anyOf = (...mods) => mods.some(m => mayUse(m, "view"));
 function tabVisible(k){
   if(k === "docs") return anyOf("rams", "plant_checks");
@@ -6743,7 +6954,7 @@ let lateCache = { at:0, job:"", n:0 };
 function overdueCount(){
   if(Date.now() - lateCache.at < 4000 && lateCache.job === DB.job) return lateCache.n;
   let n = 0;
-  try{ n = missedDays().reduce((s, m) => s + m.owed.length, 0) + weeklyLate(todayISO()).length; }catch(e){}
+  try{ n = missedDays().reduce((s, m) => s + m.owed.length, 0) + weeklyLate(todayISO()).length + mySignAsks().length; }catch(e){}
   lateCache = { at:Date.now(), job:DB.job, n };
   return n;
 }
@@ -6770,7 +6981,7 @@ function updateNav(){
   const taskDot = bar.querySelector('[data-navdot="tasks"]');
   if(taskDot) taskDot.classList.toggle("show", late > 0);
   const tb = bar.querySelector('[data-nav="tasks"]');
-  if(tb) tb.setAttribute("aria-label", late ? "Tasks — " + late + " overdue" : "Tasks");
+  if(tb) tb.setAttribute("aria-label", late ? "Tasks — " + late + " needing you" : "Tasks");
 }
 
 /* ------------------------------------------------------------ the header --
@@ -7616,11 +7827,8 @@ function ramsPromptContact(person, onDone){
 function ramsCaptureAndSign(rev, add, target, person){
   const proceed = () => {
     openSignaturePad(null, src => {
-      target.sigs = target.sigs || [];
-      const existing = target.sigs.find(s=>s.personId===person.id);
-      const entry = { personId: person.id, name: person.name, sigSrc: src, signedAt: Date.now() };
-      if(existing) Object.assign(existing, entry); else target.sigs.push(entry);
-      save(); render();
+      addSign("rams", ramsRefOf(target), person, src);
+      render();
       toast("Signed — " + person.name);
       ramsSendCopy(rev, add, person, "receipt");
     });
@@ -7997,7 +8205,7 @@ function ramsDocSheet(target, titleLine, subLine){
   /* a single addendum, viewed on its own: its own divider, who has signed
      it, then the document page by page */
   if(target.__isAddendum){
-    const signed = ramsSignedPages(target.sigs, subLine);
+    const signed = ramsSignedPages(ramsSigsOf(target), subLine);
     const start = 1 + signed.count + 1;
     const total = start + ramsDocCount(target.doc) - 1;
     return ramsDivider(target.__label||"Addendum", titleLine) + signed.html
@@ -8017,9 +8225,9 @@ function ramsDocSheet(target, titleLine, subLine){
   if(target.msDoc) docs.push({ label:"Method Statement — " + title, doc:target.msDoc });
   if(!docs.length) docs.push({ label:title, doc:null });
 
-  const signed = ramsSignedPages(target.sigs, DB.job + " · Rev " + revText(target));
+  const signed = ramsSignedPages(ramsSigsOf(target), DB.job + " · Rev " + revText(target));
   const addSigned = addendums.map((a,i)=>
-    ramsSignedPages(a.sigs, DB.job + " · Addendum " + (i+1) + " — " + (a.title||"Addendum")));
+    ramsSignedPages(ramsSigsOf(a), DB.job + " · Addendum " + (i+1) + " — " + (a.title||"Addendum")));
 
   /* the contents can run to more than one page, and the page numbers inside
      it depend on how long it is — so count the lines first, then lay out */
@@ -8846,6 +9054,11 @@ function startForm(date, formKey, plantId, excRef){
       const name = String(x||"");
       const person = (DB.labour||[]).find(p=>p.job===DB.job && p.name===name);
       return { id: person ? person.id : "name:"+slug(name), name, sig:null };
+    }).map(x => {
+      /* the email is what lets someone sign on their own phone */
+      if(x.email || !x.id) return x;
+      const p2 = (DB.labour||[]).find(l => l.id === x.id);
+      return p2 && p2.email ? Object.assign({}, x, { email:p2.email }) : x;
     });
     /* one entry per person, keeping whichever one has been signed */
     const byId = {};
@@ -8975,6 +9188,9 @@ function validate(){
     if(f.type==="attendsign"){
       const arr = Array.isArray(val) ? val : [];
       if(f.required && !arr.length){ e[f.id] = "Say who attended"; return; }
+      /* a briefing goes in once it's filled out; attendees sign afterwards,
+         on their own phones or on this one */
+      if(formState && formState.form === "briefing") return;
       if(arr.some(x=>!x || !x.sig || !x.sig.src)){
         const who = arr.filter(x=>!x || !x.sig || !x.sig.src).map(x=>(x&&x.name)||"someone");
         e[f.id] = who.length===1 ? who[0] + " has not signed yet"
@@ -9519,12 +9735,15 @@ function recordView(){
     const fs = s.fields.filter(f=>visible(f,r.data) && f.type!=="signature");
     if(!fs.length) return "";
     return `<div class="sect">${esc(s.title)}</div><div class="card">`+
-      fs.map(f=>readRow(f, r.data[f.id])).join("")+`</div>`;
+      fs.map(f=>(r.form === "briefing" && f.type === "attendsign") ? briefingSignBlock(r, f)
+        : readRow(f, r.data[f.id])).join("")+`</div>`;
   }).join("");
+  const mayAmend = mayChangeRecord(r);
   return `<div class="top"><button class="chip" data-go="home">&lsaquo; Back</button>
       <span class="pill ok">Submitted</span></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">${esc(r.ref)}</h1>
     <p class="sub">${esc(r.job)} · ${longDate(r.date)}</p>
+    ${r.form === "briefing" ? briefingMyPanel(r) : ""}
     <div class="card">
       <div class="kv"><span class="k">Submitted by</span><span class="v">${esc(r.by)}</span></div>
       <div class="kv"><span class="k">Submitted at</span><span class="v">${stamp(r.submittedAt)}</span></div>
@@ -9538,9 +9757,9 @@ function recordView(){
          <p class="sub" style="margin:-2px 0 12px;font-size:12.5px;color:var(--ink-3)">
            Checks are issued as one sheet per machine per week, not one per day.</p>`
       : `<button class="btn" data-pdf="${r.id}">Open PDF</button>`}
-    <button class="btn ghost" data-reopen="${r.id}">Amend</button>
+    ${mayAmend ? `<button class="btn ghost" data-reopen="${r.id}">Amend</button>` : ""}
     ${deleteAllowed("records", r) ? `<button class="btn line" style="color:var(--bad)"
-      data-del-rec="${r.id}">Delete this diary</button>` : ""}
+      data-del-rec="${r.id}">Delete this ${(r.form || "diary") === "diary" ? "diary" : "record"}</button>` : ""}
     ${rows}`;
 }
 function tableRows(f, val){
@@ -11858,6 +12077,15 @@ function weeklyLate(t){
 }
 
 /* ------------------------------------------------------------------ Tasks */
+/* what's waiting for my own signature: the RAMS and briefings I attended */
+function mySignAsks(){
+  if(!signsForSelf()) return [];
+  const out = ramsMine().filter(m => !m.sig).map(m => ({ attr:`data-go="rams"`, icon:TILE_ICONS.rams,
+    title:"Sign the RAMS", line:m.label + " · read it, then sign" }));
+  myBriefingAsks().forEach(r => out.push({ attr:`data-open="${esc(r.id)}"`, icon:formIcon("briefing"),
+    title:"Sign the daily briefing", line:longDate(r.date) }));
+  return out;
+}
 function taskOpenAttr(o){
   return o.kind==="form"      ? `data-startf="${o.form}" data-d="${o.date}"`
     : o.kind==="diary"     ? `data-start="${o.date}"`
@@ -11895,11 +12123,15 @@ function tasksView(){
     title:formDef(r.form).name, line:longDate(r.date) + (r.updatedAt ? " · last changed " + shortDate(iso(new Date(r.updatedAt))) : ""),
     level:"amber", badge:"Draft" }));
 
-  /* RAMS still to be signed */
+  /* RAMS still to be signed: chased by managers, asked of everyone else */
   const rams = currentRams();
   const ramsOut = rams ? ramsOutstandingTotal(rams) : 0;
-  const ramsRow = ramsOut && mayUse("rams", "edit") ? hubRow({ attr:`data-go="rams"`, icon:TILE_ICONS.rams, title:"Sign the RAMS",
+  const ramsRow = ramsOut && mayUse("rams", "edit") && mayUse("site_diary") ? hubRow({ attr:`data-go="rams"`, icon:TILE_ICONS.rams, title:"RAMS signatures",
     line:"Rev " + revText(rams) + " · " + plural(ramsOut, "signature") + " still to get", level:"amber", badge:ramsOut }) : "";
+  const signRows2 = mySignAsks().map(x => hubRow({ attr:x.attr, icon:x.icon, title:x.title, line:x.line, level:"red", badge:"Sign" }))
+    .concat(briefingChase().map(x => hubRow({ attr:`data-open="${esc(x.rec.id)}"`, icon:formIcon("briefing"),
+      title:"Briefing signatures", line:longDate(x.rec.date) + " · " + plural(x.out, "person", "people") + " still to sign",
+      level:"amber", badge:x.out })));
 
   /* this phone and the office */
   const s = syncBadge();
@@ -11908,13 +12140,13 @@ function tasksView(){
       ${s.cls === "st-off" ? "" : `<button class="btn line sm" style="margin:12px 0 0" data-syncnow="1">Sync now</button>`}
       <button class="btn ghost sm" style="margin:8px 0 0" data-go="settings">Sync details</button></div>` : "";
 
-  const nothing = !lateRows.length && !dueRows.length && !draftRows.length && !ramsRow;
+  const nothing = !lateRows.length && !dueRows.length && !draftRows.length && !ramsRow && !signRows2.length;
   return hubHead("Tasks", nothing ? "Nothing owed on " + DB.job : DB.job,
       `<button class="btn sm" data-addform="${t}">+ Add a form</button>`)
     + syncCard
     + hubGroup("Overdue", lateRows)
     + hubGroup(isWorking(t) ? "Due today" : "Today", dueRows.length ? dueRows : [])
-    + hubGroup("To sign", [ramsRow])
+    + hubGroup("To sign", signRows2.concat([ramsRow]))
     + hubGroup("Drafts", draftRows)
     + (nothing ? `<div class="empty-state"><b>All caught up</b><span>Nothing is due or overdue. New forms appear here on the day they're due.</span></div>` : "")
     + `<div class="sect">Done</div><div class="hub">${hubRow({ attr:`data-hubform="all"`, icon:TILE_ICONS.list,
@@ -12156,20 +12388,28 @@ function ramsSignRow(person, sigs, signKey){
         ? `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <img src="${s.sigSrc}" alt="Signature" style="height:40px;background:#fff;
               border-radius:8px;padding:3px 8px;border:1px solid var(--line-2)">
-            <span style="font-size:12px;color:var(--ink-3)">${stamp(s.signedAt)}</span>
+            <span style="font-size:12px;color:var(--ink-3)">${stamp(s.signedAt)}${
+              s.userId ? " · on their own phone" : s.byName ? " · on " + esc(s.byName.split(" ")[0]) + "'s phone" : ""}</span>
+            <span style="margin-left:auto;display:flex;gap:14px">
             <button type="button" data-ramssend="${signKey}:${person.id}"
-              style="margin-left:auto;font-size:13px;font-weight:650;color:var(--green-700)">
+              style="font-size:13px;font-weight:650;color:var(--green-700)">
               Send copy</button>
+            ${mayRemoveSig() ? `<button type="button" style="font-size:13px;font-weight:650;color:var(--bad)"
+              ${s.signId ? `data-unsign="${esc(s.signId)}"` : `data-ramsunsign="${signKey}:${person.id}"`}>Remove</button>` : ""}
+            </span>
           </div>`
-        : `<button type="button" class="btn line sm" style="margin:0"
-            data-ramssign="${signKey}:${person.id}">Sign for ${esc(person.name.split(" ")[0])}</button>`}
+        : maySign() ? `<button type="button" class="btn line sm" style="margin:0"
+            data-ramssign="${signKey}:${person.id}">Sign for ${esc(person.name.split(" ")[0])}</button>`
+        : `<span style="font-size:12.5px;color:var(--ink-3)">${person.email ? "Can sign on their own phone" : "Not signed yet"}</span>`}
       ${contactBtn}
     </div>
   </div>`;
 }
 
 function ramsSignTable(people, sigs, signKey){
-  const signedCount = (sigs||[]).length;
+  const signedCount = people.filter(p => (sigs||[]).some(s => s.personId === p.id)).length;
+  /* signed on their own phone but not on today's register */
+  const extra = (sigs||[]).filter(s => !people.some(p => p.id === s.personId));
   if(!people.length){
     return `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
       Nobody on the labour register yet. Add the gang under Project, Labour.</div>`;
@@ -12177,6 +12417,11 @@ function ramsSignTable(people, sigs, signKey){
   return `<div class="ttable">
     <div class="thead"><span class="c1">Name</span><span class="c3">Signed</span></div>
     ${people.map(p=>ramsSignRow(p, sigs, signKey)).join("")}
+    ${extra.map(s => `<div class="trow" style="background:var(--canvas)"><div class="main">
+        <span class="c1"><b>${esc(s.name || "Someone")}</b><span>Signed ${stamp(s.signedAt)} · not on today's register</span></span>
+        <span class="pill ok">Signed</span></div>
+        ${mayRemoveSig() && s.signId ? `<div class="more"><button type="button" style="font-size:13px;font-weight:650;color:var(--bad)"
+          data-unsign="${esc(s.signId)}">Remove</button></div>` : ""}</div>`).join("")}
     <div class="tfoot"><span>${signedCount} of ${people.length} signed</span></div>
   </div>`;
 }
@@ -12236,7 +12481,7 @@ function ramsRevCard(rev, people){
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <button class="btn line sm" style="margin:0" data-ramsdoc="rev:${rev.id}">${
         addendums.length ? "View the whole pack" : "View the document"}</button>
-      <button class="btn line sm" style="margin:0" data-ramsnotify="rev:${rev.id}">Notify everyone</button>
+      ${mayUse("rams", "edit") ? `<button class="btn line sm" style="margin:0" data-ramsnotify="rev:${rev.id}">Notify everyone</button>` : ""}
       ${ramsDelBtn("rev:"+rev.id)}
     </div>
     ${ramsDocRows(rev, true)}
@@ -12250,7 +12495,7 @@ function ramsRevCard(rev, people){
         + (n ? ", with " + n + " addendum" + (n===1?"":"s") + " behind" + (n===1?" it":" them")
              + " at the back." : ".");
     })()}</p>
-    <div style="margin-top:14px">${ramsSignTable(people, rev.sigs, "rev:"+rev.id)}</div>
+    <div style="margin-top:14px">${ramsSignTable(people, ramsSigsOf(rev), "rev:"+rev.id)}</div>
     <div data-ramsdistfor="rev:${rev.id}">${ramsDistLine(rev.distribution)}</div>
   </div>
   ${addendums.map(add=>{
@@ -12273,7 +12518,7 @@ function ramsRevCard(rev, people){
         <button class="btn line sm" style="margin:0" data-ramsnotify="add:${rev.id}:${add.id}">Notify everyone</button>
         ${ramsDelBtn("add:"+rev.id+":"+add.id)}
       </div>
-      <div style="margin-top:14px">${ramsSignTable(people, add.sigs, "add:"+rev.id+":"+add.id)}</div>
+      <div style="margin-top:14px">${ramsSignTable(people, ramsSigsOf(add), "add:"+rev.id+":"+add.id)}</div>
       <div data-ramsdistfor="add:${rev.id}:${add.id}">${ramsDistLine(add.distribution)}</div>
     </div>`;
   }).join("")}`;
@@ -12391,7 +12636,7 @@ function ramsView(){
 
   const histBlock = hist.length ? `<div class="sect">Previous revisions (${hist.length})</div>` +
     hist.map(rev=>{
-      const signedCount = (rev.sigs||[]).length;
+      const signedCount = ramsSigsOf(rev).length;
       return `<div class="card" style="background:var(--canvas);box-shadow:none;opacity:.8">
         <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
           <div style="flex:1 1 170px;min-width:0">
@@ -12414,19 +12659,22 @@ function ramsView(){
       </div>`;
     }).join("") : "";
 
+  const manage = mayUse("rams", "create"), register = mayUse("site_diary");
   return `<div class="top"><button class="chip" data-go="project">&lsaquo; Project</button></div>
     <h1 class="greet" style="font-size:22px;margin-top:12px">RAMS</h1>
     <p class="sub">${esc(DB.job)}</p>
-    <div class="card" style="background:var(--green-50);box-shadow:none">
+    ${register ? `<div class="card" style="background:var(--green-50);box-shadow:none">
       <p>The latest revision, signed by everyone on site. Upload a new one and it supersedes
-      the last — signatures start again, but nothing already signed is ever lost.</p>
-    </div>
-    ${cur ? ramsRevCard(cur, people)
+      the last — signatures start again, but nothing already signed is ever lost.
+      Anyone with a SiteHUB login signs on their own phone; sign here for anyone without one.</p>
+    </div>` : ""}
+    ${ramsMyPanel()}
+    ${cur ? (register ? ramsRevCard(cur, people) : "")
       : `<div class="card"><h3>Nothing uploaded yet</h3>
-          <p>Add the current RAMS so the gang can sign it on site.</p></div>`}
-    ${uploadBlock}
-    ${addendumBlock}
-    ${histBlock}`;
+          <p>${manage ? "Add the current RAMS so the gang can sign it on site." : "There's no RAMS on this job yet."}</p></div>`}
+    ${manage ? uploadBlock : ""}
+    ${manage ? addendumBlock : ""}
+    ${register ? histBlock : ""}`;
 }
 
 let labourDraft = null;
@@ -12469,7 +12717,8 @@ function labourFields(l, attr){
       <input class="in" type="date" ${attr}="onDate" value="${esc(l.onDate||"")}"></div>
     <div class="f" style="margin:0"><label>Contact</label>
       <div class="hint">Where their copy of the RAMS goes, and how they are chased for a
-        signature. Either one is enough.</div>
+        signature. Either one is enough. If they have a SiteHUB login, use the same email
+        and they can sign RAMS and briefings on their own phone.</div>
       <div class="g2">
         <input class="in" type="tel" inputmode="tel" ${attr}="phone" value="${esc(l.phone||"")}"
           placeholder="Mobile" autocomplete="tel">
@@ -14262,7 +14511,7 @@ function bind(){
     const person = (DB.labour||[]).find(x=>x.id===personId) || {};
     const at = list.findIndex(x=>x && x.id===personId);
     if(on === "1"){
-      if(at < 0) list.push({ id:personId, name:person.name || "", sig:null });
+      if(at < 0) list.push({ id:personId, name:person.name || "", email:person.email || "", sig:null });
     } else if(at >= 0){
       list.splice(at, 1);
     }
@@ -14805,6 +15054,7 @@ function bind(){
       toast("Rev " + label + " is already on this job — check the revision."); return;
     }
     DB.rams = DB.rams || [];
+    DB.signs = DB.signs || [];
     const cur = currentRams();
     if(cur){
       cur.status = "superseded";
@@ -14861,9 +15111,63 @@ function bind(){
     ramsPromptContact(person, ()=>render());
   });
 
+  /* signing for yourself, on your own account */
+  app.querySelectorAll("[data-ramsme]").forEach(el=>el.onclick=()=>{
+    const { rev, target } = ramsParseKey(el.getAttribute("data-ramsme"));
+    if(!rev || !target) return;
+    openSignaturePad(null, src => {
+      addSign("rams", ramsRefOf(target), null, src);
+      render(); toast("Signed. Thank you.");
+    });
+  });
+  app.querySelectorAll("[data-brme]").forEach(el=>el.onclick=()=>{
+    const rec = DB.records.find(r => r.id === el.dataset.brme);
+    if(!rec) return;
+    openSignaturePad(null, src => {
+      addSign("briefing", rec.id, null, src);
+      render(); toast("Signed. Thank you.");
+    });
+  });
+  /* a manager signing a briefing for someone without a login */
+  app.querySelectorAll("[data-brsign]").forEach(el=>el.onclick=()=>{
+    const raw = el.getAttribute("data-brsign"), cut = raw.indexOf(":");
+    const rec = DB.records.find(r => r.id === raw.slice(0, cut));
+    const a = rec && briefingAttendees(rec).find(x => x.id === raw.slice(cut + 1));
+    if(!a) return;
+    openSignaturePad(null, src => {
+      addSign("briefing", rec.id, a, src);
+      render(); toast("Signed — " + (a.name || ""));
+    });
+  });
+  /* removing a signature saved by mistake: Site Manager and above */
+  app.querySelectorAll("[data-unsign]").forEach(el=>el.onclick=()=>{
+    const row = (DB.signs||[]).find(x => x.id === el.dataset.unsign);
+    if(!row) return;
+    confirmRemoveSign(row.name, () => { removeSign(row.id); render(); toast("Removed. " + (row.name || "They") + " will be asked to sign again."); });
+  });
+  app.querySelectorAll("[data-ramsunsign]").forEach(el=>el.onclick=()=>{
+    const { target, personId } = ramsParseKey(el.getAttribute("data-ramsunsign"));
+    const s = target && (target.sigs||[]).find(x => x.personId === personId);
+    if(!s) return;
+    confirmRemoveSign(s.name, () => {
+      target.sigs = (target.sigs||[]).filter(x => x.personId !== personId);
+      save(); render(); toast("Removed. " + (s.name || "They") + " will be asked to sign again.");
+    });
+  });
+  app.querySelectorAll("[data-brunsign]").forEach(el=>el.onclick=()=>{
+    const raw = el.getAttribute("data-brunsign"), cut = raw.indexOf(":");
+    const rec = DB.records.find(r => r.id === raw.slice(0, cut)), id = raw.slice(cut + 1);
+    const a = rec && (rec.data.attendees||[]).find(x => x && x.id === id);
+    if(!a) return;
+    confirmRemoveSign(a.name, () => {
+      rec.data.attendees = rec.data.attendees.map(x => x && x.id === id ? Object.assign({}, x, { sig:null }) : x);
+      save(); render(); toast("Removed. " + (a.name || "They") + " will be asked to sign again.");
+    });
+  });
+
   app.querySelectorAll("[data-ramssend]").forEach(el=>el.onclick=()=>{
     const { rev, add, target, personId } = ramsParseKey(el.getAttribute("data-ramssend"));
-    const sig = target && (target.sigs||[]).find(s=>s.personId===personId);
+    const sig = target && ramsSigsOf(target).find(s=>s.personId===personId);
     if(!rev || !sig) return;
     const person = onSiteLabour(todayISO()).find(p=>p.id===personId)
       || (DB.labour||[]).find(p=>p.id===personId) || { id:personId, name:sig.name };
@@ -14877,7 +15181,7 @@ function bind(){
     if(!rev) return;
     if(!deleteAllowed("rams", rev)) return noDelete();
     if(add){
-      const n = (add.sigs||[]).length;
+      const n = ramsSigsOf(add).length;
       askConfirm("Delete this addendum?",
         (add.title||"Addendum") + " and its document are removed"
           + (n ? ", along with " + n + " signature" + (n===1?"":"s") : "") + ". This can't be undone.",
@@ -14887,7 +15191,7 @@ function bind(){
         });
       return;
     }
-    const n = (rev.sigs||[]).length;
+    const n = ramsSigsOf(rev).length;
     const adds = (rev.addendums||[]).length;
     const wasCurrent = rev.status === "current";
     const previous = wasCurrent ? ramsHistory()[0] : null;
@@ -15908,6 +16212,16 @@ function submitForm(){
   rec.version = (rec.version||0)+1;
   syncVo(rec);
   raiseDefects(rec);
+  if(rec.form === "briefing"){
+    /* the email on each attendee is what lets them sign on their own phone:
+       take the latest from the labour register */
+    rec.data.attendees = (rec.data.attendees||[]).map(x => {
+      const p2 = x && x.id && (DB.labour||[]).find(l => l.id === x.id);
+      return p2 && p2.email ? Object.assign({}, x, { email:p2.email }) : x;
+    });
+    const unsigned = briefingAttendees(rec).filter(x => !x.signed).length;
+    if(unsigned) setTimeout(() => toast(plural(unsigned, "person", "people") + " still to sign. Anyone with a login is asked on their own phone; sign for the rest on the briefing.", 6000), 900);
+  }
   save();
  
   const raised = (DB.vos||[]).filter(v=>v.recordId===rec.id);
@@ -15981,7 +16295,7 @@ function printRecord(id){
            objects prints as "[object Object]" once each; this is a real
            table instead, name against signature. */
         body += `<div style="font-weight:600;margin:6px 0 3px">${esc(f.label)}</div>`;
-        body += signListHtml(r.data[f.id]);
+        body += signListHtml(r.form === "briefing" ? briefingPrintList(r) : r.data[f.id]);
         return;
       }
       if(f.type==="repeater"){
@@ -16317,7 +16631,7 @@ async function shareDemo(){
    ------------------------------------------------------------------------- */
 
 const CLOUD_KINDS = ["records","plant","labour","lifting","tools","deliveries","events",
-  "defects","leave","vos","packs","scans","tsHours","rams"];
+  "defects","leave","vos","packs","scans","tsHours","rams","signs"];
 const CLOUD_BUCKET = "job-photos";
 const CLOUD_IMG_MIN = 16 * 1024;     /* smaller pictures, e.g. signatures, ride inside the record */
 
