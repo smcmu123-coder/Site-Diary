@@ -478,6 +478,17 @@ table.review td:last-child{text-align:right;width:1%;white-space:nowrap}
 .draftbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-radius:14px;background:var(--amber-50);color:var(--amber);font-size:14px;font-weight:600;margin:0 0 16px}
 .draftbar .sp{flex:1}
 @media (max-width:640px){table.review th{width:auto}.steps li{flex:1 1 44%}}
+/* forms on a job */
+table.sched th{vertical-align:middle} table.sched td{vertical-align:middle}
+table.sched tr>:first-child{width:30%} table.sched select.in{min-width:200px;max-width:240px}
+table.sched .sub2{display:block}
+.sfl{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);flex-wrap:wrap} .sfl .in{width:auto;margin:0}
+.sdays{display:flex;flex-wrap:wrap;gap:4px}
+.sdays label{display:inline-flex;align-items:center;gap:4px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px;cursor:pointer}
+.sdays label:has(input:checked){border-color:var(--green);background:var(--tint)}
+.sdays input{accent-color:var(--green)}
+.setup table.sched{margin:4px 0 0}
+@media (max-width:640px){table.sched tr{display:grid;grid-template-columns:1fr} table.sched tr>:first-child{width:auto} table.sched select.in{min-width:0;width:100%;max-width:none} table.sched tr:first-child{display:none}}
 </style>
 </head>
 <body>
@@ -542,6 +553,9 @@ function words(e){
   if(/row-level security|permission denied|42501/i.test(m)) return "You don't have permission to do that.";
   if(/failed to fetch|network/i.test(m)) return "No connection — try again.";
   if(/duplicate key/i.test(m)) return "That already exists.";
+  /* the console is newer than the database: say which script to run */
+  if(/jobs_status_check/i.test(m)) return "The database needs updating first: run 18_draft_jobs.sql in Supabase (SQL Editor), then try again.";
+  if(/record_versions/i.test(m)) return "The database needs updating first: run 19_record_versions.sql in Supabase (SQL Editor).";
   return m || "Something went wrong.";
 }
 function modal(html, bind){
@@ -993,14 +1007,9 @@ function setupTeam(job){
 }
 
 function setupForms(job){
-  const fd = formDays(job.id);
   return `<div class="panel"><h2>Forms</h2>
-    <p class="lead">Every working day the app asks for the site diary and the daily activity briefing, a plant inspection for each machine
-      on site, an excavation inspection for each open excavation, and a HAVs record when vibrating tools are used.</p>
-    <h3 class="setuph">Weekly forms — the day each is due on site</h3>
-    <div class="g4">${FORM_DAYS.map(([k, l]) => `<div class="f"><label>${esc(l)}</label><select class="in" data-fd="${k}">${DAY_NAMES.map((n, i) =>
-      `<option value="${i}" ${i === fd[k] ? "selected" : ""}>${n}</option>`).join("")}</select></div>`).join("")}</div>
-    <div class="hint">The app chases each one from that day, and the console shows it overdue after it.</div>
+    <p class="lead">Which forms this job needs and how often. The app asks for each one when it's due, and the console shows it overdue after that.</p>
+    ${formsEditor(job.id)}
     ${setupActs(`#/setup/${job.id}/team`, `<button class="btn" data-setupsave="forms">Save and continue</button>`)}</div>`;
 }
 
@@ -1018,7 +1027,7 @@ function setupReview(job){
   const meta = (S.items[job.id] || {}).meta || {}, info = meta.info || {};
   const team = (S.members || []).filter(m => m.job_id === job.id).map(m => (S.team || []).find(p => p.id === m.user_id)).filter(Boolean);
   const names = key => team.filter(p => p.role_key === key).map(p => p.full_name || p.email);
-  const fd = formDays(job.id), cur = ramsCurrent(job.id);
+  const cur = ramsCurrent(job.id);
   const gaps = [];
   if(!job.end_date) gaps.push(["details", "No expected completion date"]);
   if(!names("site_manager").length) gaps.push(["team", "No Site Manager on the job"]);
@@ -1037,7 +1046,7 @@ function setupReview(job){
       ${row("Project Manager", esc(names("project_manager").join(", ") || "—"), "team")}
       ${row("Site Manager", esc(names("site_manager").join(", ") || "—"), "team")}
       ${row("Others on the job", esc(String(team.filter(p => !["project_manager","site_manager"].includes(p.role_key)).length)), "team")}
-      ${row("Weekly forms", esc(FORM_DAYS.map(([k, l]) => l + " " + DAY_NAMES[fd[k]]).join(" · ")), "forms")}
+      ${row("Forms", `<span class="formdays" style="margin:0">${formsSummary(job.id)}</span>`, "forms")}
       ${row("RAMS", cur ? "Rev " + esc(revText(cur)) : "Not uploaded", "rams")}
     </table>
     ${setupActs(`#/setup/${job.id}/rams`, draft ? `<button class="btn" data-activate>Activate the job</button>` : `<a class="btn" href="#/job/${job.id}">Done</a>`,
@@ -1052,6 +1061,7 @@ function bindSetup(jobId, step){
   const busy = (b, on, label) => { if(!b) return; b.disabled = on; if(label) b.textContent = label; };
   const go2 = (id, s) => { location.hash = `#/setup/${id}/${s}`; };
   const job = jobId ? jobById(jobId) : null;
+  if(step === "forms" && jobId) bindFormsEditor(root, jobId);
 
   const save = root.querySelector("[data-setupsave]");
   if(save) save.onclick = async () => {
@@ -1078,7 +1088,7 @@ function bindSetup(jobId, step){
         m.info = Object.assign({}, m.info || {}, { pc:val("pc"), address:val("address"), ref:code, theirRef:val("theirRef") });
         if(val("start")) m.start = val("start");
         await saveMeta(id, m);
-        if(!list(id, "_forms").length) await saveItem(id, "_forms", Object.assign({ id:"days" }, HS_WEEKLY_DAY));
+        if(!list(id, "_forms").length) await saveItem(id, "_forms", defaultForms());
         await loadJobs();
         toast(job ? "Saved" : "Saved as a draft");
         return go2(id, "team");
@@ -1100,10 +1110,9 @@ function bindSetup(jobId, step){
         return go2(jobId, "forms");
       }
       if(step === "forms"){
+        const data = formsFromEditor(root, jobId);
         busy(save, true, "Saving…");
-        const days = {}; FORM_DAYS.forEach(([k]) => days[k] = Number(root.querySelector(`[data-fd="${k}"]`).value));
-        const had = list(jobId, "_forms")[0];
-        if(!had || FORM_DAYS.some(([k]) => Number(had[k]) !== days[k])) await saveItem(jobId, "_forms", Object.assign({ id:"days" }, days));
+        await saveItem(jobId, "_forms", data);
         return go2(jobId, "rams");
       }
     }catch(e){ busy(save, false, step === "details" && !job ? "Save as a draft and continue" : "Save and continue"); err(words(e)); }
@@ -1126,7 +1135,6 @@ function jobForm(job, meta){
   const v = job ? { name:job.name, code:job.code, pc:job.principal_contractor || info.pc || "", address:job.address || info.address || "",
     theirRef:info.theirRef || "", start:job.start_date || (meta && meta.start) || "", end:job.end_date || "", status:job.status || "live" }
     : { name:"", code:"", pc:"", address:"", theirRef:"", start:today(), end:"", status:"live" };
-  const fd = job ? formDays(job.id) : Object.assign({}, HS_WEEKLY_DAY);
   modal(`<h3>${job ? "Edit job" : "Create new job"}</h3>
     <p class="lead">${job ? "Changes show in the app the next time it syncs." : "It appears in the app for everyone who can see this job."}</p>
     <div class="f"><label>Job name *</label>${job ? `<div class="hint">The name links the job to every record on site, so it can't be changed here.</div>` : ""}
@@ -1143,10 +1151,8 @@ function jobForm(job, meta){
       <div class="f"><label>Status</label><select class="in" data-k="status">${(v.status === "draft" ? ["draft"] : []).concat(["tender","live","complete","archived"]).map(s =>
         `<option ${s === v.status ? "selected" : ""} value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div>
     </div>
-    <div class="fdset"><h4>Weekly forms — the day each is due on site</h4>
-      <div class="g4">${FORM_DAYS.map(([k, l]) => `<div class="f"><label>${esc(l)}</label><select class="in" data-fd="${k}">${DAY_NAMES.map((n, i) =>
-        `<option value="${i}" ${i === fd[k] ? "selected" : ""}>${n}</option>`).join("")}</select></div>`).join("")}</div>
-      <div class="hint">The app chases each one from that day, and the console shows it overdue after it.</div></div>
+    ${job ? `<div class="fdset"><h4>Forms</h4><p class="formdays" style="margin:0 0 6px">${formsSummary(job.id)}</p>
+      <a class="lnk" style="padding:0" href="#/job/${job.id}/forms" data-formslink>Change which forms the job needs and how often</a></div>` : ""}
     <p class="err" hidden></p>
     <div class="acts" style="justify-content:space-between"><span>${job && isAdmin() && can("jobs", "delete") ? `<button class="btn danger sm" data-deljob>Delete job</button>` : ""}</span>
       <span><button class="btn ghost" data-no>Cancel</button> <button class="btn" data-yes>${job ? "Save" : "Create job"}</button></span></div>`,
@@ -1154,6 +1160,7 @@ function jobForm(job, meta){
     const val = k => d.querySelector(`[data-k="${k}"]`).value.trim();
     const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
     d.querySelector("[data-no]").onclick = close;
+    const fl = d.querySelector("[data-formslink]"); if(fl) fl.addEventListener("click", close);
     const del = d.querySelector("[data-deljob]");
     if(del) del.onclick = () => { close(); deleteJobFlow(job); };
     d.querySelector("[data-yes]").onclick = async () => {
@@ -1177,10 +1184,8 @@ function jobForm(job, meta){
         m.info = Object.assign({}, m.info || {}, { pc:val("pc"), address:val("address"), ref:code, theirRef:val("theirRef") });
         if(val("start")) m.start = val("start");
         await saveMeta(id, m);
-        /* the weekly form days — saved for a new job, and whenever they're changed */
-        const days = {}; FORM_DAYS.forEach(([k]) => days[k] = Number(d.querySelector(`[data-fd="${k}"]`).value));
-        const had = list(id, "_forms")[0];
-        if(!had || FORM_DAYS.some(([k]) => Number(had[k]) !== days[k])) await saveItem(id, "_forms", Object.assign({ id:"days" }, days));
+        /* a new job starts with the usual forms */
+        if(!list(id, "_forms").length) await saveItem(id, "_forms", defaultForms());
         close(); toast(job ? "Job saved" : "Job created");
         await loadJobs(); route();
       }catch(e){ btn.disabled = false; err(words(e)); }
@@ -1272,6 +1277,8 @@ function ccNeeds(jobId){
   const out = [], add = (cls, tag, what, href, when) => out.push({ cls, tag, what, href, when:when || "" });
   const brief = dailyDue(jobId, "briefing").overdue.length;
   if(brief) add("red", "Overdue", `<b>${plural(brief, "daily briefing")}</b> not done`, "hs/briefings");
+  const havs = havsChased(jobId) ? dailyDue(jobId, "havs").overdue.length : 0;
+  if(havs) add("red", "Overdue", `<b>${plural(havs, "HAVs record")}</b> not done`, "hs/havs");
   const pl = plantDue(jobId).overdue.length;
   if(pl) add("red", "Overdue", `<b>${plural(pl, "plant inspection")}</b> missed`, "hs/plant");
   const ex = excDue(jobId).missed.length;
@@ -1306,8 +1313,10 @@ function ccToday(jobId){
   if(!isWorkingDay(jobId, t)) return rows;
   const done = (f) => doneRecs(jobId, f).some(r => r.date === t);
   rows.push({ name:"Site diary", done:!!diaryOn(jobId, t), href:"" });
-  rows.push({ name:"Daily activity briefing", done:done("briefing"), href:"hs/briefings" });
-  const pd = plantDue(jobId), onToday = plantOnDay(jobId, t).length;
+  const due = f => schedDueOn(formRule(jobId, f), t, d => isWorkingDay(jobId, d));
+  if(due("briefing") || done("briefing")) rows.push({ name:"Daily activity briefing", done:done("briefing"), href:"hs/briefings" });
+  if(havsChased(jobId) && (due("havs") || done("havs"))) rows.push({ name:"HAVs record", done:done("havs"), href:"hs/havs" });
+  const pd = plantDue(jobId), onToday = pd.off ? 0 : plantOnDay(jobId, t).length;
   if(onToday) rows.push({ name:"Plant inspections", done:!pd.dueToday.length, href:"hs/plant",
     note:pd.dueToday.length ? pd.dueToday.length + " of " + onToday + " still to do" : onToday + " done" });
   const exc = excDue(jobId).todayDue;
@@ -1795,6 +1804,271 @@ function formDays(jobId){
   return out;
 }
 const dueDay = (jobId, form) => DAY_NAMES[formDays(jobId)[form]];
+/* ------------------------------------------------------- form schedules --
+   Each job says which forms it needs and how often. The office sets this in
+   the console (it's saved with the job's form days); the phone and the
+   console work out what's due from it the same way, so a task is never stored
+   and can't be duplicated. A job that hasn't had its forms set keeps the old
+   rules exactly. This block is the same in index.html and admin.html.
+
+   A rule is { freq, days, day, dom, date, since }:
+     daily    every working day
+     days     on the working days picked (days: [0..6], Monday is 0)
+     weekly   once a week, due on `day`
+     monthly  once a month, due on the `dom`th (1–28)
+     once     one-off, due on `date`
+     asreq    when needed — never chased
+     off      not used on this job — not offered at all
+   `since` is the day the rule was set: nothing before it is chased. */
+const SCHED_FORMS = [
+  { key:"briefing",    name:"Daily activity briefing", type:"daily",    def:{ freq:"daily" } },
+  { key:"plantcheck",  name:"Plant inspections",       type:"item",     def:{ freq:"daily" }, note:"for each machine on site" },
+  { key:"excavation",  name:"Excavation inspections",  type:"item",     def:{ freq:"daily" }, note:"for each excavation left open" },
+  { key:"havs",        name:"HAVs record",             type:"daily",    def:{ freq:"asreq" } },
+  { key:"toolboxtalk", name:"Toolbox talk",            type:"periodic", def:{ freq:"weekly", day:0 } },
+  { key:"puwer",       name:"PUWER inspection",        type:"periodic", def:{ freq:"weekly", day:4 } },
+  { key:"loler",       name:"LOLER inspection",        type:"periodic", def:{ freq:"weekly", day:4 } }
+];
+const SCHED_FREQS = {
+  daily:   ["daily", "days", "asreq", "off"],
+  item:    ["daily", "asreq", "off"],
+  periodic:["weekly", "days", "monthly", "once", "asreq", "off"]
+};
+const SCHED_LABEL = { daily:"Every working day", days:"On set days", weekly:"Once a week", monthly:"Once a month",
+  once:"One-off", asreq:"As required", off:"Not used on this job" };
+const SCHED_DAY = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const schedForm = key => SCHED_FORMS.find(f => f.key === key) || null;
+const schedIso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const schedParse = s => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d); };
+const schedAdd = (s, n) => { const d = schedParse(s); d.setDate(d.getDate() + n); return schedIso(d); };
+const schedDow = s => (schedParse(s).getDay() + 6) % 7;
+const schedWeek = s => schedAdd(s, -schedDow(s));
+const schedMonthEnd = s => { const d = schedParse(s); return schedIso(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
+/* a stored rule, cleaned up: anything odd falls back to the form's default */
+function schedClean(key, r){
+  const f = schedForm(key);
+  if(!f) return null;
+  const out = Object.assign({}, f.def, r && typeof r === "object" ? r : {});
+  if(!SCHED_FREQS[f.type].includes(out.freq)) out.freq = f.def.freq;
+  const day = Number(out.day); out.day = Number.isInteger(day) && day >= 0 && day <= 6 ? day : (f.def.day || 0);
+  const dom = Number(out.dom); out.dom = Number.isInteger(dom) && dom >= 1 && dom <= 28 ? dom : 1;
+  out.days = Array.isArray(out.days) ? out.days.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : [];
+  if(out.freq === "days" && !out.days.length) out.freq = f.type === "periodic" ? "weekly" : "daily";
+  if(out.freq === "once" && !/^\d{4}-\d{2}-\d{2}$/.test(out.date || "")) out.freq = "asreq";
+  return out;
+}
+/* The stretch a record counts for, for the date given: a week for a weekly
+   form, the month for a monthly one, all time for a one-off, otherwise that day. */
+function schedPeriod(r, d){
+  if(r.freq === "weekly"){ const ws = schedWeek(d); return { start:ws, end:schedAdd(ws, 6), due:schedAdd(ws, r.day) }; }
+  if(r.freq === "monthly"){ const ms = d.slice(0, 8) + "01"; return { start:ms, end:schedMonthEnd(d), due:d.slice(0, 8) + String(r.dom).padStart(2, "0") }; }
+  if(r.freq === "once") return { start:"0000-01-01", end:"9999-12-31", due:r.date };
+  return { start:d, end:d, due:d };
+}
+/* is it due on this date? (working days only, for the daily kinds) */
+function schedDueOn(r, d, working){
+  if(r.freq === "daily") return working(d);
+  if(r.freq === "days") return working(d) && r.days.includes(schedDow(d));
+  if(r.freq === "weekly" || r.freq === "monthly" || r.freq === "once") return schedPeriod(r, d).due === d;
+  return false;
+}
+/* every due date from `from` up to and including `to`, oldest first (capped) */
+function schedDueDates(r, from, to, working){
+  const out = [];
+  if(!from || !to || from > to || r.freq === "asreq" || r.freq === "off") return out;
+  if(r.freq === "once"){ if(r.date >= from && r.date <= to) out.push(r.date); return out; }
+  if(r.freq === "weekly"){ for(let ws = schedWeek(from), i = 0; ws <= to && i < 60; ws = schedAdd(ws, 7), i++){ const d = schedAdd(ws, r.day); if(d >= from && d <= to) out.push(d); } return out; }
+  if(r.freq === "monthly"){ for(let m = from.slice(0, 8) + "01", i = 0; m <= to && i < 24; m = schedAdd(schedMonthEnd(m), 1), i++){ const d = m.slice(0, 8) + String(r.dom).padStart(2, "0"); if(d >= from && d <= to) out.push(d); } return out; }
+  for(let d = from, i = 0; d <= to && i < 400; d = schedAdd(d, 1), i++) if(schedDueOn(r, d, working)) out.push(d);
+  return out;
+}
+/* what the rule says in a few words, for screens */
+function schedText(r){
+  if(!r) return "";
+  if(r.freq === "days") return "On " + r.days.slice().sort().map(i => SCHED_DAY[i].slice(0, 3)).join(", ");
+  if(r.freq === "weekly") return "Once a week, due " + SCHED_DAY[r.day];
+  if(r.freq === "monthly"){ const n = r.dom, s = n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th";
+    return "Once a month, due the " + n + s; }
+  if(r.freq === "once"){ const d = schedParse(r.date); return "One-off, due " + d.toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }); }
+  return SCHED_LABEL[r.freq] || "";
+}
+
+/* this job's rules, or the old ones where the forms haven't been set */
+function jobSched(jobId){ const f = list(jobId, "_forms")[0]; return f && f.sched && typeof f.sched === "object" ? f.sched : null; }
+function formRule(jobId, key){
+  const f = schedForm(key);
+  if(!f) return null;
+  const s = jobSched(jobId);
+  if(s) return schedClean(key, s[key]);
+  return Object.assign(schedClean(key, f.type === "periodic" ? { freq:"weekly", day:formDays(jobId)[key] } : {}), { legacy:true });
+}
+const formOffOn = (jobId, key) => { const r = formRule(jobId, key); return !!r && r.freq === "off"; };
+const ruleText = (jobId, key) => schedText(formRule(jobId, key));
+const firstScan = jobId => list(jobId, "scans").filter(x => x.plantId).map(x => x.week).filter(Boolean).sort()[0] || null;
+/* the first day a form is chased. Set rules: the day the rule was set, never
+   before the job starts. Old rules exactly as before: the briefing from the
+   day it was first used; weekly forms from the week first used (or just this
+   week); plant checks from the first check or scanned sheet. */
+function chaseStart(jobId, key){
+  const r = formRule(jobId, key), js = jobStart(jobId), t = today();
+  const later = (...ds) => ds.filter(Boolean).sort().pop() || null;
+  if(r.freq === "once") return later(r.date, js);          /* a one-off is chased from its own date */
+  if(!r.legacy) return later(r.since || "", js) || t;
+  if(key === "briefing"){ const f = firstDone(jobId, key); return f ? later(f, js) : null; }
+  if(key === "plantcheck"){ const f = [firstDone(jobId, key), firstScan(jobId)].filter(Boolean).sort()[0]; return f ? later(f, js) : null; }
+  if(key === "excavation") return js || addDays(t, -HS_LOOKBACK);
+  if(schedForm(key).type === "periodic"){ const f = firstDone(jobId, key); return f ? weekStart(later(f, js)) : weekStart(t); }
+  return null;
+}
+/* overdue and due today for one form, from its rule */
+function formDue(jobId, key){
+  const r = formRule(jobId, key), t = today();
+  const out = { rule:r, overdue:[], dueToday:false, doneNow:false, started:false, period:null };
+  if(!r || r.freq === "off") return out;
+  const recs = doneRecs(jobId, key);
+  const doneIn = p => recs.some(x => x.date >= p.start && x.date <= p.end);
+  const working = d => isWorkingDay(jobId, d);
+  out.period = schedPeriod(r, t);
+  out.doneNow = doneIn(out.period);
+  out.started = recs.length > 0;
+  const from = chaseStart(jobId, key);
+  out.dueToday = (r.legacy || (!!from && t >= from)) && schedDueOn(r, t, working) && !out.doneNow;
+  if(!from || r.freq === "asreq") return out;
+  const floor = addDays(t, ["daily", "days"].includes(r.freq) ? -84 : -400);
+  out.overdue = schedDueDates(r, from > floor ? from : floor, addDays(t, -1), working)
+    .map(d => Object.assign({ due:d }, schedPeriod(r, d))).filter(p => !doneIn(p));
+  return out;
+}
+/* what one overdue stretch is called */
+function periodLabel(r, p){
+  if(r.freq === "weekly") return "Week commencing " + nice(p.start);
+  if(r.freq === "monthly") return parse(p.start).toLocaleDateString("en-GB", { month:"long", year:"numeric" });
+  if(r.freq === "once") return "One-off, due " + nice(p.due);
+  return nice(p.due);
+}
+const periodWord = r => r.freq === "weekly" ? "This week" : r.freq === "monthly" ? "This month" : r.freq === "once" ? "One-off" : "Today";
+
+/* ------------------------------------------------- the forms on a job --
+   Which forms a job needs and how often: in the job set-up, and on the
+   job's own Forms page. Saved with the job's form days; the old day numbers
+   are kept up to date too, for phones still on an older version. */
+const ruleKey = r => JSON.stringify([r.freq, r.freq === "weekly" ? r.day : null, r.freq === "days" ? r.days.slice().sort() : null,
+  r.freq === "monthly" ? r.dom : null, r.freq === "once" ? r.date : null]);
+function schedDetail(f, r){
+  const opts = (n, sel, lab) => Array.from({ length:n }, (_, i) => `<option value="${i + (lab ? 1 : 0)}" ${i + (lab ? 1 : 0) === sel ? "selected" : ""}>${lab ? i + 1 : DAY_NAMES[i]}</option>`).join("");
+  if(r.freq === "weekly") return `<label class="sfl">Due on <select class="in" data-sday>${opts(7, r.day)}</select></label>`;
+  if(r.freq === "days") return `<div class="sdays" role="group" aria-label="Days">${DAY_NAMES.map((n, i) =>
+    `<label><input type="checkbox" data-sdays value="${i}" ${r.days.includes(i) ? "checked" : ""}><span>${n.slice(0, 3)}</span></label>`).join("")}</div>`;
+  if(r.freq === "monthly") return `<label class="sfl">Due on the <select class="in" data-sdom>${opts(28, r.dom, true)}</select> of each month</label>`;
+  if(r.freq === "once") return `<label class="sfl">Due on <input class="in" type="date" data-sdate value="${esc(r.date || "")}"></label>`;
+  if(r.freq === "daily") return `<span class="sub2">Chased every working day${f.type === "item" ? ", " + esc(f.note) : ""}</span>`;
+  if(r.freq === "asreq") return `<span class="sub2">In the app for when it's needed, never chased</span>`;
+  return `<span class="sub2">Not offered in the app on this job</span>`;
+}
+function formsEditor(jobId){
+  const pack = formDays(jobId).pack;
+  return `<table class="t sched"><tr><th>Form</th><th>How often</th><th>When</th></tr>
+    <tr><td><b>Site diary</b></td><td colspan="2"><span class="sub2" style="margin:0">Every working day. Always needed.</span></td></tr>
+    ${SCHED_FORMS.map(f => { const r = formRule(jobId, f.key); return `<tr data-sf="${f.key}">
+      <td><b>${esc(f.name)}</b>${f.note ? `<span class="sub2">${esc(f.note[0].toUpperCase() + f.note.slice(1))}</span>` : ""}</td>
+      <td><select class="in" data-sfreq aria-label="How often: ${esc(f.name)}">${SCHED_FREQS[f.type].map(q =>
+        `<option value="${q}" ${q === r.freq ? "selected" : ""}>${SCHED_LABEL[q]}</option>`).join("")}</select></td>
+      <td class="sfx">${schedDetail(f, r)}</td></tr>`; }).join("")}
+    <tr><td><b>H&amp;S pack</b><span class="sub2">The weekly pack published on site</span></td><td><span class="sub2" style="margin:0">Once a week</span></td>
+      <td><label class="sfl">Due on <select class="in" data-packday>${DAY_NAMES.map((n, i) => `<option value="${i}" ${i === pack ? "selected" : ""}>${n}</option>`).join("")}</select></label></td></tr>
+  </table>`;
+}
+/* each row keeps what was picked, so switching how often and back loses nothing */
+function bindFormsEditor(root, jobId){
+  root.querySelectorAll("tr[data-sf]").forEach(tr => {
+    const key = tr.dataset.sf, f = schedForm(key);
+    tr._rule = Object.assign({}, formRule(jobId, key));
+    if(!tr._rule.days.length) tr._rule.days = [0, 1, 2, 3, 4];
+    if(!tr._rule.date) tr._rule.date = addDays(today(), 7);
+    tr.onchange = e => {
+      const el = e.target, r = tr._rule;
+      if(el.matches("[data-sday]")) r.day = Number(el.value);
+      if(el.matches("[data-sdom]")) r.dom = Number(el.value);
+      if(el.matches("[data-sdate]")) r.date = el.value;
+      if(el.matches("[data-sdays]")) r.days = [...tr.querySelectorAll("[data-sdays]:checked")].map(x => Number(x.value));
+      if(el.matches("[data-sfreq]")){ r.freq = el.value; tr.querySelector(".sfx").innerHTML = schedDetail(f, r); }
+    };
+  });
+}
+function legacySince(jobId, key){
+  const t = today();
+  if(key === "excavation") return "";
+  if(key === "briefing") return firstDone(jobId, key) || t;
+  if(key === "plantcheck") return [firstDone(jobId, key), firstScan(jobId)].filter(Boolean).sort()[0] || t;
+  if(schedForm(key).type === "periodic") return firstDone(jobId, key) || weekStart(t);
+  return t;
+}
+/* what to save from the editor; throws a sentence if something's missing */
+function formsFromEditor(root, jobId){
+  const had = list(jobId, "_forms")[0] || {}, old = jobSched(jobId), t = today(), sched = {};
+  root.querySelectorAll("tr[data-sf]").forEach(tr => {
+    const key = tr.dataset.sf, r = tr._rule, f = schedForm(key);
+    if(r.freq === "days" && !r.days.length) throw new Error("Pick at least one day for the " + f.name.toLowerCase() + ".");
+    if(r.freq === "once" && !/^\d{4}-\d{2}-\d{2}$/.test(r.date || "")) throw new Error("Give the date the " + f.name.toLowerCase() + " is due.");
+    const store = { freq:r.freq };
+    if(r.freq === "weekly") store.day = r.day;
+    if(r.freq === "days") store.days = r.days.slice().sort();
+    if(r.freq === "monthly") store.dom = r.dom;
+    if(r.freq === "once") store.date = r.date;
+    const now = ruleKey(schedClean(key, store));
+    if(old && old[key] && ruleKey(schedClean(key, old[key])) === now) store.since = old[key].since || "";
+    else if(!old && ruleKey(formRule(jobId, key)) === now) store.since = legacySince(jobId, key);
+    else store.since = t;
+    sched[key] = store;
+  });
+  const out = Object.assign({}, had, { id:"days", sched, schedAt:Date.now() });
+  Object.keys(HS_WEEKLY_DAY).forEach(k => { if(out[k] === undefined || out[k] === "") out[k] = HS_WEEKLY_DAY[k]; });
+  SCHED_FORMS.filter(f => f.type === "periodic").forEach(f => { if(sched[f.key].freq === "weekly") out[f.key] = sched[f.key].day; });
+  const pk = root.querySelector("[data-packday]");
+  if(pk) out.pack = Number(pk.value);
+  delete out.job; delete out.updatedAt;
+  return out;
+}
+/* a new job starts with the usual rules, chased from the day it's set up */
+function defaultForms(){
+  const sched = {}, t = today();
+  SCHED_FORMS.forEach(f => { sched[f.key] = Object.assign({}, f.def, { since:t }); });
+  return Object.assign({ id:"days", sched, schedAt:Date.now() }, HS_WEEKLY_DAY);
+}
+/* one line per form, for summaries */
+const formsSummary = jobId => SCHED_FORMS.map(f => { const r = formRule(jobId, f.key);
+  return `<span><b>${esc(f.name)}</b> ${esc(r.freq === "off" ? "not used" : schedText(r).replace(/^Once a week, due /, "").replace(/^Every working day$/, "daily"))}</span>`; }).join("");
+
+/* the job's Forms page */
+function formsPage(jobId){
+  const job = jobById(jobId), edit = !!can("jobs", "edit");
+  return shell("dash", `<div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Forms</div>
+    <div class="title"><h1>Forms</h1><span class="sub">Which forms ${esc(job.name)} needs, and how often</span></div>
+    <div class="setup"><div class="panel">
+      <p class="lead">The app asks for each form when it's due and the console shows it overdue after that. A change is chased from today,
+        so nothing earlier is suddenly reported missing.</p>
+      ${formsEditor(jobId)}
+      ${edit ? `<p class="err" hidden></p><div class="setupacts"><a class="btn ghost" href="#/job/${jobId}/hs">Cancel</a>
+        <button class="btn" data-formsave>Save</button></div>` : ""}</div></div>`);
+}
+function bindFormsPage(jobId){
+  const root = document.querySelector(".setup");
+  if(!root) return;
+  bindFormsEditor(root, jobId);
+  if(!can("jobs", "edit")) root.querySelectorAll("select,input").forEach(x => x.disabled = true);
+  const b = root.querySelector("[data-formsave]");
+  if(b) b.onclick = async () => {
+    const e = root.querySelector(".err"); e.hidden = true;
+    try{
+      const data = formsFromEditor(root, jobId);
+      b.disabled = true;
+      await saveItem(jobId, "_forms", data);
+      toast("Forms saved. Phones pick it up at their next sync.");
+      location.hash = "#/job/" + jobId + "/hs";
+    }catch(err){ b.disabled = false; e.textContent = words(err); e.hidden = false; }
+  };
+}
+
 const HS_LOOKBACK = 60;
 const recsOf = (jobId, form) => list(jobId, "records").filter(r => r.form === form);
 const doneRecs = (jobId, form) => recsOf(jobId, form).filter(r => r.status === "submitted");
@@ -1811,23 +2085,19 @@ function workingDays(jobId, from, to){
   return out;
 }
 const byNewest = (a, b) => String(b.date || "").localeCompare(String(a.date || "")) || (b.submittedAt || 0) - (a.submittedAt || 0);
-const statusPill = r => `<span class="pill ${r.status === "submitted" ? "ok" : "amber"}">${r.status === "submitted" ? "Done" : "In progress"}</span>`;
+const statusPill = r => `<span class="pill ${r.status === "submitted" ? "ok" : "amber"}">${r.status === "submitted" ? "Done" : "In progress"}</span>${r.amendedAt ? ` <span class="pill amber" title="Amended ${new Date(r.amendedAt).toLocaleString("en-GB")}${r.amendedBy ? " by " + esc(r.amendedBy) : ""}. The earlier versions are kept.">Amended</span>` : ""}`;
 
 /* daily: briefing ------------------------------------------------------ */
 function dailyDue(jobId, form){
-  const from = [firstDone(jobId, form), jobStart(jobId)].filter(Boolean).sort().pop();
-  const t = today(), done = new Set(doneRecs(jobId, form).map(r => r.date));
-  const overdue = firstDone(jobId, form) && from ? workingDays(jobId, from, addDays(t, -1)).filter(d => !done.has(d)) : [];
-  const dueToday = isWorkingDay(jobId, t) && !done.has(t);
-  return { overdue, dueToday, started:!!firstDone(jobId, form) };
+  const s = formDue(jobId, form);
+  return { overdue:s.overdue.map(p => p.due), dueToday:s.dueToday, started:s.started, rule:s.rule };
 }
 /* plant inspections: one per machine on site per working day (paper sheets
    scanned in for the week count too) ------------------------------------- */
 function plantOnDay(jobId, d){ return list(jobId, "plant").filter(p => (!p.onDate || p.onDate <= d) && (!p.offDate || p.offDate > d)); }
 function plantDue(jobId){
-  const firstScan = list(jobId, "scans").filter(x => x.plantId).map(x => x.week).filter(Boolean).sort()[0];
-  const first = [firstDone(jobId, "plantcheck"), firstScan].filter(Boolean).sort()[0];
-  const from = [first, jobStart(jobId)].filter(Boolean).sort().pop();
+  if(formRule(jobId, "plantcheck").freq !== "daily") return { overdue:[], dueToday:[], started:false, off:true };
+  const from = chaseStart(jobId, "plantcheck"), first = from;
   const t = today();
   const checked = new Set(doneRecs(jobId, "plantcheck").map(r => r.date + "|" + r.plantId));
   const paper = new Set(list(jobId, "scans").filter(x => x.plantId).map(x => x.week + "|" + x.plantId));
@@ -1845,30 +2115,25 @@ function openList(diary){
 }
 function prevWorkingDay(jobId, d){ let p = addDays(d, -1); for(let i = 0; i < 10 && !isWorkingDay(jobId, p); i++) p = addDays(p, -1); return p; }
 function excDue(jobId){
-  const t = today(), start = jobStart(jobId) || addDays(t, -HS_LOOKBACK);
+  const t = today(), chase = formRule(jobId, "excavation").freq === "daily", start = chaseStart(jobId, "excavation") || addDays(t, -HS_LOOKBACK);
   const done = new Set(doneRecs(jobId, "excavation").map(r => r.date + "|" + (r.excRef || (r.data || {}).ref || "")));
   const missed = [];
-  workingDays(jobId, start, addDays(t, -1)).forEach(d => openList(diaryOn(jobId, prevWorkingDay(jobId, d)))
+  if(chase) workingDays(jobId, start, addDays(t, -1)).forEach(d => openList(diaryOn(jobId, prevWorkingDay(jobId, d)))
     .forEach(x => { if(!done.has(d + "|" + x.ref)) missed.push({ date:d, ref:x.ref, location:x.location || "" }); }));
   const latest = list(jobId, "records").filter(r => (r.form || "diary") === "diary" && r.status === "submitted" && r.date <= t).sort(byNewest)[0];
   const open = openList(latest).map(x => Object.assign({}, x, { since:latest.date }));
-  const todayDue = isWorkingDay(jobId, t) ? openList(diaryOn(jobId, prevWorkingDay(jobId, t))).filter(x => !done.has(t + "|" + x.ref)) : [];
+  const todayDue = chase && isWorkingDay(jobId, t) ? openList(diaryOn(jobId, prevWorkingDay(jobId, t))).filter(x => !done.has(t + "|" + x.ref)) : [];
   const unsafe = doneRecs(jobId, "excavation").filter(r => (r.data || {}).safe === false);
   return { missed, open, todayDue, unsafe };
 }
 /* weekly: toolbox talk, PUWER, LOLER ------------------------------------- */
 function weeklyDue(jobId, form){
-  const t = today(), first = firstDone(jobId, form), day = formDays(jobId)[form] || 0;
-  const doneWeeks = new Set(doneRecs(jobId, form).map(r => weekStart(r.date)));
-  const overdue = [];
-  let ws = first ? weekStart([first, jobStart(jobId)].filter(Boolean).sort().pop()) : weekStart(t);
-  for(let i = 0; i < 52 && ws <= weekStart(t); i++, ws = addDays(ws, 7)){
-    const due = addDays(ws, day);
-    if(due < t && !doneWeeks.has(ws) && (first || ws === weekStart(t))) overdue.push({ week:ws, due });
-  }
-  const dueNow = addDays(weekStart(t), day) === t && !doneWeeks.has(weekStart(t));
-  return { overdue, dueNow, doneThisWeek:doneWeeks.has(weekStart(t)) };
+  const s = formDue(jobId, form);
+  return { overdue:s.overdue.map(p => ({ week:p.start, due:p.due, label:periodLabel(s.rule, p) })),
+    dueNow:s.dueToday, doneThisWeek:s.doneNow, rule:s.rule };
 }
+/* HAVs is only chased where the job has set it for every day or set days */
+const havsChased = jobId => ["daily", "days"].includes(formRule(jobId, "havs").freq);
 /* RAMS ----------------------------------------------------------------- */
 const ramsAll = jobId => list(jobId, "rams").slice().sort((a, b) => (b.revNo || 0) - (a.revNo || 0));
 const ramsCurrent = jobId => ramsAll(jobId).find(r => r.status === "current") || null;
@@ -2083,15 +2348,19 @@ const HS_SECTIONS = [
   ["plant","Plant Inspections"],["puwer","PUWER Inspections"],["loler","LOLER Inspections"],
   ["toolbox","Toolbox Talks"],["rams","RAMS"],["tempworks","Temporary Works"]
 ];
+const HS_FORM = { briefings:"briefing", excavations:"excavation", havs:"havs", plant:"plantcheck", puwer:"puwer", loler:"loler", toolbox:"toolboxtalk" };
 function hsTileState(jobId, key){
   const n = (form) => doneRecs(jobId, form).length;
+  if(HS_FORM[key] && formOffOn(jobId, HS_FORM[key])) return { v:n(HS_FORM[key]) ? plural(n(HS_FORM[key]), "record") + "\nNot used now" : "Not used on this job" };
   const late = (count, word) => count ? { cls:"red", label:count + " " + word } : null;
   if(key === "briefings"){ const s = dailyDue(jobId, "briefing"); return { v:plural(n("briefing"), "briefing"), flag:late(s.overdue.length, "overdue") || (s.dueToday ? { cls:"amber", label:"Due today" } : null) }; }
   if(key === "excavations"){ const s = excDue(jobId); return { v:plural(n("excavation"), "inspection") + (s.open.length ? "\n" + s.open.length + " left open" : ""),
     flag:late(s.missed.length, "missed") || (s.unsafe.length ? { cls:"red", label:s.unsafe.length + " not safe" } : s.todayDue.length ? { cls:"amber", label:"Due today" } : null) }; }
-  if(key === "havs"){ const ws = weekStart(today()); const c = doneRecs(jobId, "havs").filter(r => weekStart(r.date) === ws).length; return { v:plural(c, "record") + " this week" }; }
+  if(key === "havs"){ const ws = weekStart(today()); const c = doneRecs(jobId, "havs").filter(r => weekStart(r.date) === ws).length;
+    const s = havsChased(jobId) ? dailyDue(jobId, "havs") : null;
+    return { v:plural(c, "record") + " this week", flag:s ? late(s.overdue.length, "overdue") || (s.dueToday ? { cls:"amber", label:"Due today" } : null) : null }; }
   if(key === "plant"){ const s = plantDue(jobId); return { v:plural(n("plantcheck"), "inspection"), flag:late(s.overdue.length, "overdue") || (s.dueToday.length ? { cls:"amber", label:s.dueToday.length + " due today" } : null) }; }
-  if(["puwer","loler"].includes(key)){ const s = weeklyDue(jobId, key); return { v:plural(n(key), "week") + " done", flag:late(s.overdue.length, "overdue") || (s.dueNow ? { cls:"amber", label:"Due today" } : null) }; }
+  if(["puwer","loler"].includes(key)){ const s = weeklyDue(jobId, key); return { v:n(key) + " done", flag:late(s.overdue.length, "overdue") || (s.dueNow ? { cls:"amber", label:"Due today" } : null) }; }
   if(key === "toolbox"){ const s = weeklyDue(jobId, "toolboxtalk"); return { v:plural(n("toolboxtalk"), "talk"), flag:late(s.overdue.length, "overdue") || (s.dueNow ? { cls:"amber", label:"Due today" } : null) }; }
   if(key === "rams"){ const c = ramsCurrent(jobId); if(!c) return { v:"None uploaded", flag:{ cls:"amber", label:"No RAMS" } };
     const u = ramsUnsigned(jobId).length; return { v:"Rev " + revText(c) + "\n" + plural((c.sigs || []).length, "signature"), flag:u ? { cls:"amber", label:u + " to sign" } : null }; }
@@ -2103,8 +2372,8 @@ function hsHub(jobId){
   return shell("dash", `
     <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Health and safety</div>
     <div class="jobbar">${esc(job.name)}<span class="ref">Health and safety</span></div>
-    <p class="formdays">Due each week: ${FORM_DAYS.map(([k, l]) => `<span><b>${esc(l)}</b> ${esc(dueDay(jobId, k))}</span>`).join("")}
-      ${can("jobs", "edit") ? `<button class="lnk" data-editjob="${jobId}">Change days</button>` : ""}</p>
+    <p class="formdays">${formsSummary(jobId)}<span><b>H&amp;S pack</b> ${esc(dueDay(jobId, "pack"))}</span>
+      <a class="lnk" href="#/job/${jobId}/forms">${can("jobs", "edit") ? "Change" : "Details"}</a></p>
     <div class="sectiles three">${HS_SECTIONS.map(([k, t]) => { const s = hsTileState(jobId, k);
       return `<a class="st" href="#/job/${jobId}/hs/${k}">${s.flag ? `<span class="flag ${s.flag.cls}">${esc(s.flag.label)}</span>` : ""}
         <span class="ic">${HSI[k]}</span><span class="t">${t}</span><span class="v">${esc(s.v)}</span></a>`; }).join("")}</div>`);
@@ -2121,7 +2390,7 @@ const allClear = text => `<div class="attn" style="margin:0 0 24px"><div class="
 function hsBriefings(jobId){
   const s = dailyDue(jobId, "briefing"), recs = recsOf(jobId, "briefing").sort(byNewest);
   const att = r => ((r.data || {}).attendees || []).filter(x => x && (x.attended === true || (x.sig && x.sig.src))).length;
-  return shell("dash", hsHead(jobId, "Daily Activity Briefings", "One every working day") + `
+  return shell("dash", hsHead(jobId, "Daily Activity Briefings", ruleText(jobId, "briefing")) + `
     <div class="stats">${stat("Completed", doneRecs(jobId, "briefing").length)}${stat("Overdue", s.overdue.length, true)}${stat("Today", s.dueToday ? "Due" : "Done")}</div>
     ${s.overdue.length || s.dueToday ? attnList("Outstanding", s.overdue.map(d => ({ tag:"Overdue", what:"No briefing submitted", when:short(d) }))
         .concat(s.dueToday ? [{ cls:"amber", tag:"Due today", what:"Today's briefing hasn't been submitted yet", when:short(today()) }] : []))
@@ -2134,7 +2403,7 @@ function hsBriefings(jobId){
 /* 2. excavation inspections */
 function hsExcavations(jobId){
   const s = excDue(jobId), recs = recsOf(jobId, "excavation").sort(byNewest);
-  return shell("dash", hsHead(jobId, "Excavation Inspections", "Due each morning an excavation has been left open") + `
+  return shell("dash", hsHead(jobId, "Excavation Inspections", formRule(jobId, "excavation").freq === "daily" ? "Due each morning an excavation has been left open" : ruleText(jobId, "excavation")) + `
     <div class="stats">${stat("Inspections", doneRecs(jobId, "excavation").length)}${stat("Left open", s.open.length)}${stat("Missed", s.missed.length, true)}${stat("Not safe", s.unsafe.length, true)}</div>
     ${attnList("Needs attention", s.missed.map(x => ({ tag:"Missed", what:`<b>${esc(x.ref)}</b>${x.location ? " · " + esc(x.location) : ""} — no inspection`, when:short(x.date) }))
       .concat(s.todayDue.map(x => ({ cls:"amber", tag:"Due today", what:`<b>${esc(x.ref)}</b>${x.location ? " · " + esc(x.location) : ""}`, when:short(today()) })))
@@ -2167,7 +2436,10 @@ function hsHavs(jobId){
   const people = Object.values(ops).sort((a, b) => b.max - a.max);
   const over = c => people.filter(p => p.max >= c).length;
   const recMax = r => { const by = {}; (((r.data || {}).entries) || []).forEach(e => { if(e && e.operative) by[e.operative] = (by[e.operative] || 0) + havsPts(e.magnitude, durH(e.triggerTime)); }); return Math.max(0, ...Object.values(by)); };
-  return shell("dash", hsHead(jobId, "HAVs Records", "Hand-arm vibration — points per operative per day (EAV 100, ELV 400)") + `
+  const hs = havsChased(jobId) ? dailyDue(jobId, "havs") : null;
+  return shell("dash", hsHead(jobId, "HAVs Records", "Hand-arm vibration — points per operative per day (EAV 100, ELV 400) · " + ruleText(jobId, "havs").toLowerCase()) + `
+    ${hs && (hs.overdue.length || hs.dueToday) ? attnList("Outstanding", hs.overdue.map(d => ({ tag:"Overdue", what:"No HAVs record submitted", when:short(d) }))
+      .concat(hs.dueToday ? [{ cls:"amber", tag:"Due today", what:"Today's HAVs record hasn't been submitted yet", when:short(today()) }] : [])) : ""}
     <div class="bar"><button class="btn line sm" data-havsw="-7">‹ Previous</button><b style="font-size:15px">Week commencing ${nice(havsWeek)}</b>
       <button class="btn line sm" data-havsw="7">Next ›</button></div>
     <div class="stats">${stat("Records", recs.filter(r => r.status === "submitted").length)}${stat("Operatives", people.length)}${stat("Over EAV", over(100), true)}${stat("Over ELV", over(400), true)}</div>
@@ -2186,7 +2458,7 @@ function hsPlant(jobId){
   const s = plantDue(jobId), recs = recsOf(jobId, "plantcheck").sort(byNewest);
   const m = id => list(jobId, "plant").find(p => String(p.id) === String(id)) || {};
   const name = x => `<b>${esc(x.item || "Machine")}</b>${x.fleetNo ? " · " + esc(x.fleetNo) : ""}`;
-  return shell("dash", hsHead(jobId, "Plant Inspections", "Daily pre-use checks for every machine on site") + `
+  return shell("dash", hsHead(jobId, "Plant Inspections", formRule(jobId, "plantcheck").freq === "daily" ? "Daily pre-use checks for every machine on site" : ruleText(jobId, "plantcheck")) + `
     <div class="stats">${stat("Inspections", doneRecs(jobId, "plantcheck").length)}${stat("Overdue", s.overdue.length, true)}${stat("Due today", s.dueToday.length)}${stat("Machines on site", list(jobId, "plant").filter(onSite).length)}</div>
     ${s.overdue.length || s.dueToday.length ? attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:name(x.m), when:short(x.date) }))
         .concat(s.dueToday.map(x => ({ cls:"amber", tag:"Due today", what:name(x), when:short(today()) }))))
@@ -2202,10 +2474,10 @@ function hsWeekly(jobId, form){
   const s = weeklyDue(jobId, form), recs = recsOf(jobId, form).sort(byNewest);
   const isP = form === "puwer", title = isP ? "PUWER Inspections" : "LOLER Inspections";
   const rows = r => ((r.data || {})[isP ? "tools" : "items"] || []);
-  return shell("dash", hsHead(jobId, title, (isP ? "Tools and small plant" : "Lifting equipment") + " — once a week, due " + dueDay(jobId, form)) + `
-    <div class="stats">${stat("Weeks done", doneRecs(jobId, form).length)}${stat("Overdue", s.overdue.length, true)}${stat("This week", s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
-    ${s.overdue.length || s.dueNow ? attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:"Week commencing " + nice(x.week), when:"due " + short(x.due) }))
-        .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:"This week's " + (isP ? "PUWER register" : "LOLER inspection"), when:short(today()) }] : [])) : ""}
+  return shell("dash", hsHead(jobId, title, (isP ? "Tools and small plant" : "Lifting equipment") + " — " + ruleText(jobId, form).toLowerCase()) + `
+    <div class="stats">${stat("Done", doneRecs(jobId, form).length)}${stat("Overdue", s.overdue.length, true)}${["asreq","off"].includes(s.rule.freq) ? "" : stat(periodWord(s.rule), s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
+    ${s.overdue.length || s.dueNow ? attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:x.label, when:"due " + short(x.due) }))
+        .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:(isP ? "PUWER register" : "LOLER inspection"), when:short(today()) }] : [])) : ""}
     <div class="panel"><h2>Completed</h2>${recs.length ? `<table class="t"><tr><th>Week commencing</th><th>Done on</th><th>Ref</th><th class="num">Items inspected</th><th>Defects</th><th>Status</th></tr>
       ${recs.map(r => { const it = rows(r), bad = it.filter(x => x && x.ok === false); return `<tr><td>${nice(weekStart(r.date))}</td><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td>
         <td class="num">${it.length}</td><td>${bad.length ? `<span class="pill red">${plural(bad.length, "defect")}</span><span class="sub2">${esc(bad.map(x => x.tool || x.description).filter(Boolean).join(", "))}</span>` : `<span class="pill ok">None</span>`}</td>
@@ -2217,10 +2489,10 @@ function hsToolbox(jobId){
   const s = weeklyDue(jobId, "toolboxtalk"), recs = recsOf(jobId, "toolboxtalk").sort(byNewest);
   const att = r => ((r.data || {}).attendees || []).filter(x => x && (x.attended === true || (x.sig && x.sig.src))).length;
   const cat = r => { const t = (r.data || {}).libraryTalk; const l = t && LIB && LIB.items.find(x => x.id === t.id); return l ? l.category : null; };
-  return shell("dash", hsHead(jobId, "Toolbox Talks", "Once a week, due " + dueDay(jobId, "toolboxtalk")) + `
-    <div class="stats">${stat("Talks done", doneRecs(jobId, "toolboxtalk").length)}${stat("Overdue", s.overdue.length, true)}${stat("This week", s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
-    ${attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:"Week commencing " + nice(x.week), when:"due " + short(x.due) }))
-      .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:"This week's toolbox talk", when:short(today()) }] : []))}
+  return shell("dash", hsHead(jobId, "Toolbox Talks", ruleText(jobId, "toolboxtalk")) + `
+    <div class="stats">${stat("Talks done", doneRecs(jobId, "toolboxtalk").length)}${stat("Overdue", s.overdue.length, true)}${["asreq","off"].includes(s.rule.freq) ? "" : stat(periodWord(s.rule), s.doneThisWeek ? "Done" : s.dueNow ? "Due today" : "To do")}</div>
+    ${attnList("Outstanding", s.overdue.map(x => ({ tag:"Overdue", what:x.label, when:"due " + short(x.due) }))
+      .concat(s.dueNow ? [{ cls:"amber", tag:"Due today", what:"Toolbox talk", when:short(today()) }] : []))}
     <div class="panel"><h2>Completed talks</h2>${recs.length ? `<table class="t"><tr><th>Date</th><th>Ref</th><th>Subject</th><th>Delivered by</th><th class="num">Attended</th><th>Status</th></tr>
       ${recs.map(r => { const d = r.data || {}, c = cat(r); return `<tr><td>${short(r.date)}</td><td>${esc(r.ref || "—")}</td>
         <td><b>${esc(d.subject || "—")}</b>${d.libraryTalk ? ` <span class="pill ${c === "Environmental" ? "env" : "ok"}">From library${c ? " · " + esc(c) : ""}</span>` : ""}</td>
@@ -2338,6 +2610,7 @@ function twForm(jobId, x){
 
 function hsOverdueCount(jobId){
   return dailyDue(jobId, "briefing").overdue.length + plantDue(jobId).overdue.length + excDue(jobId).missed.length
+    + (havsChased(jobId) ? dailyDue(jobId, "havs").overdue.length : 0)
     + ["toolboxtalk","puwer","loler"].reduce((n, f) => n + weeklyDue(jobId, f).overdue.length, 0);
 }
 function hsPage(jobId, sub){
@@ -3332,6 +3605,7 @@ async function route(){
           else if(REG[sec]){ html = registerView(id, sec); bind = () => bindRegister(id, sec); }
           else if(sec === "hire"){ html = hireView(id); bind = bindHire; }
           else if(sec === "delays"){ html = delaysView(id); }
+          else if(sec === "forms"){ html = formsPage(id); bind = () => bindFormsPage(id); }
           else if(sec === "deliveries"){ html = deliveriesView(id); bind = () => bindDeliveries(id); }
           else if(sec === "timesheets"){ html = timesheetsView(id); bind = bindTimesheets; }
           else if(sec === "hs"){

@@ -1744,6 +1744,8 @@ html[data-theme="dark"] .navpill{background:var(--paper);border-color:var(--line
 .sl-row .n b{display:block;font-size:15.5px;font-weight:640}
 .sl-row .n span{display:block;font-size:13px;color:var(--ink-2);margin-top:1px}
 .sl-row .go{font-size:22px;color:var(--ink-3)}
+.hv .sl-row .n span{line-height:1.45}
+.hvbody{padding:2px 0 10px}
 </style>
 </head>
 <body>
@@ -2247,7 +2249,7 @@ html[data-theme="dark"] .navpill{background:var(--paper);border-color:var(--line
 /* Bumped whenever the file is rebuilt, so it is possible to tell at a glance
    on the settings screen whether a device is running the latest copy or a
    cached one. */
-const APP_BUILD = "2026-11-10-roles";
+const APP_BUILD = "2026-11-11-phase5";
 
 const LOGO = "data:image/png;base64,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";
 
@@ -2605,6 +2607,7 @@ function dailyRecordFor(formKey, date){
   return DB.records.find(r=>r.form===formKey && r.job===DB.job && r.date===date) || null;
 }
 function weeklyRecordFor(formKey, date){
+  if(schedForm(formKey)) return periodRecordFor(formKey, date);
   const wc = weekStart(date);
   return DB.records.find(r=>r.form===formKey && r.job===DB.job && weekStart(r.date)===wc) || null;
 }
@@ -2649,6 +2652,128 @@ function weeklyDue(key, date){ return date >= weeklyDateFor(key, weekStart(date)
 function toolboxDay(){ return weeklyDayFor("toolboxtalk"); }
 function toolboxDate(ws){ return weeklyDateFor("toolboxtalk", ws); }
 function toolboxDue(date){ return weeklyDue("toolboxtalk", date); }
+
+/* ------------------------------------------------------- form schedules --
+   Each job says which forms it needs and how often. The office sets this in
+   the console (it's saved with the job's form days); the phone and the
+   console work out what's due from it the same way, so a task is never stored
+   and can't be duplicated. A job that hasn't had its forms set keeps the old
+   rules exactly. This block is the same in index.html and admin.html.
+
+   A rule is { freq, days, day, dom, date, since }:
+     daily    every working day
+     days     on the working days picked (days: [0..6], Monday is 0)
+     weekly   once a week, due on `day`
+     monthly  once a month, due on the `dom`th (1–28)
+     once     one-off, due on `date`
+     asreq    when needed — never chased
+     off      not used on this job — not offered at all
+   `since` is the day the rule was set: nothing before it is chased. */
+const SCHED_FORMS = [
+  { key:"briefing",    name:"Daily activity briefing", type:"daily",    def:{ freq:"daily" } },
+  { key:"plantcheck",  name:"Plant inspections",       type:"item",     def:{ freq:"daily" }, note:"for each machine on site" },
+  { key:"excavation",  name:"Excavation inspections",  type:"item",     def:{ freq:"daily" }, note:"for each excavation left open" },
+  { key:"havs",        name:"HAVs record",             type:"daily",    def:{ freq:"asreq" } },
+  { key:"toolboxtalk", name:"Toolbox talk",            type:"periodic", def:{ freq:"weekly", day:0 } },
+  { key:"puwer",       name:"PUWER inspection",        type:"periodic", def:{ freq:"weekly", day:4 } },
+  { key:"loler",       name:"LOLER inspection",        type:"periodic", def:{ freq:"weekly", day:4 } }
+];
+const SCHED_FREQS = {
+  daily:   ["daily", "days", "asreq", "off"],
+  item:    ["daily", "asreq", "off"],
+  periodic:["weekly", "days", "monthly", "once", "asreq", "off"]
+};
+const SCHED_LABEL = { daily:"Every working day", days:"On set days", weekly:"Once a week", monthly:"Once a month",
+  once:"One-off", asreq:"As required", off:"Not used on this job" };
+const SCHED_DAY = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const schedForm = key => SCHED_FORMS.find(f => f.key === key) || null;
+const schedIso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const schedParse = s => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d); };
+const schedAdd = (s, n) => { const d = schedParse(s); d.setDate(d.getDate() + n); return schedIso(d); };
+const schedDow = s => (schedParse(s).getDay() + 6) % 7;
+const schedWeek = s => schedAdd(s, -schedDow(s));
+const schedMonthEnd = s => { const d = schedParse(s); return schedIso(new Date(d.getFullYear(), d.getMonth() + 1, 0)); };
+/* a stored rule, cleaned up: anything odd falls back to the form's default */
+function schedClean(key, r){
+  const f = schedForm(key);
+  if(!f) return null;
+  const out = Object.assign({}, f.def, r && typeof r === "object" ? r : {});
+  if(!SCHED_FREQS[f.type].includes(out.freq)) out.freq = f.def.freq;
+  const day = Number(out.day); out.day = Number.isInteger(day) && day >= 0 && day <= 6 ? day : (f.def.day || 0);
+  const dom = Number(out.dom); out.dom = Number.isInteger(dom) && dom >= 1 && dom <= 28 ? dom : 1;
+  out.days = Array.isArray(out.days) ? out.days.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n <= 6) : [];
+  if(out.freq === "days" && !out.days.length) out.freq = f.type === "periodic" ? "weekly" : "daily";
+  if(out.freq === "once" && !/^\d{4}-\d{2}-\d{2}$/.test(out.date || "")) out.freq = "asreq";
+  return out;
+}
+/* The stretch a record counts for, for the date given: a week for a weekly
+   form, the month for a monthly one, all time for a one-off, otherwise that day. */
+function schedPeriod(r, d){
+  if(r.freq === "weekly"){ const ws = schedWeek(d); return { start:ws, end:schedAdd(ws, 6), due:schedAdd(ws, r.day) }; }
+  if(r.freq === "monthly"){ const ms = d.slice(0, 8) + "01"; return { start:ms, end:schedMonthEnd(d), due:d.slice(0, 8) + String(r.dom).padStart(2, "0") }; }
+  if(r.freq === "once") return { start:"0000-01-01", end:"9999-12-31", due:r.date };
+  return { start:d, end:d, due:d };
+}
+/* is it due on this date? (working days only, for the daily kinds) */
+function schedDueOn(r, d, working){
+  if(r.freq === "daily") return working(d);
+  if(r.freq === "days") return working(d) && r.days.includes(schedDow(d));
+  if(r.freq === "weekly" || r.freq === "monthly" || r.freq === "once") return schedPeriod(r, d).due === d;
+  return false;
+}
+/* every due date from `from` up to and including `to`, oldest first (capped) */
+function schedDueDates(r, from, to, working){
+  const out = [];
+  if(!from || !to || from > to || r.freq === "asreq" || r.freq === "off") return out;
+  if(r.freq === "once"){ if(r.date >= from && r.date <= to) out.push(r.date); return out; }
+  if(r.freq === "weekly"){ for(let ws = schedWeek(from), i = 0; ws <= to && i < 60; ws = schedAdd(ws, 7), i++){ const d = schedAdd(ws, r.day); if(d >= from && d <= to) out.push(d); } return out; }
+  if(r.freq === "monthly"){ for(let m = from.slice(0, 8) + "01", i = 0; m <= to && i < 24; m = schedAdd(schedMonthEnd(m), 1), i++){ const d = m.slice(0, 8) + String(r.dom).padStart(2, "0"); if(d >= from && d <= to) out.push(d); } return out; }
+  for(let d = from, i = 0; d <= to && i < 400; d = schedAdd(d, 1), i++) if(schedDueOn(r, d, working)) out.push(d);
+  return out;
+}
+/* what the rule says in a few words, for screens */
+function schedText(r){
+  if(!r) return "";
+  if(r.freq === "days") return "On " + r.days.slice().sort().map(i => SCHED_DAY[i].slice(0, 3)).join(", ");
+  if(r.freq === "weekly") return "Once a week, due " + SCHED_DAY[r.day];
+  if(r.freq === "monthly"){ const n = r.dom, s = n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th";
+    return "Once a month, due the " + n + s; }
+  if(r.freq === "once"){ const d = schedParse(r.date); return "One-off, due " + d.toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }); }
+  return SCHED_LABEL[r.freq] || "";
+}
+
+/* this job's rules (from the console), or the old ones where none are set */
+function jobSchedule(){ const f = officeFormDays(); return f && f.sched && typeof f.sched === "object" ? f.sched : null; }
+function formRule(key){
+  const f = schedForm(key);
+  if(!f) return null;
+  const s = jobSchedule();
+  if(s) return schedClean(key, s[key]);
+  return Object.assign(schedClean(key, f.type === "periodic" ? { freq:"weekly", day:weeklyDayFor(key) } : {}), { legacy:true });
+}
+const formOff = key => { const r = formRule(key); return !!r && r.freq === "off"; };
+/* the first day a form is chased: the day its rule was set (never before the
+   app started on the job). Old rules: the briefing and plant checks from the
+   day they were first used, the rest from the start. */
+function chaseFrom(key){
+  const r = formRule(key);
+  if(!r) return startDate();
+  if(r.legacy) return key === "briefing" || key === "plantcheck" ? firstUsed(key) : startDate();
+  if(r.freq === "once") return [r.date, startDate()].sort().pop();    /* a one-off is chased from its own date */
+  return [r.since || "", startDate()].sort().pop();
+}
+const schedWorking = d => isWorking(d);
+function formDueOn(key, date){ const r = formRule(key); return !!r && schedDueOn(r, date, schedWorking); }
+/* the record that counts for the date: the week's, the month's, the one-off,
+   or that day's — a submitted one first */
+function periodRecordFor(key, date){
+  const r = formRule(key);
+  if(!r || !["weekly","monthly","once"].includes(r.freq)) return dailyRecordFor(key, date);
+  const p = schedPeriod(r, date);
+  return DB.records.filter(x => x.form === key && x.job === DB.job && x.date >= p.start && x.date <= p.end)
+    .sort((a, b) => (b.status === "submitted") - (a.status === "submitted") || String(b.date).localeCompare(String(a.date)))[0] || null;
+}
+
 
 /* What the week still owes: the weekly forms that have not been done. */
 function weeklyOutstanding(date){
@@ -3527,7 +3652,7 @@ function dayTasks(date){
       started: !done && !!rec && rec.status !== "submitted" });
 
   /* anything left open overnight comes first */
-  excavationsDue(date).forEach(x=>{
+  (formRule("excavation").freq === "daily" ? excavationsDue(date) : []).forEach(x=>{
     const e = excFor(date, x.ref);
     add("excavation", "Excavation inspection", x.ref, isDone(e),
       { kind:"pickexc", date }, e);
@@ -3536,21 +3661,23 @@ function dayTasks(date){
   /* HAVs is only needed on a day vibrating tools were actually used, so it
      is never required by default — but once someone starts one for the
      day, it belongs on the list the same as anything else, done or not */
-  const havsRec = dailyRecordFor("havs", date);
-  if(havsRec){
+  const havsRec = dailyRecordFor("havs", date), havsFrom = chaseFrom("havs");
+  if(havsRec || (formDueOn("havs", date) && havsFrom && date >= havsFrom)){
     add("havs", "HAVs Record", "Hand-arm vibration exposure", isDone(havsRec),
       { kind:"form", form:"havs", date }, havsRec);
   }
 
-  const briefFrom = firstUsed("briefing");
-  if(briefFrom && date >= briefFrom){
-    const r = dailyRecordFor("briefing", date);
+  const briefFrom = chaseFrom("briefing"), briefRec = dailyRecordFor("briefing", date);
+  if(briefRec || (briefFrom && date >= briefFrom && formDueOn("briefing", date))){
+    const r = briefRec;
     add("briefing", "Daily Activities Briefing", "Activities, hazards, attendees",
       isDone(r), { kind:"form", form:"briefing", date }, r);
   }
 
-  if(!checksOnPaper()){
-    const checkFrom = firstUsed("plantcheck");
+  if(formRule("plantcheck").freq !== "daily"){
+    /* plant checks aren't chased on this job */
+  } else if(!checksOnPaper()){
+    const checkFrom = chaseFrom("plantcheck");
     if(checkFrom && date >= checkFrom){
       plantNeedingCheck(date).forEach(m=>{
         const c = checkFor(date, m.id);
@@ -3575,11 +3702,12 @@ function dayTasks(date){
   add("diary", "Site Diary", "Labour, plant, progress and dayworks",
     !!(diary && diary.status==="submitted"), { kind:"diary", date }, diary);
 
-  /* the weekly jobs, on the day they fall */
-  Object.values(FORMS).filter(f=>f.weekly).forEach(f=>{
-    if(weeklyDateFor(f.key, weekStart(date)) !== date) return;
-    add(f.key, f.name, f.blurb, isDone(weeklyRecordFor(f.key, date)),
-      { kind:"form", form:f.key, date }, weeklyRecordFor(f.key, date));
+  /* the weekly (or monthly, one-off, set-day) forms, on the day they fall */
+  SCHED_FORMS.filter(x=>x.type==="periodic").forEach(x=>{
+    const f = FORMS[x.key], from = chaseFrom(x.key);
+    if(!f || !formDueOn(x.key, date) || !from || date < from) return;
+    const rec = periodRecordFor(x.key, date);
+    add(f.key, f.name, f.blurb, isDone(rec), { kind:"form", form:f.key, date }, rec);
   });
 
   return out.filter(x => mayFill(x.key));
@@ -3603,14 +3731,14 @@ function dayOutstanding(date){
   if(!diary || diary.status!=="submitted")
     out.push({ name:"Site Diary", form:"diary" });
 
-  const briefFrom = firstUsed("briefing");
-  if(briefFrom && date >= briefFrom){
+  const briefFrom = chaseFrom("briefing");
+  if(briefFrom && date >= briefFrom && formDueOn("briefing", date)){
     const brief = dailyRecordFor("briefing", date);
     if(!brief || brief.status!=="submitted")
       out.push({ name:"Daily Activities Briefing", form:"briefing" });
   }
 
-  const checkFrom = checksOnPaper() ? null : firstUsed("plantcheck");
+  const checkFrom = checksOnPaper() || formRule("plantcheck").freq !== "daily" ? null : chaseFrom("plantcheck");
   if(checkFrom && date >= checkFrom){
     plantNeedingCheck(date).forEach(m=>{
       const c = checkFor(date, m.id);
@@ -3620,10 +3748,19 @@ function dayOutstanding(date){
     });
   }
 
-  excavationsDue(date).forEach(x=>{
+  (formRule("excavation").freq === "daily" ? excavationsDue(date) : []).forEach(x=>{
     const e = excFor(date, x.ref);
     if(!e || e.status!=="submitted")
       out.push({ name:"Excavation inspection — " + x.ref, form:"excavation", ref:x.ref });
+  });
+
+  /* HAVs, or a weekly form, the job has set for every day or set days */
+  SCHED_FORMS.filter(x=>x.key==="havs" || x.type==="periodic").forEach(x=>{
+    const r = formRule(x.key);
+    if(!r || (r.freq !== "daily" && r.freq !== "days")) return;
+    const from = chaseFrom(x.key);
+    if(!from || date < from || !schedDueOn(r, date, schedWorking)) return;
+    if(!isDone(dailyRecordFor(x.key, date))) out.push({ name:formDef(x.key).name, form:x.key });
   });
 
   return out.filter(x => mayFill(x.form));
@@ -4116,7 +4253,8 @@ const PACK_ORDER = ["briefing","toolboxtalk","havs","plantcheck","puwer","loler"
 
 /* Plant checks can be kept on paper while the lads are still on the sheets.
    The app then expects scanned sheets in the pack instead of its own records. */
-function checksOnPaper(){ return cfg().plantChecks === "paper"; }
+/* paper check sheets were switched off on the phone (Nov 2026): checks are always done in the app */
+function checksOnPaper(){ return false; }
 
 /* The last working day of a week — when the paper sheets are wanted. */
 function lastWorkingDay(ws){
@@ -6292,18 +6430,14 @@ function planItems(date){
         go:{ name:"item", kind:"lifting", id:l.id },
         ref:{ type:"open", name:"item", kind:"lifting", id:l.id } });
   });
-  /* the toolbox talk lands on whichever day it is set for */
-  if(date === toolboxDate(weekStart(date)) && !isDone(weeklyRecordFor("toolboxtalk", date)))
-    out.push({ kind:"inspection", time:"", sort:0, text:"Toolbox talk due",
-      sub:"weekly", go:{ name:"home", date },
-      ref:{ type:"open", name:"home", date } });
-
-  Object.values(FORMS).filter(f=>f.weekly && f.key!=="toolboxtalk").forEach(f=>{
-    if(date === weeklyDateFor(f.key, weekStart(date))
-      && !isDone(weeklyRecordFor(f.key, date)))
-      out.push({ kind:"inspection", time:"", sort:4, text:f.short + " due",
-        sub:"weekly", go:{ name:"home", date },
-        ref:{ type:"open", name:"home", date } });
+  /* the toolbox talk, PUWER and LOLER land on whichever day they're set for */
+  SCHED_FORMS.filter(x=>x.type==="periodic").forEach(x=>{
+    const f = FORMS[x.key], r = formRule(x.key);
+    if(f && formDueOn(x.key, date) && !isDone(periodRecordFor(x.key, date)))
+      out.push({ kind:"inspection", time:"", sort:x.key==="toolboxtalk" ? 0 : 4,
+        text:(x.key==="toolboxtalk" ? "Toolbox talk" : f.short) + " due",
+        sub:{ weekly:"weekly", monthly:"monthly", once:"one-off", days:"set days" }[r.freq] || "",
+        go:{ name:"home", date }, ref:{ type:"open", name:"home", date } });
   });
 
   /* the H&S pack on the day it's due, until it's published */
@@ -6939,7 +7073,7 @@ function mayUse(module, action){
   const s = a.can(module, action || "view");
   return s === null ? true : !!s;
 }
-const mayFill = key => mayUse(FORM_MODULE[key] || "forms", "create");
+const mayFill = key => !formOff(key) && mayUse(FORM_MODULE[key] || "forms", "create");
 /* "own" scope means records this person submitted; anything wider, any record */
 function mayChangeRecord(r){
   if(!mayUse(FORM_MODULE[r.form || "diary"] || "forms", "edit")) return false;
@@ -8825,17 +8959,17 @@ function openFormPicker(date){
       <div class="card" style="padding:2px 14px;box-shadow:none;background:var(--canvas)">
         ${row("diary", "Site diary", "One a day", isDone(recordFor(d)),
               wipOf(recordFor(d)))}
-        ${row("briefing", "Daily activities briefing", "One a day",
+        ${row("briefing", "Daily activities briefing", schedText(formRule("briefing")),
               isDone(dailyRecordFor("briefing", d)), wipOf(dailyRecordFor("briefing", d)))}
         ${row("plantcheck", "Plant inspection", plantNeedingCheck(d).length
               ? plantNeedingCheck(d).length + " machine" + (plantNeedingCheck(d).length===1?"":"s")
                 + " on site" : "Nothing on site", false)}
-        ${row("excavation", "Excavation inspection", "As required", false)}
-        ${row("havs", "HAVs record", "As required", isDone(dailyRecordFor("havs", d)),
+        ${row("excavation", "Excavation inspection", formRule("excavation").freq === "daily" ? "Each morning one is left open" : "As required", false)}
+        ${row("havs", "HAVs record", schedText(formRule("havs")), isDone(dailyRecordFor("havs", d)),
               wipOf(dailyRecordFor("havs", d)))}
-        ${row("puwer", "PUWER register", "Once a week", isDone(weeklyRecordFor("puwer", d)),
+        ${row("puwer", "PUWER register", schedText(formRule("puwer")), isDone(weeklyRecordFor("puwer", d)),
               wipOf(weeklyRecordFor("puwer", d)))}
-        ${row("loler", "Register of excavator lifting equipment", "Once a week",
+        ${row("loler", "Register of excavator lifting equipment", schedText(formRule("loler")),
               isDone(weeklyRecordFor("loler", d)), wipOf(weeklyRecordFor("loler", d)))}
       </div>
       <button class="btn ghost" style="margin:14px 0 0" data-x>Cancel</button>
@@ -8951,7 +9085,7 @@ function needsAction(){
   const drafts = DB.records.filter(r => r.job === DB.job && r.status !== "submitted" && r.date < t).length;
   if(drafts) add("amber", plural(drafts, "draft") + " not submitted", "From earlier days", `data-go="tasks"`);
   const s = syncBadge();
-  if(s && (s.cls === "st-bad" || s.cls === "st-warn")) add(s.cls === "st-bad" ? "red" : "amber", s.word, s.long, `data-go="settings"`);
+  if(s && (s.cls === "st-bad" || s.cls === "st-warn")) add(s.cls === "st-bad" ? "red" : "amber", s.word, s.long, `data-go="tasks"`);
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "red" ? -1 : 1));
 }
 function needsActionBlock(){
@@ -9853,6 +9987,11 @@ function fieldHtml(f, v, err, path){
   return `<div class="f">${lab}${hint}${c}${err?`<div class="err-msg">${esc(err)}</div>`:""}</div>`;
 }
 
+/* reopened from a submitted record with Amend */
+function amendingNow(){
+  const ex = formState && formState.id && DB.records.find(r => r.id === formState.id);
+  return !!ex && ex.status === "submitted";
+}
 function formView(){
   const v = formState.values;
   const errs = formState.touched ? formState.errors : {};
@@ -9889,8 +10028,13 @@ function formView(){
       <div class="kv"><span class="k">Week commencing</span><span class="v">${shortDate(weekStart(formState.date))}</span></div>
       <div class="kv"><span class="k">Site</span><span class="v">${esc(DB.job)}</span></div>
     </div>` : ""}
+    ${amendingNow() ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
+      <h3 style="color:var(--warn-700)">Amending a submitted record</h3>
+      <p style="margin:0">Nothing changes until you submit it again. The version as it stands now is kept in the record's history.</p></div>` : ""}
     ${body}
-    ${formState.date > todayISO() ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
+    ${amendingNow() ? `<button class="btn" data-submit="1">Submit the amendment</button>
+    <button class="btn ghost" data-amendx="1">Cancel. Leave it as it was</button>`
+    : formState.date > todayISO() ? `<div class="card" style="background:var(--warn-bg);box-shadow:none">
       <h3 style="color:var(--warn-700)">Ready for ${shortDate(formState.date)}</h3>
       <p>Write it up now and it is kept as a draft. On the morning, add who attended, sign it,
       and it submits then.</p>
@@ -9899,6 +10043,87 @@ function formView(){
       ${shortDate(formState.date)}</button>`
     : `<button class="btn" data-submit="1">Submit ${esc(def.name.toLowerCase())}</button>
     <button class="btn ghost" data-draft="1">Save draft and close</button>`}`;
+}
+
+
+/* ------------------------------------------------------ record history --
+   Every time a submitted record is changed, the database keeps the version
+   before the change (19_record_versions.sql). Nobody can edit or remove
+   those. They're read from the cloud, so this needs a signal. */
+async function recordVersions(r){
+  const cl = cloudClient(), jobId = syncCfg().jobs[r.job];
+  if(IS_DEMO || !cl || !jobId) return { error:"offline" };
+  if(navigator.onLine === false) return { error:"offline" };
+  const { data, error } = await cl.from("record_versions").select("data, saved_at, replaced_at, change")
+    .eq("job_id", jobId).eq("kind", "records").eq("item_id", r.id).order("replaced_at", { ascending:true });
+  if(error) return { error:/record_versions|schema cache|does not exist/i.test(error.message || "") ? "missing" : (error.message || "error") };
+  return { rows:data || [] };
+}
+/* the same answer, whether a photo is on this phone or in storage */
+async function answerKey(v){
+  if(typeof v === "string" && v.lastIndexOf("sbimg:", 0) === 0) return "img:" + v.split("/").pop().split(".")[0];
+  if(cloudIsImg(v)) return "img:" + await cloudSha(v);
+  if(Array.isArray(v)){ const out = []; for(const x of v) out.push(await answerKey(x)); return "[" + out.join(",") + "]"; }
+  if(v && typeof v === "object"){ const ks = Object.keys(v).filter(k => k !== "__img" && v[k] !== undefined).sort(), out = [];
+    for(const k of ks) out.push(JSON.stringify(k) + ":" + await answerKey(v[k])); return "{" + out.join(",") + "}"; }
+  return JSON.stringify(v === undefined ? null : v);
+}
+function historyFields(form, data){
+  const out = [];
+  sectionsFor(form).forEach(sec => sec.fields.forEach(f => {
+    if(f.type === "signature" || f.type === "havscalc" || !visible(f, data || {})) return;
+    out.push(f);
+  }));
+  return out;
+}
+async function changedFields(form, a, b){
+  const names = [];
+  for(const f of historyFields(form, Object.assign({}, a, b))){
+    if(await answerKey((a || {})[f.id]) !== await answerKey((b || {})[f.id])) names.push(f.label || f.id);
+  }
+  return names;
+}
+async function openRecordHistory(id){
+  const r = DB.records.find(x => x.id === id);
+  if(!r) return;
+  openSheet("Earlier versions", `<p class="hint" style="margin:0 0 10px">Each time this record was changed after it was submitted,
+      the version before the change was kept. Nobody can edit or delete these.</p><div class="sl" data-hlist><p class="hint">Loading…</p></div>`,
+    async (wrap) => {
+      const box = wrap.querySelector("[data-hlist]");
+      const got = await recordVersions(r);
+      if(got.error){
+        box.innerHTML = `<p class="hint">${got.error === "offline" ? "Earlier versions are kept online. Connect to the internet to see them."
+          : got.error === "missing" ? "The history isn't switched on yet. An Admin needs to run 19_record_versions.sql in Supabase."
+          : "Couldn't load them: " + esc(got.error)}</p>`;
+        return;
+      }
+      const vs = got.rows.filter(v => v.data && v.data.status === "submitted");
+      if(!vs.length){ box.innerHTML = `<p class="hint">None kept yet. The record was amended before its first version reached the cloud.</p>`; return; }
+      const all = vs.map(v => ({ rec:v.data, replaced:v.replaced_at })).concat([{ rec:r, current:true }]);
+      const rows = [];
+      for(let i = 0; i < all.length; i++){
+        const v = all[i], next = all[i + 1];
+        const changed = next ? await changedFields(r.form, (v.rec.data || {}), (next.rec.data || {})) : [];
+        rows.push(`<div class="hv">
+          <button type="button" class="sl-row" data-hv="${i}">
+            <span class="n"><b>${v.current ? "Now" : "Version " + (i + 1)}${i === 0 ? " · as first submitted" : ""}</b>
+              <span>${v.rec.submittedAt ? "Submitted " + stamp(v.rec.submittedAt) : ""}${v.rec.by ? " by " + esc(v.rec.by) : ""}${
+                next ? "<br>Then changed: " + esc(changed.length ? changed.join(", ") : "no answers (date or details only)") : ""}</span></span>
+            <span class="go">&rsaquo;</span></button>
+          <div class="hvbody" hidden></div></div>`);
+      }
+      box.innerHTML = rows.join("");
+      box.querySelectorAll("[data-hv]").forEach(b => b.onclick = async () => {
+        const i = Number(b.dataset.hv), body = b.parentNode.querySelector(".hvbody");
+        if(!body.hidden){ body.hidden = true; return; }
+        body.hidden = false;
+        body.innerHTML = `<p class="hint">Loading…</p>`;
+        let data = JSON.parse(JSON.stringify(all[i].rec.data || {}));
+        try{ if(!all[i].current) data = await cloudResolve(data, r.data); }catch(e){ /* photos stay as they are */ }
+        body.innerHTML = `<div class="card" style="box-shadow:none;background:var(--canvas)">${historyFields(r.form, data)
+          .map(f => (r.form === "briefing" && f.type === "attendsign") ? "" : readRow(f, data[f.id])).join("") || `<p class="hint">No answers.</p>`}</div>`;
+      });
+    });
 }
 
 /* --------------------------------------------------------------- records -- */
@@ -9919,8 +10144,10 @@ function recordView(){
     <p class="sub">${esc(r.job)} · ${longDate(r.date)}</p>
     ${r.form === "briefing" ? briefingMyPanel(r) : ""}
     <div class="card">
-      <div class="kv"><span class="k">Submitted by</span><span class="v">${esc(r.by)}</span></div>
-      <div class="kv"><span class="k">Submitted at</span><span class="v">${stamp(r.submittedAt)}</span></div>
+      <div class="kv"><span class="k">${r.amendedAt ? "Last submitted by" : "Submitted by"}</span><span class="v">${esc(r.by)}</span></div>
+      <div class="kv"><span class="k">${r.amendedAt ? "Last submitted at" : "Submitted at"}</span><span class="v">${stamp(r.submittedAt)}</span></div>
+      ${r.amendedAt ? `<div class="kv"><span class="k">Amended</span><span class="v">${r.amendments > 1 ? r.amendments + " times, last " : ""}${stamp(r.amendedAt)}${r.amendedBy ? " by " + esc(r.amendedBy) : ""}</span></div>
+      <div class="kv"><span class="k">First submitted</span><span class="v">${r.firstSubmittedAt ? stamp(r.firstSubmittedAt) : "—"}${r.firstBy ? " by " + esc(r.firstBy) : ""}</span></div>` : ""}
       <div class="kv"><span class="k">SharePoint</span><span class="v">${r.synced?"Filed":"Awaiting connection"}</span></div>
       <div class="kv"><span class="k">Will file to</span>
         <span class="v" style="font-size:12px;word-break:break-all">${esc(pathFor(r))}</span></div>
@@ -9931,6 +10158,7 @@ function recordView(){
          <p class="sub" style="margin:-2px 0 12px;font-size:12.5px;color:var(--ink-3)">
            Checks are issued as one sheet per machine per week, not one per day.</p>`
       : `<button class="btn" data-pdf="${r.id}">Open PDF</button>`}
+    ${r.amendedAt ? `<button class="btn line" data-rechist="${r.id}">Earlier versions</button>` : ""}
     ${mayAmend ? `<button class="btn ghost" data-reopen="${r.id}">Amend</button>` : ""}
     ${deleteAllowed("records", r) ? `<button class="btn line" style="color:var(--bad)"
       data-del-rec="${r.id}">Delete this ${(r.form || "diary") === "diary" ? "diary" : "record"}</button>` : ""}
@@ -12245,9 +12473,14 @@ const formIcon = key => key === "plantcheck" ? TILE_ICONS.plant : key === "loler
   : key === "puwer" ? TILE_ICONS.tools : key === "toolboxtalk" ? TILE_ICONS.labour : TILE_ICONS.list;
 /* weekly forms whose day has come this week and aren't done; today's are on the day's own list */
 function weeklyLate(t){
-  const ws = weekStart(t);
-  return Object.values(FORMS).filter(f => f.weekly)
-    .filter(f => { const d = weeklyDateFor(f.key, ws); return d < t && inScope(d) && mayFill(f.key) && !isDone(weeklyRecordFor(f.key, t)); });
+  return SCHED_FORMS.filter(x => x.type === "periodic").map(x => {
+    const r = formRule(x.key);
+    if(!r || !["weekly","monthly","once"].includes(r.freq) || !mayFill(x.key)) return null;
+    const p = schedPeriod(r, t), from = chaseFrom(x.key);
+    if(!(p.due < t) || !from || p.due < from || !inScope(p.due)) return null;
+    if(isDone(periodRecordFor(x.key, t))) return null;
+    return Object.assign({}, FORMS[x.key], { due:p.due });
+  }).filter(Boolean);
 }
 
 /* ------------------------------------------------------------------ Tasks */
@@ -12282,7 +12515,7 @@ function tasksView(){
   }));
   const ws = weekStart(t);
   weeklyLate(t).forEach(f => {
-    const d = weeklyDateFor(f.key, ws), rec = weeklyRecordFor(f.key, t);
+    const d = f.due, rec = periodRecordFor(f.key, t);
     lateRows.push(hubRow({ attr:`data-startf="${f.key}" data-d="${d}"`, icon:formIcon(f.key), title:f.name,
       line:"Was due " + longDate(d) + (rec ? " · started" : ""), level:"red", badge:"Overdue" }));
   });
@@ -12312,7 +12545,7 @@ function tasksView(){
   const syncCard = s && s.cls !== "st-ok" && s.cls !== "st-busy" ? `<div class="sect">Sync</div>
     <div class="card synccard ${s.cls}"><p><b>${esc(s.word)}.</b> ${esc(s.long)}</p>
       ${s.cls === "st-off" ? "" : `<button class="btn line sm" style="margin:12px 0 0" data-syncnow="1">Sync now</button>`}
-      <button class="btn ghost sm" style="margin:8px 0 0" data-go="settings">Sync details</button></div>` : "";
+      </div>` : "";
 
   const nothing = !lateRows.length && !dueRows.length && !draftRows.length && !ramsRow && !signRows2.length;
   return hubHead("Tasks", nothing ? "Nothing owed on " + DB.job : DB.job,
@@ -12358,12 +12591,15 @@ function safetyView(){
     const wip = recs.filter(r => r.status !== "submitted").length;
     const week = recs.filter(r => r.status === "submitted" && r.date >= ws && r.date <= we).length;
     const last = recs.filter(r => r.status === "submitted").map(r => r.date).sort().pop();
-    let line = f.blurb;
-    if(f.weekly){
-      const done = isDone(weeklyRecordFor(key, t));
-      const day = weeklyDateFor(key, ws);
-      line = done ? "Done this week" : (day < t ? "Was due " : "Due ") + longDate(day);
-      if(!done && weeklyDue(key, t) && inScope(day)) return hubRow({ attr:`data-hubform="${key}"`, icon:formIcon(key), title:f.name, line,
+    if(formOff(key)) return "";
+    const rule = formRule(key);
+    let line = rule && !rule.legacy ? schedText(rule) : f.blurb;
+    if(rule && ["weekly","monthly","once"].includes(rule.freq)){
+      const done = isDone(periodRecordFor(key, t));
+      const day = schedPeriod(rule, t).due, from = chaseFrom(key);
+      line = done ? (rule.freq === "once" ? "Done" : "Done this " + (rule.freq === "weekly" ? "week" : "month"))
+        : (day < t ? "Was due " : "Due ") + longDate(day);
+      if(!done && day <= t && inScope(day) && from && day >= from) return hubRow({ attr:`data-hubform="${key}"`, icon:formIcon(key), title:f.name, line,
         level:day < t ? "red" : "amber", badge:day < t ? "Overdue" : "Due" });
     }else if(week) line = plural(week, "record") + " this week";
     else if(last) line = "Last one " + longDate(last);
@@ -13869,63 +14105,6 @@ function settingsView(){
 
     ${teamEntryCard()}
 
-    <div class="sect">Weekly jobs</div>
-    <div class="card">
-      <p style="margin-bottom:12px">The day each one is done. Until that day comes round they
-      stay off the home screen, and from that day the week is not complete without them.</p>
-      ${WEEKLY_JOBS.map(j=>`
-        <div style="padding:10px 0;border-top:1px solid var(--line-2)">
-          <b style="font-weight:650;display:block;margin-bottom:8px">${esc(j.label)}${officeDay(j.key)!==null?` <span style="font-weight:500;font-size:13px;color:var(--ink-3)">&middot; set by the office for this job</span>`:""}</b>
-          <div style="display:flex;gap:5px;flex-wrap:wrap">
-            ${WEEKDAYS.map((d,i)=>`<button class="pill ${weeklyDayFor(j.key)===i?"ok":"grey"}"
-              style="padding:8px 12px;font-size:13px${officeDay(j.key)!==null?";opacity:.75":""}" data-wday="${j.key}:${i}" ${officeDay(j.key)!==null?"disabled":""}>${
-              d.slice(0,3)}</button>`).join("")}
-          </div>
-        </div>`).join("")}
-      ${officeDay("pack")!==null?`<div style="padding:10px 0;border-top:1px solid var(--line-2)"><b style="font-weight:650">H&amp;S pack</b>
-        <span style="font-size:13px;color:var(--ink-3)">&middot; due ${WEEKDAYS[officeDay("pack")]} &middot; set by the office for this job</span></div>`:""}
-    </div>
-
-    <div class="sect">Plant checks</div>
-    <div class="card">
-      <p style="margin-bottom:12px">While the lads are still on the paper sheets, switch this to
-      paper. The app stops asking for its own checks and expects the sheets to be scanned in on
-      the Friday instead.</p>
-      <span class="yn">
-        <button type="button" class="${!checksOnPaper()?"y":""}" data-pcmode="app">In the app</button>
-        <button type="button" class="${checksOnPaper()?"n":""}" data-pcmode="paper">On paper</button>
-      </span>
-    </div>
-
-    <div class="sect">Diaries</div>
-    <div class="card">
-      <div class="f" style="margin:0"><label>Chasing diaries from</label>
-        <div class="hint">The app ignores anything before this date, so it never asks for
-        diaries that were kept on paper.</div>
-        <input class="in" type="date" data-startdate="1" value="${esc(DB.startDate||todayISO())}"></div>
-    </div>
-
-    <div class="sect">Working hours</div>
-    <button class="card" style="width:100%;text-align:left" data-go="job">
-      <div class="kv"><span class="k">Usual day</span>
-        <span class="v">${esc(hoursFor().start)} – ${esc(hoursFor().finish)}</span></div>
-      <div class="kv"><span class="k">Break taken off</span>
-        <span class="v">${hoursFor().breakMins} min</span></div>
-      <div class="kv"><span class="k">A normal day</span>
-        <span class="v">${normalHours()} hours</span></div>
-      <p class="sub" style="margin-top:8px">Set per day of the week — a short Friday, a different
-      break, a worked Saturday.</p>
-      <div style="display:flex;justify-content:flex-end;margin-top:6px">
-        <span style="font-size:13px;font-weight:640;color:var(--green-700)">Edit the job &rsaquo;</span>
-      </div>
-    </button>
-
-    <div class="sect">Job</div>
-    <div class="card">
-      <div class="f" style="margin:0"><label>Current job</label>
-        <input class="in" data-job="1" value="${esc(DB.job)}"></div>
-    </div>
-
     <div class="sect">Appearance</div>
     <div class="card">
       <div class="f" style="margin:0"><label>Theme</label>
@@ -13937,163 +14116,20 @@ function settingsView(){
         </div></div>
     </div>
 
-    <div class="sect">Storage</div>
-    ${(function(){
-      const st = storageInfo();
-      const level = st.pct >= 90 ? "red" : st.pct >= 70 ? "amber" : "";
-      const col = level==="red" ? "var(--bad)" : level==="amber" ? "var(--warn)" : "var(--green)";
-      return `<div class="card"${level?` style="background:${level==="red"?"var(--bad-bg)":"var(--warn-bg)"};box-shadow:none"`:""}>
-        <div class="spread">
-          <b style="font-weight:660${level?`;color:${col}`:""}">${kb(st.used)} of ${
-            st.known ? kb(st.cap) : "roughly " + kb(st.cap)} used</b>
-          <b style="font-variant-numeric:tabular-nums;color:${col}">${
-            st.pct < 1 ? "under 1" : st.pct}%</b>
-        </div>
-        <span class="bar" style="margin-top:10px"><i style="width:${st.pct}%;background:${col}"></i></span>
-        <p style="margin-top:10px;font-size:13px;color:var(--ink-2)">
-          The records come to ${kb(st.bytes)} of that, ${kb(st.photoBytes)} of which is
-          ${st.photos} photograph${st.photos===1?"":"s"} and scan${st.photos===1?"":"s"}.
-          ${st.known ? kb(st.free) + " is left." : "They are held in the browser database, "
-            + "which is measured in gigabytes rather than megabytes."}</p>
-        ${st.persisted === false ? `<p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
-          The browser has not agreed to hold on to this, so it may clear it if the phone runs
-          short. It is asked again each time the app opens.</p>` : ""}
-        ${saveTrouble ? `<div class="card" style="background:var(--bad-bg);box-shadow:none;margin:12px 0 0;padding:12px 14px">
-          <b style="color:var(--bad);font-weight:660;font-size:13.5px">${
-            saveTrouble.full ? "The last save did not go through — no room left"
-              : "The last save did not go through"}</b>
-          <p style="margin:6px 0 0;font-size:12.5px;color:var(--ink-2)">${
-            saveTrouble.full
-              ? "Take a backup now, then free up some space."
-              : "There is room, so it is being tried again on its own. Take a backup if it keeps happening."}</p>
-          <p style="margin:6px 0 0;font-size:12px;color:var(--ink-3);overflow-wrap:anywhere">
-            ${esc(saveTrouble.name)}${saveTrouble.message ? " — " + esc(saveTrouble.message) : ""}
-            · ${shortDate(iso(new Date(saveTrouble.at)))} ${timeOnly(saveTrouble.at)}</p>
-          <button class="btn line sm" style="margin:10px 0 0" data-savenow="1">Try saving again</button>
-        </div>` : ""}
-        <button class="btn line sm" style="margin:12px 0 0" data-shrink="1">
-          Shrink the scans already saved</button>
-        <p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
-          Check sheets scanned before this were kept at camera size, about three times
-          bigger than they need to be. This puts them onto A4 like the rest. Nothing is
-          removed and they stay perfectly readable.</p>
-        <button class="btn line sm" style="margin:12px 0 0" data-reclaim="1">
-          Remove photographs older than a month</button>
-        <p style="margin-top:8px;font-size:12.5px;color:var(--ink-3)">
-          The records themselves stay — only the images come off. Send a copy to OneDrive first
-          if you want to keep them.</p>
-      </div>`;
-    })()}
+    ${saveTrouble ? `<div class="sect">Saving</div>
+    <div class="card" style="background:var(--bad-bg);box-shadow:none">
+      <b style="color:var(--bad);font-weight:660">${saveTrouble.full ? "The last save did not go through. There's no room left on this phone"
+        : "The last save did not go through"}</b>
+      <p style="margin:6px 0 0;font-size:13px;color:var(--ink-2)">${saveTrouble.full
+        ? "Download a backup now, then free up some space on the phone."
+        : "It's being tried again on its own. Download a backup if it keeps happening."}</p>
+      <button class="btn line sm" style="margin:10px 0 0" data-savenow="1">Try saving again</button>
+      <button class="btn line sm" style="margin:10px 0 0" data-export="1">Download a backup</button>
+    </div>` : ""}
 
-    <div class="sect">Fleet engineer</div>
+    <div class="sect">Account</div>
     <div class="card">
-      <p style="margin-bottom:14px">Where plant defect reports are sent when there is no share sheet to choose from.</p>
-      <div class="f"><label>Name</label>
-        <input class="in" data-cfg="fitter.name" value="${esc((c.fitter||{}).name||"")}"></div>
-      <div class="f" style="margin:0"><label>Email</label>
-        <input class="in" type="email" data-cfg="fitter.email" value="${esc((c.fitter||{}).email||"")}"></div>
-    </div>
-
-    <div class="sect">SharePoint</div>
-    <div class="card">
-      <p style="margin-bottom:14px">Set the path now and it will be used the moment the connection is switched on.</p>
-      <div class="f"><label>Site address</label>
-        <div class="hint">e.g. cgcivils.sharepoint.com/sites/Projects</div>
-        <input class="in" data-cfg="sharepoint.site" value="${esc(c.sharepoint.site)}"></div>
-      <div class="f"><label>Document library</label>
-        <input class="in" data-cfg="sharepoint.library" value="${esc(c.sharepoint.library)}"></div>
-      <div class="f"><label>Folder path</label>
-        <div class="hint">Use {job}, {year}, {month}. Folders are created if missing.</div>
-        <input class="in" data-cfg="sharepoint.folder" value="${esc(c.sharepoint.folder)}"></div>
-      <div class="f"><label>Share link</label>
-        <div class="hint">Paste the link with the destination folder open.</div>
-        <input class="in" data-cfg="sharepoint.shareLink" value="${esc(c.sharepoint.shareLink||"")}"></div>
-      <div class="f" style="margin:0"><label>File name</label>
-        <div class="hint">Use {job}, {date}, {ref}.</div>
-        <input class="in" data-cfg="sharepoint.filename" value="${esc(c.sharepoint.filename)}"></div>
-      <div class="card" style="background:var(--canvas);box-shadow:none;margin:14px 0 0">
-        <span style="font-size:12px;color:var(--ink-3)">A diary submitted today would be filed at</span>
-        <div id="pathPreview" style="font-size:12.5px;font-weight:640;word-break:break-all;margin-top:4px">
-          ${esc(previewPath())}</div>
-      </div>
-      ${(c.sharepoint.site||"").indexOf("-my.sharepoint.com")>-1 ? `
-      <div class="card" style="background:var(--warn-bg);box-shadow:none;margin-top:12px">
-        <p style="color:var(--warn-700)"><b>This is a personal OneDrive.</b> Diaries are contractual
-        records — if they sit in one person\u2019s OneDrive they go with that person when they leave,
-        and the company cannot control access. Move the destination to a SharePoint team site
-        library before going live.</p>
-      </div>` : ""}
-      <div class="card" style="background:var(--info-bg);box-shadow:none;margin-top:12px">
-        <p style="color:var(--info)"><b>Not connected yet.</b> Everything is saved on this device and the
-        PDF can be shared by hand until the Microsoft connection is switched on.</p>
-      </div>
-    </div>
-
-    <div class="sect">Sync</div>
-    ${(function(){
-      const y = syncCfg();
-      const when = t => t ? shortDate(iso(new Date(t))) + " at " + timeOnly(t) : "";
-      const signedIn = !!(window.sitehubAuth && sitehubAuth.user);
-      const jobs = Object.keys(y.jobs || {});
-      return `<div class="card">
-        <p style="margin-bottom:14px">Records and photos are kept in siteHUB&rsquo;s secure
-        cloud, filed by job, so everyone on a job works from the same set. Anything saved goes
-        up a few seconds later, and other people&rsquo;s work comes in when you open the app.
-        No signal? It catches up when you&rsquo;re back on.</p>
-
-        ${!signedIn ? `<p class="sub">Sign in to sync.</p>` : `
-          <div class="spread" style="margin-bottom:4px">
-            <span><b style="font-weight:650">Keep this device in step</b>
-              <span style="display:block;font-size:12.5px;color:var(--ink-2)">
-                Bring in on opening, send after each save</span></span>
-            <span class="yn" style="width:118px;flex:none">
-              <button type="button" class="${y.on?"y":""}" data-syncon="1">On</button>
-              <button type="button" class="${y.on?"":"n"}" data-syncon="0">Off</button>
-            </span>
-          </div>
-
-          ${y.on ? `
-            <div class="kv"><span class="k">Jobs</span>
-              <span class="v">${jobs.length ? esc(jobs.join(", ")) : "none yet"}</span></div>
-            <div class="kv"><span class="k">Last brought in</span>
-              <span class="v">${y.lastPull ? esc(when(y.lastPull)) : "not yet"}</span></div>
-            <div class="kv"><span class="k">Last sent up</span>
-              <span class="v">${y.lastPush ? esc(when(y.lastPush)) : "not yet"}</span></div>
-            ${y.blocked ? `<p class="sub" style="margin-top:8px;color:var(--warn-700)">
-              ${y.blocked} change${y.blocked === 1 ? "" : "s"} on this device ${y.blocked === 1 ? "wasn't" : "weren't"} sent &mdash;
-              your role doesn&rsquo;t allow ${y.blocked === 1 ? "it" : "them"}. Ask your admin if that&rsquo;s wrong.</p>` : ""}
-            ${y.lastError ? `<p class="sub" style="margin-top:8px;color:var(--bad)">
-              Last try failed &mdash; ${esc(y.lastError)}.</p>` : ""}
-            <div class="g2" style="margin-top:14px">
-              <button class="btn line" style="margin:0" data-syncnow="1">Sync now</button>
-              <button class="btn line" style="margin:0" data-syncpull="1">Bring in changes</button>
-            </div>`
-          : `<p class="sub" style="margin-top:8px;color:var(--warn-700)">This device is on its own &mdash;
-              nothing here is being saved to the cloud.</p>`}`}
-      </div>`;
-    })()}
-
-    <div class="sect">Your data</div>
-    <div class="card">
-      <p style="margin-bottom:14px">A copy you hold yourself, separate from the cloud.
-      Worth taking one now and again regardless &mdash; it is the only version that survives
-      a mistake being synced everywhere.</p>
-      <button class="btn" data-share="1">Send a copy to OneDrive</button>
-      <button class="btn line" data-export="1">Download a backup</button>
-      <button class="btn line" data-import="1">Bring in a copy from another device</button>
-      <button class="btn line" data-restore="1">Go back to a saved backup</button>
-      <p style="margin:10px 0 0;font-size:13px;color:var(--ink-3)">Bringing a copy in
-      adds to what is here and never deletes. Going back to a backup replaces it,
-      so use that one to undo a bad day&rsquo;s work.</p>
-      <div class="sect" style="margin:18px 0 8px">Showing it to someone</div>
-      <p style="margin-bottom:12px">Makes a copy of the app with everything currently in it, to
-      put online as its own link. Anyone can open it and tap through the job as it stands.
-      It keeps its own records, so nothing they do touches yours.</p>
-      <button class="btn add" data-demo="1">Make a demo link</button>
-
-      ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
-        Last copy sent ${stamp(DB.lastShared)}</p>`:""}
-      ${window.sitehubAuth && sitehubAuth.user ? `<p id="authUser">Signed in as ${esc(sitehubAuth.user.name)}${sitehubAuth.user.roleName ? " &middot; " + esc(sitehubAuth.user.roleName) : ""}<br>${(window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone ? "" : `<button type="button" onclick="sitehubAuth.showInstall()">Add to home screen</button> &middot; `}<button type="button" onclick="sitehubAuth.signOut()">Sign out</button></p>` : ""}
+      ${window.sitehubAuth && sitehubAuth.user ? `<p id="authUser" style="margin:0">Signed in as ${esc(sitehubAuth.user.name)}${sitehubAuth.user.roleName ? " &middot; " + esc(sitehubAuth.user.roleName) : ""}<br>${(window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone ? "" : `<button type="button" onclick="sitehubAuth.showInstall()">Add to home screen</button> &middot; `}<button type="button" onclick="sitehubAuth.signOut()">Sign out</button></p>` : `<p style="margin:0">Not signed in.</p>`}
       <p style="margin-top:18px;font-size:12px;color:var(--ink-3);text-align:center">
         CGC siteHUB &middot; build ${esc(APP_BUILD)}</p>
     </div>`;
@@ -14291,7 +14327,10 @@ function bind(){
   app.querySelectorAll("[data-back]").forEach(el=>el.onclick=goBack);
   const ahj = app.querySelector("[data-ahjob]"); if(ahj) ahj.onclick = openJobSheet;
   const ahm = app.querySelector("[data-ahmenu]"); if(ahm) ahm.onclick = openMenuSheet;
-  const ahs = app.querySelector("[data-ahsync]"); if(ahs) ahs.onclick = () => go("settings");
+  const ahs = app.querySelector("[data-ahsync]"); if(ahs) ahs.onclick = async () => {
+    const s0 = syncBadge(); toast(s0 ? s0.long : "Syncing…", 4000);
+    if(syncReady()){ await syncPush(false); await syncPull(false); render(); }
+  };
   const ccd = app.querySelector("[data-ccdel]");
   if(ccd) ccd.onclick = () => { delDraft = blankDelivery(); go("deliveries"); };
   app.querySelectorAll("[data-hubform]").forEach(el=>el.onclick=()=>{
@@ -14726,6 +14765,11 @@ function bind(){
 
   const sub = app.querySelector("[data-submit]"); if(sub) sub.onclick = submitForm;
   const dr = app.querySelector("[data-draft]"); if(dr) dr.onclick = ()=>{ saveDraft(); toast("Draft saved"); go("home"); };
+  const ax = app.querySelector("[data-amendx]"); if(ax) ax.onclick = ()=>{
+    const id = formState.id;
+    try{ formSnap = JSON.stringify(formState.values); }catch(e){}
+    go("record", { id }); toast("Left as it was");
+  };
   app.querySelectorAll(".ph img").forEach(img=>{
     img.style.cursor = "zoom-in";
     img.onclick = (e) => { e.stopPropagation(); openPhoto(img.src, img.dataset.taken, !!img.dataset.plain); };
@@ -14750,6 +14794,7 @@ function bind(){
       }
     );
   });
+  const hist = app.querySelector("[data-rechist]"); if(hist) hist.onclick = () => openRecordHistory(hist.dataset.rechist);
   const reo = app.querySelector("[data-reopen]"); if(reo) reo.onclick = ()=>{
     const r = DB.records.find(x=>x.id===reo.dataset.reopen);
     if(!r) return;
@@ -16378,8 +16423,17 @@ function submitForm(){
   if(formState.form==="plantcheck"){
     formState.values.__weekly = sectionsFor("plantcheck").some(x=>x.title==="Weekly checks");
   }
+  const was = DB.records.find(r => r.id === formState.id);
+  const prev = was && was.status === "submitted" ? { at:was.submittedAt, by:was.by } : null;
   const rec = saveDraft();
   if(rec.status!=="submitted"){ rec.ref = nextRef(formDef(rec.form).prefix); }
+  if(prev){
+    rec.firstSubmittedAt = rec.firstSubmittedAt || prev.at;
+    rec.firstBy = rec.firstBy || prev.by;
+    rec.amendedAt = Date.now();
+    rec.amendedBy = cfg().user.name;
+    rec.amendments = (rec.amendments || 0) + 1;
+  }
   rec.status = "submitted";
   rec.submittedAt = Date.now();
   rec.by = cfg().user.name;
@@ -16814,6 +16868,7 @@ const CLOUD_IMG_MIN = 16 * 1024;     /* smaller pictures, e.g. signatures, ride 
 function syncCfg(){
   DB.cloud = DB.cloud || { on:true, lastPull:0, lastPush:0, lastError:"" };
   const c = DB.cloud;
+  c.on = true;                 /* there's no switch for it any more: every phone keeps in step */
   c.jobs = c.jobs || {};       /* job name -> job id */
   c.cursor = c.cursor || {};   /* job id -> newest change seen (server time) */
   c.known = c.known || {};     /* "job|kind|id" -> fingerprint of what the cloud holds */
