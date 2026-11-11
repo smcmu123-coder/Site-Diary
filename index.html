@@ -2101,10 +2101,9 @@ const CONFIG = {
   toolboxDay: 0,               /* Monday — the day the talk is given */
   weeklyDays: { puwer:4, loler:4, plantWeekly:0 },
 
-  /* TESTING ONLY. Set to false before this goes out to site teams — a submitted
-     diary is a contractual record and should never be deletable by a normal
-     user. It can also be switched off from the Settings screen. */
-  allowDelete: true,
+  /* No longer used. Deleting is decided by role: only an Admin deletes
+     records (see deleteAllowed() and 16_admin_only_deletes.sql). */
+  allowDelete: false,
 
   fitter: { name:"", email:"" },
   sharepoint: {
@@ -3036,7 +3035,6 @@ function warnBanner(on, message){
 /* Writes are batched so a burst of typing is one write, and flushed the moment
    the app is put into the background. */
 function save(){
-  if(typeof boardTouch === "function") boardTouch();
   /* the other device is told about it too, a few seconds behind, and never in
      a way that makes saving wait on the network */
   if(typeof syncMaybePush === "function") syncMaybePush();
@@ -8161,6 +8159,7 @@ function render(){
     });
   }
   bind();
+  hideBlockedDeletes(app);
   updateNav();
   countUp();
 }
@@ -9172,7 +9171,7 @@ function recordView(){
            Checks are issued as one sheet per machine per week, not one per day.</p>`
       : `<button class="btn" data-pdf="${r.id}">Open PDF</button>`}
     <button class="btn ghost" data-reopen="${r.id}">Amend</button>
-    ${cfg().allowDelete ? `<button class="btn line" style="color:var(--bad)"
+    ${deleteAllowed("records", r) ? `<button class="btn line" style="color:var(--bad)"
       data-del-rec="${r.id}">Delete this diary</button>` : ""}
     ${rows}`;
 }
@@ -9306,7 +9305,7 @@ function listView(){
       </button>
       <span class="pill ${r.status==="submitted"?"ok":"amber"}">${
         r.status==="submitted"?"Done":"In progress"}</span>
-      ${cfg().allowDelete ? `<button data-del-rec="${r.id}" aria-label="Delete"
+      ${deleteAllowed("records", r) ? `<button data-del-rec="${r.id}" aria-label="Delete"
         style="color:var(--bad);font-size:20px;padding:0 4px">&times;</button>` : ""}
     </div>`;
   };
@@ -10194,7 +10193,7 @@ function planAction(act, r, text){
         + "there is a record that it was booked.", "Cancelled", ()=>{
         const d = deliveries().find(x=>x.id===r.id);
         if(d){ d.cancelled = true; d.cancelledAt = Date.now(); }
-        save(); boardMaybePush(); render(); toast("Marked as cancelled");
+        save(); render(); toast("Marked as cancelled");
       });
     }
     if(r.type === "repair"){
@@ -10224,6 +10223,7 @@ function planAction(act, r, text){
           save(); render(); toast("It stays on site");
         });
       }
+      if(!deleteAllowed(reg.kind, it)) return noDelete();
       return askConfirm("It is not coming?",
         (it&&it.item?it.item:"The item") + " comes off the register altogether.",
         "Remove it", ()=>{
@@ -11621,7 +11621,7 @@ function ramsDocMeta(d){
   return "Scanned page";
 }
 function ramsDocRows(rev, editable){
-  const del = cfg().allowDelete;
+  const del = deleteAllowed("rams", rev);
   const slots = [["raDoc","Risk assessment"],["msDoc","Method statement"]];
   const held = slots.filter(([f])=>rev[f]).length;
   if(!held) return "";
@@ -11641,7 +11641,7 @@ function ramsDocRows(rev, editable){
     </div>`;
   }).join("") + `</div>`;
 }
-const ramsDelBtn = key => cfg().allowDelete
+const ramsDelBtn = key => deleteAllowed("rams", ramsParseKey(key).rev)
   ? `<button class="btn line sm" style="margin:0;color:var(--bad)" data-ramsdel="${key}">Delete</button>` : "";
 
 function ramsRevCard(rev, people){
@@ -13029,24 +13029,6 @@ function settingsView(){
       </div>
     </div>
 
-    <div class="sect">Testing</div>
-    <div class="card">
-      <div style="display:flex;align-items:flex-start;gap:12px">
-        <span style="flex:1">
-          <b style="font-weight:640;font-size:15px;display:block">Allow diaries to be deleted</b>
-          <span style="font-size:13px;color:var(--ink-3)">On while you are trying it out. Turn this
-          off before anyone else uses it — a submitted diary is a contractual record.</span>
-        </span>
-        <button data-toggle-del="1" style="width:52px;height:31px;border-radius:999px;flex:none;
-          position:relative;background:${c.allowDelete?"var(--ok)":"var(--line)"}">
-          <i style="position:absolute;top:3px;left:3px;width:25px;height:25px;
-            border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);
-            transform:translateX(${c.allowDelete?"21px":"0"});
-            transition:transform .26s cubic-bezier(.32,.72,0,1)"></i>
-        </button>
-      </div>
-    </div>
-
     <div class="sect">Sync</div>
     ${(function(){
       const y = syncCfg();
@@ -13109,48 +13091,6 @@ function settingsView(){
       It keeps its own records, so nothing they do touches yours.</p>
       <button class="btn add" data-demo="1">Make a demo link</button>
 
-      <div class="sect" style="margin:18px 0 8px">The office board</div>
-      ${(function(){
-        const b = boardCfg();
-        const set = b.repo && b.token;
-        return `
-        <p style="margin-bottom:12px">The board on the office wall reads a small file of figures
-        — no photographs. Either send it across yourself, or let the app put it up each time a
-        form goes in.</p>
-
-        <div class="card" style="background:${set?"var(--green-50)":"var(--canvas)"};
-          box-shadow:none">
-          <div class="f"><label>Repository</label>
-            <div class="hint">Where the board lives, as owner/name.</div>
-            <input class="in" data-bcfg="repo" value="${esc(b.repo||"")}"
-              placeholder="smcmu123-coder/Site-Diary"></div>
-          <div class="g2">
-            <div class="f"><label>Branch</label>
-              <input class="in" data-bcfg="branch" value="${esc(b.branch||"main")}"></div>
-            <div class="f"><label>Access token</label>
-              <div class="hint">Kept on this device.</div>
-              <input class="in" type="password" data-bcfg="token"
-                value="${b.token ? "••••••••••••" : ""}" placeholder="github_pat_…"></div>
-          </div>
-          <div class="spread" style="margin-top:6px">
-            <span><b style="font-weight:650">Update it automatically</b>
-              <span style="display:block;font-size:12.5px;color:var(--ink-2)">
-                Every time a form is submitted</span></span>
-            <span class="yn" style="width:118px;flex:none">
-              <button type="button" class="${b.auto?"y":""}" data-bauto="1">On</button>
-              <button type="button" class="${b.auto?"":"n"}" data-bauto="0">Off</button>
-            </span>
-          </div>
-          ${b.lastPush ? `<p class="sub" style="margin-top:10px;color:var(--ok)">
-            Last sent ${shortDate(iso(new Date(b.lastPush)))} at ${timeOnly(b.lastPush)}.</p>` : ""}
-          ${b.lastError ? `<p class="sub" style="margin-top:6px;color:var(--bad)">
-            Last try failed — ${esc(b.lastError)}.</p>` : ""}
-          <button class="btn line sm" style="margin:12px 0 0" data-btest="1">Send it now</button>
-        </div>
-
-        <button class="btn add" data-board="1" style="margin-top:10px">
-          Save the file and send it myself</button>`;
-      })()}
       ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
         Last copy sent ${stamp(DB.lastShared)}</p>`:""}
       ${window.sitehubAuth && sitehubAuth.user ? `<p id="authUser">Signed in as ${esc(sitehubAuth.user.name)}${sitehubAuth.user.roleName ? " &middot; " + esc(sitehubAuth.user.roleName) : ""}<br>${(window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone ? "" : `<button type="button" onclick="sitehubAuth.showInstall()">Add to home screen</button> &middot; `}<button type="button" onclick="sitehubAuth.signOut()">Sign out</button></p>` : ""}
@@ -13789,6 +13729,7 @@ function bind(){
     const id = el.getAttribute("data-del-rec");
     const r = DB.records.find(x=>x.id===id);
     if(!r) return;
+    if(!deleteAllowed("records", r)) return noDelete();
     askConfirm(
       "Delete this diary?",
       (r.ref ? r.ref + " — " : "") + longDate(r.date) + ". This cannot be undone.",
@@ -13900,7 +13841,7 @@ function bind(){
     if(!d) return;
     askDate("When is it booked in for?", todayISO(), when=>{
       d.repair = { date:when, note:"", bookedBy:cfg().user.name, bookedAt:Date.now() };
-      save(); boardMaybePush(); render(); toast("Booked in for " + shortDate(when));
+      save(); render(); toast("Booked in for " + shortDate(when));
     });
   });
   app.querySelectorAll("[data-repdate]").forEach(el=>el.onclick=()=>{
@@ -13930,6 +13871,7 @@ function bind(){
   app.querySelectorAll("[data-defdel]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-defdel");
     const d = (DB.defects||[]).find(x=>x.id===id);
+    if(!deleteAllowed("defects", d)) return noDelete();
     askConfirm("Delete this defect?",
       (d?d.item:"It")+" will be removed from the machine and its history. The inspection it came from is not changed.",
       "Delete", ()=>{ DB.defects = DB.defects.filter(x=>x.id!==id); save(); go("plant"); toast("Defect deleted"); });
@@ -14188,7 +14130,7 @@ function bind(){
     else if(d.kind==="lifting") DB.lifting.push(fresh);
     else                        DB.tools.push(fresh);
 
-    swapDraft = null; save(); boardMaybePush();
+    swapDraft = null; save();
     go("item", { kind:d.kind, id:fresh.id });
     toast("Swapped over — " + d.item + " is on the register");
   };
@@ -14350,6 +14292,7 @@ function bind(){
   app.querySelectorAll("[data-ramsdel]").forEach(el=>el.onclick=()=>{
     const { rev, add } = ramsParseKey(el.getAttribute("data-ramsdel"));
     if(!rev) return;
+    if(!deleteAllowed("rams", rev)) return noDelete();
     if(add){
       const n = (add.sigs||[]).length;
       askConfirm("Delete this addendum?",
@@ -14384,6 +14327,7 @@ function bind(){
     const [id, field] = el.getAttribute("data-ramsdocrm").split(":");
     const rev = (DB.rams||[]).find(r=>r.id===id);
     if(!rev || !rev[field]) return;
+    if(!deleteAllowed("rams", rev)) return noDelete();
     const label = field === "raDoc" ? "risk assessment" : "method statement";
     askConfirm("Remove the " + label + "?",
       "It comes off Rev " + revText(rev) + ". Signatures already given stay on record. This can't be undone.",
@@ -14473,6 +14417,7 @@ function bind(){
   app.querySelectorAll("[data-plrm]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-plrm");
     const p = (DB.plant||[]).find(x=>x.id===id);
+    if(!deleteAllowed("plant", p)) return noDelete();
     askConfirm("Delete this item?", (p&&p.item?p.item:"This item")+" will be removed from the register.",
       "Delete", () => { DB.plant = DB.plant.filter(x=>x.id!==id); save(); render(); toast("Deleted"); });
   });
@@ -14551,7 +14496,7 @@ function bind(){
       it.onDate = hireDraft.date || todayISO();
       toast((it.item||"Item")+" on site from "+shortDate(it.onDate));
     }
-    hireDraft = null; save(); boardMaybePush(); render();
+    hireDraft = null; save(); render();
   };
 
   const eva = app.querySelector("[data-evadd]");
@@ -14631,7 +14576,7 @@ function bind(){
     DB.deliveries = DB.deliveries || [];
     DB.deliveries.push(Object.assign({ id:"dl_"+Date.now(), job:DB.job,
       createdAt:Date.now(), received:[] }, delDraft));
-    delDraft = null; save(); boardMaybePush(); render(); toast("Booked in");
+    delDraft = null; save(); render(); toast("Booked in");
   };
   app.querySelectorAll("[data-deledit]").forEach(el=>el.onclick=()=>{
     const d = deliveries().find(x=>x.id===el.getAttribute("data-deledit"));
@@ -14647,7 +14592,7 @@ function bind(){
       "It comes off the calendar and the running totals, but stays on the list so there is a record of it.",
       "Cancelled", ()=>{
         d.cancelled = true; d.cancelledAt = Date.now();
-        save(); boardMaybePush(); render(); toast("Marked as cancelled");
+        save(); render(); toast("Marked as cancelled");
       });
   });
   app.querySelectorAll("[data-delback]").forEach(el=>el.onclick=()=>{
@@ -14659,6 +14604,7 @@ function bind(){
   app.querySelectorAll("[data-delrm]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-delrm");
     const d = deliveries().find(x=>x.id===id);
+    if(!deleteAllowed("deliveries", d)) return noDelete();
     askConfirm("Delete this delivery?",
       (d?(d.description||d.type):"It")+" and everything recorded against it will be removed.",
       "Delete", ()=>{ DB.deliveries = DB.deliveries.filter(x=>x.id!==id); save();
@@ -14690,7 +14636,7 @@ function bind(){
     d.received.push({ qty:Number(dropDraft.qty), date:dropDraft.date||todayISO(),
       ticket:dropDraft.ticket||"", note:dropDraft.note||"",
       by:cfg().user.name, at:Date.now() });
-    dropDraft = null; save(); boardMaybePush(); render();
+    dropDraft = null; save(); render();
     toast(outstandingQty(d)
       ? (loadsOrdered(d) ? deliveryProgress(d) + " in" : outstandingQty(d)+" "+(d.unit||"")+" still to come")
       : "That order is complete");
@@ -14769,6 +14715,7 @@ function bind(){
   app.querySelectorAll("[data-tlrm]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-tlrm");
     const t = (DB.tools||[]).find(x=>x.id===id);
+    if(!deleteAllowed("tools", t)) return noDelete();
     askConfirm("Delete this item?", (t&&t.item?t.item:"This item")+" will be removed from the register.",
       "Delete", ()=>{ DB.tools = (DB.tools||[]).filter(x=>x.id!==id); save();
         if(view.name==="item") go("tools"); else render(); toast("Deleted"); });
@@ -14824,6 +14771,7 @@ function bind(){
   app.querySelectorAll("[data-lfrm]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-lfrm");
     const l = (DB.lifting||[]).find(x=>x.id===id);
+    if(!deleteAllowed("lifting", l)) return noDelete();
     askConfirm("Delete this item?", (l&&l.item?l.item:"This item")+" will be removed from the register.",
       "Delete", ()=>{ DB.lifting = DB.lifting.filter(x=>x.id!==id); save();
         if(view.name==="item") go("lifting"); else render(); toast("Deleted"); });
@@ -14866,6 +14814,7 @@ function bind(){
   app.querySelectorAll("[data-lbrm]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-lbrm");
     const l = (DB.labour||[]).find(x=>x.id===id);
+    if(!deleteAllowed("labour", l)) return noDelete();
     askConfirm("Remove this person?", (l&&l.name?l.name:"They")+" will come off the register. Diaries already submitted keep their record.",
       "Remove", ()=>{ DB.labour = DB.labour.filter(x=>x.id!==id); save(); render(); toast("Removed"); });
   });
@@ -14942,6 +14891,7 @@ function bind(){
   app.querySelectorAll("[data-vodel]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-vodel");
     const v = (DB.vos||[]).find(x=>x.id===id);
+    if(!deleteAllowed("vos", v)) return noDelete();
     const isLast = v && highestVoNumber() === parseInt((String(v.ref).match(/(\d+)\s*$/)||[])[1],10);
     askConfirm("Delete "+(v?v.ref:"this sheet")+"?",
       (isLast ? "It is the last number in use, so the next sheet raised will be "+v.ref+" again. "
@@ -15131,13 +15081,14 @@ function bind(){
        big to write you were told it was filed and warned it had not saved, at
        the same time. It now waits and says which of the two happened. */
     const ok = await flushSave();
-    if(ok){ boardMaybePush(); toast("Filed with this week"); }
+    if(ok){ toast("Filed with this week"); }
     else   { toast("Scanned, but not saved yet — see Profile."); }
   };
   app.querySelectorAll("[data-scansgo]").forEach(el=>el.onclick=()=>
     go("scans", { week: el.getAttribute("data-scansgo") }));
   app.querySelectorAll("[data-scandel]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-scandel");
+    if(!deleteAllowed("scans", (DB.scans||[]).find(x=>x.id===id))) return noDelete();
     askConfirm("Remove this sheet?", "It comes out of the pack. The paper copy is unaffected.",
       "Remove", ()=>{ DB.scans = (DB.scans||[]).filter(x=>x.id!==id); save(); render();
         toast("Removed"); });
@@ -15184,7 +15135,7 @@ function bind(){
     if(leaveDraft.to < leaveDraft.from){ toast("The end date is before the start date."); return; }
     DB.leave = DB.leave || [];
     DB.leave.push(Object.assign({ id:"lv_"+Date.now(), job:DB.job }, leaveDraft));
-    leaveDraft = null; save(); boardMaybePush(); render(); toast("Booked");
+    leaveDraft = null; save(); render(); toast("Booked");
   };
   app.querySelectorAll("[data-lvrm]").forEach(el=>el.onclick=()=>{
     const id = el.getAttribute("data-lvrm");
@@ -15211,23 +15162,6 @@ function bind(){
   const rs = app.querySelector("[data-restore]"); if(rs) rs.onclick = restoreBackup;
   const shr = app.querySelector("[data-shrink]"); if(shr) shr.onclick = shrinkSavedScans;
   const dm = app.querySelector("[data-demo]"); if(dm) dm.onclick = shareDemo;
-  const bd = app.querySelector("[data-board]"); if(bd) bd.onclick = publishBoard;
-  app.querySelectorAll("[data-bcfg]").forEach(el=>{
-    el.oninput = () => {
-      const k = el.dataset.bcfg;
-      const v = el.value;
-      if(k === "token" && /^•+$/.test(v)) return;       /* left as it was */
-      boardCfg()[k] = v.trim();
-      DB.board.lastError = "";
-      save();
-    };
-    el.onchange = el.oninput;
-  });
-  app.querySelectorAll("[data-bauto]").forEach(el=>el.onclick=()=>{
-    boardCfg().auto = el.getAttribute("data-bauto") === "1";
-    save(); render();
-    toast(DB.board.auto ? "The board will follow each form" : "The board is yours to send");
-  });
   app.querySelectorAll("[data-syncon]").forEach(el=>el.onclick=async ()=>{
     const on = el.getAttribute("data-syncon") === "1";
     syncCfg().on = on;
@@ -15246,9 +15180,6 @@ function bind(){
   if(sn) sn.onclick = async ()=>{ toast("Syncing…"); await syncPush(false); render(); };
   const spull = app.querySelector("[data-syncpull]");
   if(spull) spull.onclick = async ()=>{ toast("Looking…"); await syncPull(false); render(); };
-
-  const bt = app.querySelector("[data-btest]");
-  if(bt) bt.onclick = async ()=>{ toast("Sending…"); await pushBoard(false); render(); };
 }
 function after(){ if(formState.touched) formState.errors = validate(); render(); }
 
@@ -15394,7 +15325,7 @@ function submitForm(){
   syncVo(rec);
   raiseDefects(rec);
   save();
-  boardMaybePush();          /* the office screen follows along on its own */
+ 
   const raised = (DB.vos||[]).filter(v=>v.recordId===rec.id);
   const what = formDef(rec.form).name;
   /* did that clear the day? only for a real working day, and only for today */
@@ -15686,9 +15617,8 @@ function printVo(id){
 /* ----------------------------------------------------------------- backup -- */
 function backupFile(){
   const name = "site-diary-"+DB.job.replace(/[^a-z0-9]+/gi,"-").toLowerCase()+"-"+todayISO()+".json";
-  /* the GitHub token stays on this device, so it is taken out of the backup */
   const copy = JSON.parse(JSON.stringify(DB));
-  if(copy.board) delete copy.board.token;
+  delete copy.board;
   delete copy.cloud; delete copy.sync;
   return new File([JSON.stringify(copy,null,2)], name, { type:"application/json" });
 }
@@ -15727,7 +15657,7 @@ async function buildDemo(){
   const snapshot = JSON.parse(JSON.stringify(DB));
   delete snapshot.__movedFromLocalStorage;
   delete snapshot.__fromSnapshot;
-  if(snapshot.board) delete snapshot.board.token;   /* never leaves this device */
+  delete snapshot.board;
   delete snapshot.cloud; delete snapshot.sync;
 
   const head = TAG
@@ -15785,135 +15715,6 @@ async function shareDemo(){
   };
 }
 
-/* The office board reads a small snapshot from the same folder it sits in.
-   Photographs and signatures are stripped out: the board only needs the
-   figures, and the file has to stay small enough to upload in seconds. */
-function boardSnapshot(){
-  const strip = v => {
-    if(!v || typeof v !== "object") return v;
-    if(Array.isArray(v)) return v.map(strip);
-    const out = {};
-    Object.keys(v).forEach(k=>{
-      const val = v[k];
-      if(typeof val === "string" && val.startsWith("data:image")) return;   /* drop pictures */
-      out[k] = strip(val);
-    });
-    return out;
-  };
-  /* the fortnight, worked out here so the wall board has no logic of its own */
-  const laStart = weekStart(todayISO());
-  const lookahead = [];
-  for(let i=0;i<14;i++){
-    const d = addDays(laStart, i);
-    lookahead.push({ date:d, working:isWorking(d),
-      items: planItems(d).map(it=>({ kind:it.kind, time:it.time||"",
-        text:it.text||"", sub:it.sub||"" })) });
-  }
-
-  return {
-    publishedAt: Date.now(),
-    publishedBy: cfg().user.name || "",
-    job: DB.job,
-    lookahead,
-    planKinds: PLAN_KINDS,
-    config: { jobs: DB.config.jobs || [DB.job] },
-    /* how the checks are being done this week, and when the sheets are wanted */
-    checks: {
-      how: checksOnPaper() ? "paper" : "app",
-      scanDate: lastWorkingDay(weekStart(todayISO())),
-      scanDay: WEEKDAYS[(parse(lastWorkingDay(weekStart(todayISO()))).getDay()+6)%7],
-      week: weekStart(todayISO())
-    },
-    /* when each weekly job falls due this week */
-    weekly: Object.values(FORMS).filter(f2=>f2.weekly).map(f2=>({
-      key:f2.key, name:f2.name, short:f2.short,
-      due: weeklyDateFor(f2.key, weekStart(todayISO())),
-      dueDay: WEEKDAYS[weeklyDayFor(f2.key)],
-      done: isDone(weeklyRecordFor(f2.key, todayISO()))
-    })),
-    /* the sheets themselves stay on the device; the board only needs the count */
-    scans: (DB.scans||[]).filter(x=>x.job===DB.job).map(x=>({
-      id:x.id, job:x.job, week:x.week, kind:x.kind, plantId:x.plantId,
-      pages:(x.pages||[]).length, addedAt:x.addedAt })),
-    records: (DB.records||[]).filter(r=>r.status==="submitted")
-      .map(r=>({ id:r.id, job:r.job, date:r.date, form:r.form, status:r.status,
-        plantId:r.plantId, excRef:r.excRef, ref:r.ref, submittedAt:r.submittedAt, by:r.by,
-        data: strip({
-          excavationsOpen: r.data.excavationsOpen,
-          excavationList: (r.data.excavationList||[]).map(x=>({ ref:x.ref })),
-          labourTable: (r.data.labourTable||[]).map(x=>({ onSite:x.onSite })),
-          delayList: r.data.delayList || []
-        }) })),
-    plant: strip(DB.plant||[]), lifting: strip(DB.lifting||[]), tools: strip(DB.tools||[]),
-    labour: strip(DB.labour||[]), leave: strip(DB.leave||[]),
-    deliveries: strip(DB.deliveries||[]), events: strip(DB.events||[]),
-    defects: (DB.defects||[]).filter(d=>d.status==="open").map(d=>({
-      id:d.id, job:d.job, plantId:d.plantId, item:d.item, description:d.description,
-      status:d.status, reportedAt:d.reportedAt, repair:d.repair }))
-  };
-}
-
-
-/* ------------------------------------------------- the board, by itself --
-   With a GitHub token the app can put the board file up on its own, so the
-   office screen follows the site without anybody uploading anything.
-   The token is kept on this device only: it is never written into a backup,
-   a demo copy or the board file itself.
-   -------------------------------------------------------------------------*/
-function boardCfg(){
-  DB.board = DB.board || { repo:"", branch:"main", token:"", auto:false,
-    lastPush:0, lastError:"" };
-  return DB.board;
-}
-
-function b64(str){
-  /* base64 that survives accents and symbols */
-  const bytes = new TextEncoder().encode(str);
-  let bin = "";
-  bytes.forEach(b=>{ bin += String.fromCharCode(b); });
-  return btoa(bin);
-}
-
-async function pushBoard(quiet){
-  const c = boardCfg();
-  if(!c.repo || !c.token){
-    if(!quiet) toast("Add the repository and token first.");
-    return false;
-  }
-  const url = "https://api.github.com/repos/" + c.repo.trim() + "/contents/board-data.json";
-  const head = { "Authorization":"Bearer " + c.token.trim(),
-    "Accept":"application/vnd.github+json" };
-  try{
-    /* the file has to be replaced by its current version, so read it first */
-    let sha = null;
-    const got = await fetch(url + "?ref=" + (c.branch||"main"), { headers:head, cache:"no-store" });
-    if(got.status === 200){ sha = (await got.json()).sha; }
-    else if(got.status !== 404){ throw new Error("GitHub said " + got.status); }
-
-    const body = { message:"Site board — " + new Date().toLocaleString("en-GB"),
-      content: b64(JSON.stringify(boardSnapshot())), branch: c.branch || "main" };
-    if(sha) body.sha = sha;
-
-    const put = await fetch(url, { method:"PUT", headers:head, body:JSON.stringify(body) });
-    if(!put.ok){
-      const msg = put.status === 401 ? "the token was refused"
-        : put.status === 404 ? "that repository could not be found"
-        : put.status === 403 ? "the token is not allowed to write there"
-        : "GitHub said " + put.status;
-      throw new Error(msg);
-    }
-    c.lastPush = Date.now(); c.lastError = "";
-    save();
-    if(!quiet) toast("The office board is up to date");
-    return true;
-  }catch(e){
-    c.lastError = (e && e.message) || "it did not go through";
-    save();
-    if(!quiet) toast("Board not updated — " + c.lastError);
-    return false;
-  }
-}
-
 /* ======================================================= siteHUB cloud sync ==
    Records and photos are kept in Supabase, behind the sign-in, filed by job.
    Everyone on a job works from the same set; the database decides who can see
@@ -15955,6 +15756,56 @@ function cloudClient(){
 }
 function syncReady(){
   return !IS_DEMO && !!cloudClient() && syncCfg().on && navigator.onLine !== false;
+}
+
+/* --------------------------------------------------------- who deletes --
+   Only an Admin deletes records. Anyone can still remove:
+     - calendar reminders, time off and timesheet hours (planning and corrections)
+     - a dayworks sheet that hasn't been signed
+     - plant, lifting gear, work equipment or labour booked for a date that
+       hasn't come yet (it never arrived, so it isn't a record of anything)
+     - anything that has never left this phone
+   The database applies the same rule (16_admin_only_deletes.sql), so an older
+   copy of the app can't get round it: a refused delete is put back on the phone. */
+const DELETE_FREE = ["events", "leave", "tsHours"];
+const DELETE_BOOKED = ["plant", "lifting", "tools", "labour"];
+function isAdminUser(){
+  if(IS_DEMO) return true;
+  const a = window.sitehubAuth;
+  if(!a || !a.user) return false;
+  const s = typeof a.can === "function" ? a.can("permissions", "manage") : null;
+  if(s === null) return a.user.role === "admin";      /* permissions not loaded yet */
+  return !!s;
+}
+function deleteAllowed(kind, item){
+  if(isAdminUser()) return true;
+  if(DELETE_FREE.indexOf(kind) >= 0) return true;
+  if(!item) return false;
+  if(kind === "vos" && item.status !== "signed") return true;
+  if(DELETE_BOOKED.indexOf(kind) >= 0 && item.onDate && item.onDate >= todayISO()) return true;
+  /* never synced: nobody else has a copy, so it's not a record yet */
+  const c = syncCfg(), jobId = c.jobs[item.job];
+  if(!jobId) return true;
+  return c.known[jobId + "|" + kind + "|" + item.id] === undefined;
+}
+function noDelete(){
+  toast("Only an Admin can delete records. Ask your Admin if something needs taking off.", 5000);
+}
+/* delete buttons this person can't use are hidden, whichever screen drew them */
+const DELETE_BUTTONS = [
+  ["data-del-rec", "records"], ["data-defdel", "defects"], ["data-plrm", "plant"],
+  ["data-delrm", "deliveries"], ["data-tlrm", "tools"], ["data-lfrm", "lifting"],
+  ["data-lbrm", "labour"], ["data-vodel", "vos"], ["data-scandel", "scans"]
+];
+function hideBlockedDeletes(root){
+  if(!root || isAdminUser()) return;
+  DELETE_BUTTONS.forEach(([attr, kind]) => {
+    root.querySelectorAll("[" + attr + "]").forEach(el => {
+      const id = el.getAttribute(attr);
+      const item = (DB[kind] || []).find(x => x && String(x.id) === id);
+      if(!deleteAllowed(kind, item)) el.hidden = true;
+    });
+  });
 }
 
 /* --------------------------------------------------------------- helpers -- */
@@ -16911,67 +16762,6 @@ document.addEventListener("visibilitychange", ()=>{
 });
 window.addEventListener("online", ()=>{ if(syncReady()) syncMaybePush(); });
 
-/* after something is filed, once the dust has settled */
-let boardTimer = null;
-function boardMaybePush(){
-  const c = boardCfg();
-  if(!c.auto || !c.repo || !c.token) return;
-  clearTimeout(boardTimer);
-  boardTimer = setTimeout(()=>pushBoard(true), 2500);
-}
-
-/* A backstop: if anything at all has changed and the board has not been sent
-   for a quarter of an hour, send it. Nothing on the wall goes stale because a
-   particular button was missed. */
-let boardDirty = false;
-function boardTouch(){ boardDirty = true; }
-setInterval(()=>{
-  const c = boardCfg();
-  if(!c.auto || !c.repo || !c.token || !boardDirty) return;
-  if(Date.now() - (c.lastPush||0) < 15*60*1000) return;
-  boardDirty = false;
-  pushBoard(true);
-}, 60*1000);
-
-async function publishBoard(){
-  const snap = boardSnapshot();
-  const text = JSON.stringify(snap);
-  const blob = new Blob([text], { type:"application/json" });
-  const file = new File([blob], "board-data.json", { type:"application/json" });
-
-  let saved = false;
-  if(navigator.canShare && navigator.canShare({ files:[file] })){
-    try{ await navigator.share({ files:[file], title:"Site board data" }); saved = true; }
-    catch(e){ return; }
-  }
-  if(!saved){
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "board-data.json"; a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 4000);
-  }
-
-  const base = location.href.replace(/[^/]*$/, "");
-  const wrap = document.createElement("div");
-  wrap.className = "scrim";
-  wrap.innerHTML = `<div class="dlg" style="text-align:left">
-      <h3>Put it on the board</h3>
-      <p>${Math.round(text.length/1024)} KB saved. Upload it next to the board and the screen
-      picks it up on its own within two minutes.</p>
-      <ol style="margin:12px 0 14px;padding-left:18px;color:var(--ink-2);font-size:14px">
-        <li style="margin-bottom:6px">Open your repository on GitHub</li>
-        <li style="margin-bottom:6px">Add file → Upload files → drop <b>board-data.json</b> in</li>
-        <li>Commit changes</li>
-      </ol>
-      <div class="card" style="background:var(--canvas);box-shadow:none;word-break:break-all;
-        font-size:13px;padding:12px">${esc(base + "office-board.html")}</div>
-      <button class="btn ghost" style="margin:12px 0 0" data-x>Done</button>
-    </div>`;
-  document.body.appendChild(wrap);
-  wrap.querySelector("[data-x]").onclick = () => wrap.remove();
-  wrap.onclick = e => { if(e.target===wrap) wrap.remove(); };
-}
-
 async function shareBackup(){
   const f = backupFile();
   if(navigator.canShare && navigator.canShare({ files:[f] })){
@@ -17067,16 +16857,12 @@ function restoreBackup(){
         "is on here now downloads first, so this can be undone.",
         "Restore", () => {
           exportBackup();                       /* the way back, taken first */
-          /* the token lives on this device and is deliberately never written
-             into a backup, so it is carried across rather than wiped */
-          const token = (DB.board && DB.board.token) || "";
           stripMarks(d);
           const fresh = blankDB();
           Object.keys(fresh).forEach(k => { if(!(k in d)) d[k] = fresh[k]; });
           DB = d;
           delete DB.cloud;      /* a restore only ever adds to the cloud, never deletes from it */
-          DB.board = DB.board || {};
-          DB.board.token = token;
+          delete DB.board;
           DB.lastBackup = todayISO();
           if(!DB.job) DB.job = CONFIG.jobs[0];
           save(); render();
@@ -17533,6 +17319,9 @@ if(!DB.events) DB.events = [];
   }
   if(DB.config) delete DB.config.hours;
   if(DB.config.allowDelete === undefined) DB.config.allowDelete = CONFIG.allowDelete;
+  /* the office board has gone: its settings, and the GitHub token saved with
+     them, are wiped from the phone */
+  if(DB.board){ delete DB.board; setTimeout(save, 0); }
 
   /* Job details used to sit loose, shared by every job. They belong to the job
      that was open when they were typed, so that is where they go. */

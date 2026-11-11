@@ -514,6 +514,14 @@ async function saveItem(jobId, kind, item){
   const i = arr.findIndex(x => String(x.id) === String(data.id));
   if(i >= 0) arr[i] = data; else arr.push(data);
 }
+/* Only an Admin deletes records. Anyone else may remove plant, lifting gear,
+   work equipment or labour booked for a date that hasn't come yet. The
+   database applies the same rule (16_admin_only_deletes.sql). */
+function mayDelete(kind, x){
+  if(isAdmin()) return true;
+  return ["plant", "lifting", "tools", "labour"].includes(kind) && !!(x && x.onDate) && x.onDate >= today();
+}
+const NO_DELETE = "Only an Admin can delete records.";
 async function deleteItem(jobId, kind, id){
   const old = (S.items[jobId][kind] || []).find(x => String(x.id) === String(id)) || { id };
   const { error } = await sb.from("job_items").upsert([{ job_id:jobId, kind, item_id:String(id),
@@ -784,7 +792,7 @@ function jobForm(job, meta){
         `<option value="${i}" ${i === fd[k] ? "selected" : ""}>${n}</option>`).join("")}</select></div>`).join("")}</div>
       <div class="hint">The app chases each one from that day, and the console shows it overdue after it.</div></div>
     <p class="err" hidden></p>
-    <div class="acts" style="justify-content:space-between"><span>${job && can("jobs", "delete") ? `<button class="btn danger sm" data-deljob>Delete job</button>` : ""}</span>
+    <div class="acts" style="justify-content:space-between"><span>${job && isAdmin() && can("jobs", "delete") ? `<button class="btn danger sm" data-deljob>Delete job</button>` : ""}</span>
       <span><button class="btn ghost" data-no>Cancel</button> <button class="btn" data-yes>${job ? "Save" : "Create job"}</button></span></div>`,
   (d, close) => {
     const val = k => d.querySelector(`[data-k="${k}"]`).value.trim();
@@ -999,7 +1007,7 @@ function registerView(jobId, key){
       ${rows.map(x => `<tr class="${onSite(x) ? "" : "off"}">${R.cols.map(c => `<td>${c[1](x)}</td>`).join("")}
         <td class="acts">${R.kind === "plant" || R.kind === "lifting" ? `<button class="lnk" data-certs="${esc(x.id)}">Certificates${(x.docs || []).length ? " (" + new Set(x.docs.map(d => d.group || d.id)).size + ")" : ""}</button>` : ""}${editable ? `<button class="lnk" data-edit="${esc(x.id)}">Edit</button>
           ${onSite(x) ? `<button class="lnk" data-offhire="${esc(x.id)}">${offWord}</button>` : ""}
-          <button class="lnk red" data-del="${esc(x.id)}">Delete</button>` : ""}</td></tr>`).join("")}</table>`
+          ${mayDelete(R.kind, x) ? `<button class="lnk red" data-del="${esc(x.id)}">Delete</button>` : ""}` : ""}</td></tr>`).join("")}</table>`
       : emptyState(regShow === "off" ? "Nothing gone off site yet" : "No " + R.noun + "s " + (regShow === "on" ? "on site" : "yet"),
           regShow === "off" ? "" : "Anything added here shows on the register in the app.",
           editable && regShow !== "off" ? `<button class="btn" data-add="${key}">+ Add ${R.noun}</button>` : "")}</div>`);
@@ -1020,6 +1028,7 @@ function bindRegister(jobId, key){
   });
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
     const x = find(b.dataset.del);
+    if(!mayDelete(R.kind, x)) return toast(NO_DELETE);
     confirmBox("Delete " + (x.item || x.name) + "?",
       "This removes it from the register for everyone. If it was simply on site and has gone, use " + (R.kind === "labour" ? "Left site" : "Off hire") + " instead so the history is kept.",
       "Delete", async () => { try{ await deleteItem(jobId, R.kind, x.id); toast("Deleted"); route(); }catch(e){ toast(words(e)); } });
@@ -1792,7 +1801,7 @@ function hsTempworks(jobId){
       ${all.map(x => `<tr class="${x.status === "Removed" ? "off" : ""}"><td><b>${esc(x.ref || "—")}</b></td><td>${esc(x.description || "—")}${x.notes ? `<span class="sub2">${esc(x.notes)}</span>` : ""}</td>
         <td>${esc(x.category || "—")}</td><td>${esc(x.designer || "—")}</td><td><span class="pill ${twCls(x.status)}">${esc(x.status || "—")}</span></td>
         <td>${short(x.date)}</td><td>${x.doc ? `<button class="lnk" data-doc="${esc(x.id)}:doc">Open</button>` : "—"}</td>
-        <td class="acts">${edit ? `<button class="lnk" data-twedit="${esc(x.id)}">Edit</button><button class="lnk red" data-twdel="${esc(x.id)}">Delete</button>` : ""}</td></tr>`).join("")}</table>`
+        <td class="acts">${edit ? `<button class="lnk" data-twedit="${esc(x.id)}">Edit</button>${isAdmin() ? `<button class="lnk red" data-twdel="${esc(x.id)}">Delete</button>` : ""}` : ""}</td></tr>`).join("")}</table>`
       : emptyState("Nothing on the register yet", "Add each temporary works item with its design or permit — PDF or photo.", edit ? `<button class="btn" data-twadd>+ Add to register</button>` : "")}</div>`);
 }
 function twForm(jobId, x){
@@ -1851,6 +1860,7 @@ function hsPage(jobId, sub){
     const find = id => list(jobId, "tempworks").find(x => String(x.id) === id);
     document.querySelectorAll("[data-twedit]").forEach(b => b.onclick = () => twForm(jobId, find(b.dataset.twedit)));
     document.querySelectorAll("[data-twdel]").forEach(b => b.onclick = () => { const x = find(b.dataset.twdel);
+      if(!isAdmin()) return toast(NO_DELETE);
       confirmBox("Delete " + x.ref + " from the register?", "It's removed for everyone. If the temporary works has simply come out, set its status to Removed instead so the history is kept.", "Delete",
         async () => { try{ await deleteItem(jobId, "tempworks", x.id); toast("Deleted"); route(); }catch(e){ toast(words(e)); } }); });
     bindDocs(key => { const x = find(key.split(":")[0]); return x && x.doc; }); } };
@@ -2153,7 +2163,8 @@ async function allocMove(person, jobId, date){
   for(const e of (ALLOC.by[person.id] || [])){
     const on = e.x.onDate || "", off = e.x.offDate || "";
     await loadItems(e.jobId);
-    if(on >= date) await deleteItem(e.jobId, "labour", e.x.id);                      /* planned from then on — replaced */
+    if(on >= date && mayDelete("labour", e.x)) await deleteItem(e.jobId, "labour", e.x.id);   /* planned from then on — replaced */
+    else if(on >= date) await saveItem(e.jobId, "labour", Object.assign({}, e.x, { offDate:on }));   /* already started: closed off, kept */
     else if(!off || off > date) await saveItem(e.jobId, "labour", Object.assign({}, e.x, { offDate:date }));
   }
   if(!jobId) return;
