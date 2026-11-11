@@ -359,6 +359,51 @@ img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:
   .panel{overflow-x:auto}
   .stats{width:auto}
 }
+
+/* ---------- v3: a lighter sidebar, grouped into company and job ---------- */
+.side{background:#fff;border-right:1px solid var(--line);overflow-y:auto}
+.side .brand{border-right:none;border-bottom:1px solid var(--line);padding:18px 22px}
+.side .brand img{height:64px}
+.side nav{padding:10px 12px 16px;gap:2px}
+.side nav .navgrp{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+  padding:14px 12px 6px}
+.side nav .navjob{font-size:14.5px;font-weight:700;color:var(--ink);padding:0 12px 8px;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis}
+.side nav .navjob span{display:block;font-size:12px;font-weight:600;color:var(--ink-3)}
+.side nav a{color:var(--ink-2);font-size:14.5px;font-weight:600;letter-spacing:0;text-transform:none;
+  padding:9px 12px;border-radius:8px;position:relative}
+.side nav a:hover{background:var(--tint);color:var(--ink)}
+.side nav a.on{background:var(--tint);color:var(--green)}
+.side nav a.on::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--green)}
+.side nav a:focus-visible{outline:3px solid var(--green);outline-offset:-3px}
+.side .me{color:var(--ink-2);border-top:1px solid var(--line)}
+.side .me b{color:var(--ink)}
+.side .me a,.side .me button{color:var(--green)}
+@media (max-width:900px){
+  .side nav .navgrp,.side nav .navjob{display:none}
+  .side nav a.on::before{display:none}
+}
+
+/* ---------- v3: light tiles and job banner, in step with the phone app ---------- */
+.jobbar{background:#fff;color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--green);
+  text-transform:none;letter-spacing:-.01em;font-size:18px;padding:14px 20px}
+.jobbar .ref{color:var(--ink-3);opacity:1}
+.jobbar .lnk{color:var(--green)}
+.st,.jt{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:14px;box-shadow:none}
+.st:hover,.jt:hover{background:#fff;border-color:var(--green);box-shadow:0 8px 22px -12px rgba(31,90,45,.35)}
+.st .t,.jt .n{letter-spacing:.01em;text-transform:none;font-size:16px;color:var(--ink)}
+.st .v{font-size:19px;color:var(--ink-2)}
+.jt .m{color:var(--ink-3)}
+.jt .k span{background:var(--tint);color:var(--ink-2)}
+.st .ic{background:var(--tint)}
+.st .flag{border:1px solid currentColor}
+.jt.new{border:1.5px dashed var(--green);background:#fff}
+.jc{border:1px solid var(--line);border-radius:14px}
+.jc:hover{border-color:var(--green)}
+.jc .jh{background:var(--tint);color:var(--ink);border-bottom:1px solid var(--line)}
+.jc .jh .n{letter-spacing:-.01em;text-transform:none;font-size:18px}
+.jc .jh .m{color:var(--ink-3)}
+.jc .state{border:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -657,16 +702,34 @@ const HSI = {  /* H&S tiles: the app's icons where it has one (plant, tools, lif
 };
 const emptyState = (title, text, action) => `<div class="empty"><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ""}${action || ""}</div>`;
 
+/* The sidebar: company pages first, then — once a job is open — that job's
+   own pages, so it's always clear which job you're looking at. */
+const JOB_PAGES = [
+  ["", "Overview", ICON.dash], ["calendar", "Labour calendar", ICON.staff], ["hs", "Health and safety", TI.hs],
+  ["plant", "Plant", TI.plant], ["lifting", "Lifting", TI.lifting], ["tools", "Work equipment", TI.plant],
+  ["labour", "Labour", TI.labour], ["timesheets", "Timesheets", TI.timesheets], ["deliveries", "Deliveries", TI.deliveries],
+  ["delays", "Delays", TI.delays], ["hire", "Live hire", TI.hire]
+];
+function sideNav(active){
+  const h = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const jobId = h[0] === "job" ? h[1] : null, sec = h[0] === "job" ? (h[2] || "") : null;
+  const job = jobId ? jobById(jobId) : null;
+  const a = (href, on, icon, label) => `<a href="${href}" class="${on ? "on" : ""}" ${on ? `aria-current="page"` : ""}>${icon}${label}</a>`;
+  return `<div class="navgrp">Company</div>
+    ${a("#/", active === "dash" && !job, ICON.dash, "All jobs")}
+    ${a("#/plant", active === "fleet", TI.plant, "Company plant")}
+    ${a("#/staff", active === "staff", ICON.staff, "Staff")}
+    ${isAdmin() ? a("#/admin", active === "admin", ICON.admin, "Admin") : ""}
+    ${job ? `<div class="navgrp">Job</div><div class="navjob" title="${esc(job.name)}">${esc(job.name)}${job.code ? `<span>${esc(job.code)}</span>` : ""}</div>
+      ${JOB_PAGES.map(([k, label, icon]) => a("#/job/" + jobId + (k ? "/" + k : ""), sec === k, icon, label)).join("")}` : ""}`;
+}
+
 function shell(active, inner){
   const me = S.me || {};
   return `<div class="shell">
     <aside class="side">
       <div class="brand"><img src="logo.png" alt="Cheltenham Green Civils"></div>
-      <nav>${isHireOnly() ? `<a href="#/" class="on">${TI.hire}Live hire</a>` : `
-        <a href="#/" class="${active === "dash" ? "on" : ""}">${ICON.dash}Dashboard</a>
-        <a href="#/plant" class="${active === "fleet" ? "on" : ""}">${TI.plant}Plant</a>
-        <a href="#/staff" class="${active === "staff" ? "on" : ""}">${ICON.staff}Staff</a>
-        ${isAdmin() ? `<a href="#/admin" class="${active === "admin" ? "on" : ""}">${ICON.admin}Admin</a>` : ""}`}
+      <nav aria-label="Console">${isHireOnly() ? `<a href="#/" class="on">${TI.hire}Live hire</a>` : sideNav(active)}
       </nav>
       <div class="me"><b>${esc(me.full_name || me.email || "")}</b>${esc((me.role || {}).name || "")}
         · ${esc((me.company || {}).name || "")}<br>
@@ -759,7 +822,7 @@ async function viewDashboard(){
 async function viewArchived(){
   await loadJobs();
   const arch = S.jobs.filter(j => j.status === "archived");
-  return shell("dash", `<div class="crumbs"><a href="#/">Dashboard</a> › Archived</div>
+  return shell("dash", `<div class="crumbs"><a href="#/">All jobs</a> › Archived</div>
     <div class="title"><h1>Archived jobs</h1></div>
     <div class="jobtiles">${arch.map(j => `<a class="jt" href="#/job/${j.id}"><span class="n">${esc(j.name)}</span>
       <span class="m">${esc(j.code || "")}</span></a>`).join("") || `<p class="empty">None.</p>`}</div>`);
@@ -905,7 +968,7 @@ async function viewJob(jobId){
       when:short(d.dueDate) + (d.dueTime && d.dueTime !== "none" ? " " + esc(d.dueTime) : "") }); });
   attn.sort((a, b) => (a.cls === b.cls ? 0 : a.cls === "red" ? -1 : 1) || String(a.sort).localeCompare(String(b.sort)));
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › ${esc(job.name)}</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › ${esc(job.name)}</div>
     <div class="jobbar">${esc(job.name)}<span class="ref">${esc([job.code, job.principal_contractor].filter(Boolean).join(" · "))}</span>
       <span class="sp"></span>${can("jobs", "edit") ? `<button class="lnk" data-editjob="${jobId}">Edit job details</button>` : ""}</div>
     <div class="sectiles">
@@ -996,7 +1059,7 @@ function registerView(jobId, key){
   const editable = !!can(R.kind === "labour" ? "site_diary" : R.kind === "lifting" ? "lifting" : R.kind === "tools" ? "tools" : "plant", "edit");
   const offWord = R.kind === "labour" ? "Left site" : "Off hire";
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › ${R.title}</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › ${R.title}</div>
     <div class="title"><h1>${R.title}</h1><span class="sub">${all.filter(onSite).length} on site</span><span class="sp"></span>
       ${key === "labour" ? `<div class="seg"><a class="segl on" href="#/job/${jobId}/labour">Register</a><a class="segl" href="#/job/${jobId}/calendar">Calendar</a></div>` : ""}
       ${editable && (key === "plant" || key === "lifting") ? `<button class="btn line" data-fromfleet="${key}">+ From company plant</button>` : ""}
@@ -1072,7 +1135,7 @@ function hireView(jobId){
   const weekly = rows.reduce((n, r) => n + (hireWeekly(r.x) || 0), 0);
   const suppliers = new Set(rows.map(r => r.x.hireCompany || "Not set")).size;
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Live hire</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Live hire</div>
     <div class="title"><h1>Live hire</h1><span class="sub">Everything hired in and still on site</span><span class="sp"></span>
       ${canAddHire() ? `<button class="btn" data-addhire="${jobId}">+ Add hire item</button>` : ""}</div>
     <div class="stats"><div class="stat"><span>Items on hire</span><b>${rows.reduce((n, r) => n + hireQty(r.x), 0)}</b></div>
@@ -1175,7 +1238,7 @@ function delaysView(jobId){
   const counted = all.filter(x => x.counted), mins = counted.reduce((n, x) => n + x.mins, 0);
   const byCause = {}; counted.forEach(x => byCause[x.cause] = (byCause[x.cause] || 0) + x.mins);
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Delays</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Delays</div>
     <div class="title"><h1>Delays</h1><span class="sub">From the submitted site diaries</span></div>
     <div class="stats"><div class="stat"><span>Time lost</span><b>${hm(mins)}</b></div>
       <div class="stat"><span>Working days</span><b>${round2(mins / normalDayMins(jobId))}</b></div>
@@ -1195,7 +1258,7 @@ function deliveriesView(jobId){
     return delShow === "all" ? true : delShow === "open" ? !["complete","cancelled"].includes(k) : k === "complete"; });
   const edit = !!can("site_diary", "edit");
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Deliveries</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Deliveries</div>
     <div class="title"><h1>Deliveries</h1><span class="sp"></span>${edit ? `<button class="btn" data-adddel>+ Book a delivery</button>` : ""}</div>
     <div class="bar"><div class="seg">${[["open","Booked"],["done","Received"],["all","All"]].map(([k, l]) =>
       `<button class="${delShow === k ? "on" : ""}" data-delshow="${k}">${l}</button>`).join("")}</div></div>
@@ -1265,7 +1328,7 @@ function timesheetsView(jobId){
   const ts = timesheet(jobId, tsWeek);
   const total = round2(ts.people.reduce((n, p) => n + p.total, 0));
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Timesheets</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Timesheets</div>
     <div class="title"><h1>Timesheets</h1><span class="sub">Built from the site diaries, plus hours added on the timesheet in the app</span></div>
     <div class="bar"><button class="btn line sm" data-tsw="-7">‹ Previous</button>
       <b style="font-size:15px">Week commencing ${nice(tsWeek)}</b>
@@ -1603,7 +1666,7 @@ function hsTileState(jobId, key){
 function hsHub(jobId){
   const job = jobById(jobId);
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Health and safety</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Health and safety</div>
     <div class="jobbar">${esc(job.name)}<span class="ref">Health and safety</span></div>
     <p class="formdays">Due each week: ${FORM_DAYS.map(([k, l]) => `<span><b>${esc(l)}</b> ${esc(dueDay(jobId, k))}</span>`).join("")}
       ${can("jobs", "edit") ? `<button class="lnk" data-editjob="${jobId}">Change days</button>` : ""}</p>
@@ -1612,7 +1675,7 @@ function hsHub(jobId){
         <span class="ic">${HSI[k]}</span><span class="t">${t}</span><span class="v">${esc(s.v)}</span></a>`; }).join("")}</div>`);
 }
 const hsHead = (jobId, title, sub, action) => { const job = jobById(jobId); return `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › <a href="#/job/${jobId}/hs">Health and safety</a> › ${esc(title)}</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › <a href="#/job/${jobId}/hs">Health and safety</a> › ${esc(title)}</div>
     <div class="title"><h1>${esc(title)}</h1>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}<span class="sp"></span>${action || ""}</div>`; };
 const stat = (label, n, warn) => `<div class="stat${warn && n ? " warn" : ""}"><span>${label}</span><b>${n}</b></div>`;
 const attnList = (title, rows) => rows.length ? `<div class="attn panel" style="margin-top:0"><h2>${esc(title)}</h2><ul>${rows.map(r =>
@@ -2264,7 +2327,7 @@ function labourCalendar(jobId){
   const monthName = new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month:"long", year:"numeric" });
   const mv = n => { const dt = new Date(y, m - 1 + n, 1); return dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0"); };
   return shell("dash", `
-    <div class="crumbs"><a href="#/">Dashboard</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Labour</div>
+    <div class="crumbs"><a href="#/">All jobs</a> › <a href="#/job/${jobId}">${esc(job.name)}</a> › Labour</div>
     <div class="title"><h1>Labour</h1><span class="sub">Who's on site each working day</span><span class="sp"></span>
       <div class="seg"><a class="segl" href="#/job/${jobId}/labour">Register</a><a class="segl on" href="#/job/${jobId}/calendar">Calendar</a></div></div>
     <div class="bar"><button class="btn line sm" data-calm="${mv(-1)}">‹ ${new Date(y, m - 2, 1).toLocaleDateString("en-GB", { month:"short" })}</button>
