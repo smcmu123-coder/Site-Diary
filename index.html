@@ -1686,6 +1686,43 @@ html[data-theme="dark"] .navpill{background:var(--paper);border-color:var(--line
 .synccard.st-warn,.synccard.st-wait{background:var(--warn-bg);border-color:transparent}
 .synccard p{color:var(--ink)}
 
+/* --- the control centre ------------------------------------------------------ */
+.cc-hello{margin:16px 0 8px;font-size:14px;font-weight:600;color:var(--ink-2)}
+.cc-job{display:block;width:100%;text-align:left;padding:16px;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--paper);color:var(--ink)}
+.cc-job:hover{border-color:var(--green)}
+.cc-job > span{display:block}
+.cc-job .cc-top{display:flex;align-items:center;gap:8px}
+.cc-job .cc-code{font-size:12.5px;font-weight:700;letter-spacing:.06em;color:var(--ink-3)}
+.cc-job .go{margin-left:auto;font-size:22px;color:var(--ink-3);line-height:1}
+.cc-job .cc-name{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin-top:4px}
+.cc-job .cc-addr{font-size:14px;color:var(--ink-2);margin-top:3px}
+.cc-prog{margin-top:12px}
+.cc-prog .bar{display:block;height:6px;border-radius:99px;background:var(--line-2);overflow:hidden}
+.cc-prog .bar i{display:block;height:100%;background:var(--green);border-radius:99px}
+.cc-prog.late .bar i{background:var(--bad)}
+.cc-prog .pt{display:block;font-size:13px;color:var(--ink-2);margin-top:6px}
+.cc-prog.late .pt{color:var(--bad);font-weight:600}
+.cc-team{display:flex !important;flex-wrap:wrap;gap:6px 20px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-2)}
+.cc-team > span{font-size:14px;font-weight:600}
+.cc-team em{display:block;font-style:normal;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+.cc-clear{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);
+  font-size:14.5px;color:var(--ink-2);background:var(--paper)}
+.cc-clear .tick{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--ok-bg);color:var(--ok);font-weight:700;font-size:13px}
+.hm .quickbar{margin-top:16px;flex-wrap:wrap}
+.hm .quickbar .qa{flex:1 1 calc(50% - 8px);min-height:52px;font-size:15px}
+/* the Home screen's lists sit in from the edge; the new blocks line up with them */
+.hm .cc-hello{padding:0 var(--s5)}
+.hm .cc-job,.hm .cc-clear,.hm .cc-feed{margin-left:var(--s4);margin-right:var(--s4);width:auto}
+.hm .cc-job{display:block}
+.cc-feed{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--paper)}
+.cc-ev{display:flex;gap:12px;width:100%;text-align:left;padding:11px 14px;color:var(--ink);background:var(--paper);align-items:baseline}
+.cc-ev + .cc-ev{border-top:1px solid var(--line-2)}
+.cc-ev:not([disabled]):hover{background:var(--canvas)}
+.cc-ev[disabled]{opacity:1;cursor:default}
+.cc-ev .w{flex:none;width:96px;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.cc-ev .x{flex:1;min-width:0;font-size:14px;line-height:1.4}
+
 /* --- your own signature ------------------------------------------------------ */
 .mysign{border-left:4px solid var(--green)}
 .mysign.todo{border-left-color:var(--warn);background:var(--warn-bg)}
@@ -8816,6 +8853,163 @@ function openFormPicker(date){
   });
 }
 
+
+/* ======================================================== control centre ==
+   The top of Home: which job this is and how far through it is, what needs
+   someone now, the quick actions this person's role allows, and — at the
+   bottom — what has happened on the job lately. Only what the role can see
+   or do is shown. */
+const JOB_STATUS = { live:["Live","ok"], tender:["Tender","info"], complete:["Complete","grey"],
+  archived:["Archived","grey"], on_hold:["On hold","amber"] };
+function jobFacts(){
+  const c = (DB.jobCloud || {})[DB.job] || {};
+  const info = jobInfo();
+  return { code:c.code || "", status:c.status || "", pc:c.pc || info.pc || "", address:c.address || info.address || "",
+    start:c.start || (DB.jobStart || {})[DB.job] || DB.startDate || "", end:c.end || "",
+    team:(DB.jobTeam || {})[DB.job] || [] };
+}
+function jobHeaderCard(){
+  const f = jobFacts(), t = todayISO();
+  const st = JOB_STATUS[f.status] || null;
+  const days = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+  let prog = "";
+  if(f.start && f.end && f.end > f.start){
+    const total = days(f.start, f.end), gone = Math.max(0, Math.min(total, days(f.start, t)));
+    const pct = Math.round(gone / total * 100);
+    const late = t > f.end ? days(f.end, t) : 0;
+    const wk = Math.floor(gone / 7) + 1, wks = Math.ceil(total / 7);
+    prog = `<span class="cc-prog ${late ? "late" : ""}">
+      <span class="bar" role="img" aria-label="${pct}% of the programme gone"><i style="width:${pct}%"></i></span>
+      <span class="pt">${late ? plural(late, "day") + " past the expected completion, " + shortDate(f.end)
+        : t < f.start ? "Starts " + longDate(f.start) + " · finishes " + shortDate(f.end)
+        : "Week " + wk + " of " + wks + " · " + pct + "% of the programme · finishes " + shortDate(f.end)}</span></span>`;
+  } else if(f.start){
+    prog = `<span class="cc-prog"><span class="pt">${t < f.start ? "Starts " : "Started "}${longDate(f.start)}${
+      mayUse("jobs", "edit") ? " · add the expected completion date in the console" : ""}</span></span>`;
+  }
+  const names = role => f.team.filter(m => m.role === role).map(m => m.name).filter(Boolean);
+  const pm = names("project_manager"), sm = names("site_manager");
+  const where = [f.address, f.pc ? "for " + f.pc : ""].filter(Boolean).join(" · ");
+  return `<button type="button" class="cc-job" data-go="job" aria-label="${esc(DB.job)} — job details">
+    <span class="cc-top">${f.code ? `<span class="cc-code">${esc(f.code)}</span>` : ""}
+      ${st ? `<span class="pill ${st[1]}">${st[0]}</span>` : ""}<span class="go" aria-hidden="true">&rsaquo;</span></span>
+    <span class="cc-name">${esc(DB.job)}</span>
+    ${where ? `<span class="cc-addr">${esc(where)}</span>` : ""}
+    ${prog}
+    ${pm.length || sm.length ? `<span class="cc-team">
+      ${pm.length ? `<span><em>Project Manager</em>${esc(pm.join(", "))}</span>` : ""}
+      ${sm.length ? `<span><em>Site Manager</em>${esc(sm.join(", "))}</span>` : ""}</span>` : ""}
+  </button>`;
+}
+
+/* Everything that needs someone, most urgent first. Each line goes where it
+   can be dealt with. Nothing with a count of nought is shown. */
+function needsAction(){
+  const out = [], t = todayISO();
+  const add = (level, title, line, attr) => out.push({ level, title, line, attr });
+  const missed = missedDays();
+  const late = missed.reduce((n, m) => n + m.owed.length, 0) + weeklyLate(t).length;
+  if(late) add("red", plural(late, "form") + " overdue", missed.slice(0, 2).map(m => shortDate(m.date) + " — "
+    + m.owed.slice(0, 2).map(o => o.name).join(", ")).concat(weeklyLate(t).map(f => f.name)).slice(0, 3).join(" · "), `data-go="tasks"`);
+  const mine = mySignAsks();
+  if(mine.length) add("red", "Your signature is needed", mine.map(x => x.title.replace(/^Sign the /, "")).join(", "), `data-go="tasks"`);
+  if(mayUse("plant_checks")){
+    const faulty = currentPlant().map(m => ({ m, df:defectsFor(m.id) })).filter(x => x.df);
+    const n = faulty.reduce((s, x) => s + x.df.items.length, 0);
+    if(n) add("red", plural(n, "plant defect") + " open", faulty.map(x => x.m.item || "Machine").join(", "), `data-go="plant"`);
+  }
+  if(mayUse("plant")){
+    const ex = lolerAlerts(), bad = ex.filter(x => x.st.key === "expired").length;
+    if(ex.length) add(bad ? "red" : "amber", plural(ex.length, "plant examination") + (bad ? " overdue" : " due soon"),
+      ex.slice(0, 3).map(x => x.p.item || "Machine").join(", "), `data-go="plant"`);
+  }
+  if(mayUse("lifting")){
+    const ex = liftingAlerts(), bad = ex.filter(x => x.st.key === "expired").length;
+    if(ex.length) add(bad ? "red" : "amber", plural(ex.length, "LOLER examination") + (bad ? " overdue" : " due soon"),
+      ex.slice(0, 3).map(x => x.l.item || "Lifting gear").join(", "), `data-go="lifting"`);
+  }
+  if(mayUse("rams", "edit") && mayUse("site_diary")){
+    const rev = currentRams();
+    if(!rev && onSiteLabour(t).length) add("amber", "No RAMS uploaded", "Upload the current RAMS so the gang can sign it", `data-go="rams"`);
+    const outR = rev ? ramsOutstandingTotal(rev) : 0;
+    if(outR) add("amber", plural(outR, "RAMS signature") + " still to get", "Rev " + revText(rev), `data-go="rams"`);
+  }
+  const chase = briefingChase();
+  if(chase.length){
+    const n = chase.reduce((s, x) => s + x.out, 0);
+    add("amber", plural(n, "briefing signature") + " still to get", chase.slice(0, 3).map(x => shortDate(x.rec.date)).join(", "),
+      chase.length === 1 ? `data-open="${esc(chase[0].rec.id)}"` : `data-go="tasks"`);
+  }
+  if(mayUse("variations")){
+    const n = jobVos().filter(v => v.status !== "signed").length;
+    if(n) add("amber", plural(n, "dayworks sheet") + " to be signed", "By the Principal Contractor", `data-go="vos"`);
+  }
+  if(mayUse("site_diary")){
+    const n = deliveries().filter(d => d.dueDate && d.dueDate < t && deliveryState(d).key !== "complete" && deliveryState(d).key !== "cancelled").length;
+    if(n) add("amber", plural(n, "delivery", "deliveries") + " overdue", "Booked in but not received", `data-go="deliveries"`);
+  }
+  const drafts = DB.records.filter(r => r.job === DB.job && r.status !== "submitted" && r.date < t).length;
+  if(drafts) add("amber", plural(drafts, "draft") + " not submitted", "From earlier days", `data-go="tasks"`);
+  const s = syncBadge();
+  if(s && (s.cls === "st-bad" || s.cls === "st-warn")) add(s.cls === "st-bad" ? "red" : "amber", s.word, s.long, `data-go="settings"`);
+  return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "red" ? -1 : 1));
+}
+function needsActionBlock(){
+  const list = needsAction();
+  if(!list.length) return `<div class="sect">Needs action</div>
+    <div class="cc-clear"><span class="tick" aria-hidden="true">&#10003;</span><span>Nothing needs you right now.</span></div>`;
+  return `<div class="sect">Needs action</div><div class="tasks">` + list.map(x => `<button class="task ${x.level === "red" ? "alert" : "warn"}" ${x.attr}>
+      <span class="tick" aria-hidden="true">!</span>
+      <span class="txt"><b>${esc(x.title)}</b>${x.line ? `<span>${esc(x.line)}</span>` : ""}</span>
+      <span class="go" aria-hidden="true">&rsaquo;</span></button>`).join("") + `</div>`;
+}
+
+/* the quick actions this person's role allows */
+function quickActions(sel){
+  const acts = [];
+  if(["diary","briefing","plantcheck","excavation","havs","puwer","loler"].some(mayFill))
+    acts.push(`<button class="qa primary" data-addform="${sel}"><span class="qi">+</span>Add a form</button>`);
+  if(mayUse("plant_checks", "create") && currentPlant().length)
+    acts.push(`<button class="qa" data-go="plant">Report a defect</button>`);
+  if(mayUse("site_diary", "create")) acts.push(`<button class="qa" data-ccdel="1">Book a delivery</button>`);
+  if(acts.length < 3 && mayUse("site_diary")) acts.push(`<button class="qa" data-go="plan">Calendar</button>`);
+  acts.push(`<button class="qa" data-go="list">All records</button>`);
+  return `<div class="quickbar">${acts.slice(0, 4).join("")}</div>`;
+}
+
+/* what has happened on the job lately, newest first */
+function recentActivity(limit){
+  const ev = [], job = DB.job;
+  const push = (at, text, attr) => { if(at) ev.push({ at:Number(at), text, attr:attr || "" }); };
+  DB.records.filter(r => r.job === job && r.status === "submitted").forEach(r =>
+    push(r.submittedAt, formDef(r.form).name + " submitted" + (r.by ? " by " + r.by : ""), `data-open="${esc(r.id)}"`));
+  (DB.signs || []).filter(s => s.job === job).forEach(s => {
+    const rec = s.doc === "briefing" && DB.records.find(r => r.id === s.ref);
+    const rev = s.doc === "rams" && (DB.rams || []).find(r => r.id === String(s.ref).split("/")[0]);
+    push(s.signedAt, (s.name || "Someone") + " signed " + (s.doc === "rams" ? "the RAMS" + (rev ? " Rev " + revText(rev) : "")
+      : "the briefing" + (rec ? " for " + shortDate(rec.date) : "")),
+      s.doc === "rams" ? `data-go="rams"` : rec ? `data-open="${esc(rec.id)}"` : "");
+  });
+  (DB.rams || []).filter(r => r.job === job).forEach(r => push(r.uploadedAt, "RAMS Rev " + revText(r) + " uploaded", `data-go="rams"`));
+  (DB.defects || []).filter(d => d.job === job).forEach(d => push(d.reportedAt, "Defect reported: " + (d.item || "plant")
+    + (d.reportedBy ? " by " + d.reportedBy : ""), `data-go="plant"`));
+  jobVos().filter(v => v.signedAt).forEach(v => push(v.signedAt, (v.ref || "Dayworks") + " signed" + (v.signedBy ? " by " + v.signedBy : ""), `data-go="vos"`));
+  deliveries().forEach(d => (d.received || []).forEach(x => push(x.at, "Delivery received: " + (d.description || d.type || "")
+    + (x.qty ? " · " + x.qty + " " + (d.unit || "") : ""), `data-go="deliveries"`)));
+  return ev.sort((a, b) => b.at - a.at).slice(0, limit || 8);
+}
+function whenText(ms){
+  const d = new Date(ms), day = iso(d), t = todayISO();
+  const hhmm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  return day === t ? "Today " + hhmm : day === addDays(t, -1) ? "Yesterday " + hhmm : shortDate(day);
+}
+function recentBlock(){
+  const ev = recentActivity(8);
+  if(!ev.length) return "";
+  return `<div class="sect">Recent activity</div><div class="cc-feed">` + ev.map(e => `<button type="button" class="cc-ev" ${e.attr || "disabled"}>
+      <span class="w">${esc(whenText(e.at))}</span><span class="x">${esc(e.text)}</span></button>`).join("") + `</div>`;
+}
+
 function homeView(){
   const t = todayISO();
   const sel = view.date || t;
@@ -8930,11 +9124,15 @@ function homeView(){
   const defectCount = faulty.reduce((n,x)=>n+x.df.items.length, 0);
 
   return `<div class="hm">
+    <p class="cc-hello">${greet}${firstName?", "+esc(firstName):""}</p>
+    ${jobHeaderCard()}
+    ${isToday ? needsActionBlock() : ""}
+    ${quickActions(sel)}
     <div class="hd">
       <div class="hd-top">
         <div>
           <div class="over">Week commencing ${shortDate(ws)}</div>
-          <h1>${greet}${firstName?", "+esc(firstName):""}</h1>
+          <h1>Your week</h1>
         </div>
         <button class="wnav" data-week="-1" aria-label="Previous week">&lsaquo;</button>
         <button class="wnav" data-week="1" ${weekStart(sel) <= weekStart(t) ? "" : "disabled"}
@@ -8954,13 +9152,6 @@ function homeView(){
             + (p.left - p.started > 0 ? " · " + (p.left - p.started) + " not started" : "")
           : "Nothing due"}</span>
       </div>
-    </div>
-
-    <div class="quickbar">
-      <button class="qa primary" data-addform="${sel}">
-        <span class="qi">+</span>Add a form
-      </button>
-      <button class="qa" data-go="list">All records</button>
     </div>
 
     ${onDay.length ? `<div class="sect">On site ${isToday?"today":"that day"}</div>
@@ -9006,25 +9197,8 @@ function homeView(){
           <span class="go">&rsaquo;</span></button>`).join("")}
       </div>` : ""}
 
-    ${(defectCount || behindCount) ? `<div class="sect">Needs attention</div>
-      <div class="tasks">
-        ${defectCount ? `<button class="task alert" data-go="plant">
-          <span class="tick">!</span>
-          <span class="txt"><b>${defectCount} plant defect${defectCount===1?"":"s"} open</b>
-            <span>${esc(faulty.map(x=>x.m.item||"Machine").join(", "))}</span></span>
-          <span class="go">&rsaquo;</span></button>` : ""}
-        ${behindCount ? `<button class="task warn" data-day="${missed[0].date}">
-          <span class="tick">!</span>
-          <span class="txt"><b>${behindCount} outstanding from earlier</b>
-            <span>${esc(missed.slice(0,2).map(m2=>shortDate(m2.date)+" — "
-              + m2.owed.slice(0,2).map(o=>o.name).join(", ")).join("  ·  "))}</span></span>
-          <span class="go">&rsaquo;</span></button>` : ""}
-      </div>` : ""}
+    ${isToday ? recentBlock() : ""}
 
-    <div class="foot-actions">
-      <button class="btn add" data-addform="${sel}">Add a form</button>
-      <button class="btn quiet" data-go="list">All records</button>
-    </div>
   </div>`;
 }
 
@@ -14118,6 +14292,8 @@ function bind(){
   const ahj = app.querySelector("[data-ahjob]"); if(ahj) ahj.onclick = openJobSheet;
   const ahm = app.querySelector("[data-ahmenu]"); if(ahm) ahm.onclick = openMenuSheet;
   const ahs = app.querySelector("[data-ahsync]"); if(ahs) ahs.onclick = () => go("settings");
+  const ccd = app.querySelector("[data-ccdel]");
+  if(ccd) ccd.onclick = () => { delDraft = blankDelivery(); go("deliveries"); };
   app.querySelectorAll("[data-hubform]").forEach(el=>el.onclick=()=>{
     listFilter = el.dataset.hubform; listDate = ""; go("list"); });
   bindTeam(app);
@@ -16899,7 +17075,7 @@ async function cloudJobs(){
   const cl = cloudClient(), c = syncCfg();
   const known = sitehubAuth.can ? sitehubAuth.can("jobs", "create") : null;
   const mayCreate = known === null ? ((sitehubAuth.user && sitehubAuth.user.rank) || 0) >= 70 : !!known;
-  const { data, error } = await cl.from("jobs").select("id, code, name, status").order("created_at");
+  const { data, error } = await cl.from("jobs").select("id, code, name, status, principal_contractor, address, start_date, end_date").order("created_at");
   if(error) throw error;
   /* a job deleted in the console leaves a marker: take it off this device
      rather than putting it back */
@@ -16926,6 +17102,26 @@ async function cloudJobs(){
     if(!Object.values(map).includes(j.id)) map[j.name] = j.id;
   });
   c.jobs = map;
+
+  /* the details shown at the top of Home, and who manages each job */
+  DB.jobCloud = {};
+  Object.keys(map).forEach(n => {
+    const j = remote.find(r => r.id === map[n]);
+    if(j) DB.jobCloud[n] = { code:j.code || "", status:j.status || "", pc:j.principal_contractor || "",
+      address:j.address || "", start:j.start_date || "", end:j.end_date || "" };
+  });
+  try{
+    const ids = Object.values(map);
+    const [mem, ppl] = await Promise.all([
+      ids.length ? cl.from("job_members").select("job_id, user_id, job_role").in("job_id", ids) : { data:[] },
+      cl.from("profiles").select("id, full_name")]);
+    if(!mem.error && !ppl.error){
+      const nameOf = {}; (ppl.data || []).forEach(p => { nameOf[p.id] = p.full_name || ""; });
+      DB.jobTeam = {};
+      Object.keys(map).forEach(n => { DB.jobTeam[n] = (mem.data || []).filter(m => m.job_id === map[n])
+        .map(m => ({ role:m.job_role, name:nameOf[m.user_id] || "" })); });
+    }
+  }catch(e){ /* the team is a nicety: never let it stop a sync */ }
 
   /* the job list on this device: everything synced, plus anything with work
      on it here that has not got a home in the cloud yet */

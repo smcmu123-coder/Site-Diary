@@ -404,6 +404,43 @@ img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:
 .jc .jh .n{letter-spacing:-.01em;text-transform:none;font-size:18px}
 .jc .jh .m{color:var(--ink-3)}
 .jc .state{border:1px solid var(--line)}
+
+/* ---------- control centre: a job's landing page ---------- */
+.cchead{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:0 0 20px}
+.cchead .cct{display:flex;gap:16px;align-items:flex-start}
+.cchead .cct > div{flex:1;min-width:0}
+.cchead .ccref{font-size:12.5px;font-weight:700;letter-spacing:.06em;color:var(--ink-3);display:flex;gap:8px;align-items:center}
+.cchead h1{margin:4px 0 2px;font-size:26px;font-weight:700;letter-spacing:-.02em}
+.cchead .ccsub{color:var(--ink-2);font-size:14px}
+.ccprog{margin-top:16px}
+.ccprog span{display:block;font-size:13px;color:var(--ink-2);margin-top:6px}
+.ccprog.late .bar2 i{background:var(--red)} .ccprog.late span{color:var(--red);font-weight:600}
+.ccteam{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.ccteam span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.ccteam b{display:block;font-size:14.5px;margin-top:2px}
+.ccgrid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:20px;margin-bottom:26px;align-items:start}
+.ccgrid .panel{margin:0 0 20px}
+.cctoday ul,.ccfeed ul{list-style:none;margin:0;padding:0}
+.cctoday li{display:grid;grid-template-columns:14px 1fr auto auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.cctoday li:first-child{border-top:0}
+.cctoday .dot{width:10px;height:10px;border-radius:50%;background:var(--amber)}
+.cctoday li.ok .dot{background:var(--green)}
+.cctoday .what em{font-style:normal;color:var(--ink-3);font-size:12.5px}
+.cctoday .ccst{font-size:12.5px;font-weight:700;color:var(--amber)} .cctoday li.ok .ccst{color:var(--green)}
+.ccfeed li{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px}
+.ccfeed li:first-child{border-top:0}
+.ccfeed .w{flex:none;width:92px;color:var(--ink-3);font-size:12.5px;font-variant-numeric:tabular-nums}
+.ccfeed .x em{font-style:normal;color:var(--ink-3)}
+.ccsect{font-size:13px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin:0 0 12px}
+@media (max-width:1100px){ .ccgrid{grid-template-columns:1fr} .ccteam{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+/* ---------- v3: panel headings as quiet labels, not green bars ---------- */
+.panel h2{background:transparent;color:var(--ink);border-radius:0;padding:0 0 8px;border-bottom:2px solid var(--green);
+  font-size:13px;letter-spacing:.07em}
+.panel h2 .note{color:var(--ink-3)}
+.panel h2 .lnk,.panel h2 a,.panel h2 button{color:var(--green)}
+.panel h2 .btn{background:#fff;color:var(--green);border:1.5px solid var(--green)}
+.panel h2 .btn:hover{background:var(--tint)}
 </style>
 </head>
 <body>
@@ -531,7 +568,7 @@ async function loadItems(jobId, force){
   if(S.items[jobId] && !force) return S.items[jobId];
   const out = [];
   for(let from = 0; ; from += 1000){
-    const { data, error } = await sb.from("job_items").select("kind, item_id, data, updated_at")
+    const { data, error } = await sb.from("job_items").select("kind, item_id, data, updated_at, updated_by")
       .eq("job_id", jobId).eq("deleted", false).order("updated_at").range(from, from + 999);
     if(error) throw error;
     out.push(...(data || []));
@@ -541,7 +578,8 @@ async function loadItems(jobId, force){
   out.forEach(r => {
     if(r.kind === "_meta"){ by.meta = r.data || {}; return; }
     if(r.kind === "_counters"){ by.counters = r.data; return; }
-    (by[r.kind] = by[r.kind] || []).push(Object.assign({}, r.data, { id: r.data && r.data.id != null ? r.data.id : r.item_id }));
+    (by[r.kind] = by[r.kind] || []).push(Object.assign({}, r.data, { id: r.data && r.data.id != null ? r.data.id : r.item_id,
+      __at:r.updated_at, __by:r.updated_by }));
   });
   S.items[jobId] = by;
   return by;
@@ -552,6 +590,7 @@ const list = (jobId, kind) => ((S.items[jobId] || {})[kind]) || [];
 async function saveItem(jobId, kind, item){
   const job = jobById(jobId);
   const data = Object.assign({}, item, { job: job ? job.name : item.job, updatedAt: Date.now() });
+  delete data.__at; delete data.__by;
   const { error } = await sb.from("job_items").upsert([{ job_id:jobId, kind, item_id:String(data.id), data,
     deleted:false, client_stamp:Date.now() }], { onConflict:"job_id,kind,item_id" });
   if(error) throw error;
@@ -938,11 +977,145 @@ function deleteJobConfirm(job, busy){
 }
 
 /* ---------------------------------------------------------------- job */
+/* ------------------------------------------------------ control centre --
+   A job's landing page: what the job is and how far through it is, who runs
+   it, what needs someone, what's due today, and what has happened lately —
+   with the job's sections underneath. */
+const CC_FORM = { diary:"Site diary", briefing:"Daily activity briefing", plantcheck:"Plant inspection", excavation:"Excavation inspection",
+  havs:"HAVs record", toolboxtalk:"Toolbox talk", puwer:"PUWER inspection", loler:"LOLER inspection" };
+const CC_STATUS = { live:["Live","ok"], tender:["Tender","amber"], complete:["Complete",""], archived:["Archived",""] };
+const ccSame = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+async function loadJobTeam(jobId){
+  try{
+    const mem = await sb.from("job_members").select("user_id, job_role").eq("job_id", jobId);
+    if(mem.error || !(mem.data || []).length) return [];
+    const ppl = await sb.from("profiles").select("id, full_name").in("id", mem.data.map(m => m.user_id));
+    const nameOf = {}; ((ppl.data) || []).forEach(p => { nameOf[p.id] = p.full_name || ""; });
+    return mem.data.map(m => ({ role:m.job_role, name:nameOf[m.user_id] || "", id:m.user_id }));
+  }catch(e){ return []; }
+}
+/* who on site still has to sign a RAMS revision or addendum */
+function ccRamsOutstanding(jobId){
+  const rev = ramsCurrent(jobId);
+  if(!rev) return null;
+  const people = list(jobId, "labour").filter(onSite);
+  const signs = list(jobId, "signs").filter(s => s.doc === "rams");
+  const signed = (target, ref) => p => (target.sigs || []).some(s => s.personId === p.id && s.sigSrc)
+    || signs.some(s => s.ref === ref && (s.who === p.id || (p.email && ccSame(s.email, p.email))));
+  let n = people.filter(p => !signed(rev, rev.id)(p)).length;
+  (rev.addendums || []).forEach(a => { n += people.filter(p => !signed(a, rev.id + "/" + a.id)(p)).length; });
+  return { rev, n };
+}
+function ccBriefingsUnsigned(jobId){
+  const from = addDays(today(), -14), signs = list(jobId, "signs").filter(s => s.doc === "briefing");
+  return list(jobId, "records").filter(r => r.form === "briefing" && r.status === "submitted" && r.date >= from).map(r => {
+    const att = ((r.data || {}).attendees || []).filter(a => a && typeof a === "object");
+    const out = att.filter(a => !(a.sig && a.sig.src) && !signs.some(s => s.ref === r.id && (s.who === a.id || (a.email && ccSame(s.email, a.email))))).length;
+    return { r, out };
+  }).filter(x => x.out);
+}
+function ccNeeds(jobId){
+  const out = [], add = (cls, tag, what, href, when) => out.push({ cls, tag, what, href, when:when || "" });
+  const brief = dailyDue(jobId, "briefing").overdue.length;
+  if(brief) add("red", "Overdue", `<b>${plural(brief, "daily briefing")}</b> not done`, "hs/briefings");
+  const pl = plantDue(jobId).overdue.length;
+  if(pl) add("red", "Overdue", `<b>${plural(pl, "plant inspection")}</b> missed`, "hs/plant");
+  const ex = excDue(jobId).missed.length;
+  if(ex) add("red", "Overdue", `<b>${plural(ex, "excavation inspection")}</b> missed`, "hs/excavations");
+  [["toolboxtalk","toolbox"],["puwer","puwer"],["loler","loler"]].forEach(([f, sub]) => {
+    const w = weeklyDue(jobId, f).overdue;
+    if(w.length) add("red", "Overdue", `<b>${CC_FORM[f]}</b> not done`, "hs/" + sub, "due " + short(w[w.length - 1].due));
+  });
+  const unsafe = excDue(jobId).unsafe.length;
+  if(unsafe) add("red", "Unsafe", `<b>${plural(unsafe, "excavation")}</b> recorded as not safe`, "hs/excavations");
+  const defects = list(jobId, "defects").filter(d => !["closed","fixed","cleared"].includes(String(d.status || "open")));
+  if(defects.length) add("red", "Defect", `<b>${plural(defects.length, "plant defect")}</b> open`, "plant",
+    defects.slice(0, 2).map(d => d.item).filter(Boolean).join(", "));
+  [["plant","Plant"],["lifting","Lifting"]].forEach(([k]) => list(jobId, k).filter(onSite).forEach(x => { const e = examState(x);
+    if(e && e.cls !== "ok") add(e.cls, e.cls === "red" ? "Exam overdue" : "Exam due",
+      `<b>${esc(x.item)}</b>${x.fleetNo || x.idNo ? " · " + esc(x.fleetNo || x.idNo) : ""}`, k, nice(x.examDate)); }));
+  const ro = ccRamsOutstanding(jobId);
+  if(!ro && list(jobId, "labour").filter(onSite).length) add("amber", "RAMS", "<b>No RAMS uploaded</b> for this job", "hs/rams");
+  if(ro && ro.n) add("amber", "Signatures", `<b>${plural(ro.n, "RAMS signature")}</b> still to get`, "hs/rams", "Rev " + esc(revText(ro.rev)));
+  const bu = ccBriefingsUnsigned(jobId);
+  if(bu.length) add("amber", "Signatures", `<b>${plural(bu.reduce((n, x) => n + x.out, 0), "briefing signature")}</b> still to get`,
+    "hs/briefings", bu.slice(0, 3).map(x => short(x.r.date)).join(", "));
+  const vos = list(jobId, "vos").filter(v => v.status !== "signed");
+  if(vos.length) add("amber", "Dayworks", `<b>${plural(vos.length, "dayworks sheet")}</b> waiting for the PC to sign`, "", "");
+  list(jobId, "deliveries").forEach(d => { const st = deliveryState(d);
+    if(st.key === "overdue") add("red", "Delivery overdue", `<b>${esc(d.description || d.type)}</b>${d.supplier ? " from " + esc(d.supplier) : ""}`,
+      "deliveries", short(d.dueDate)); });
+  return out.sort((a, b) => (a.cls === b.cls ? 0 : a.cls === "red" ? -1 : 1));
+}
+function ccToday(jobId){
+  const t = today(), rows = [];
+  if(!isWorkingDay(jobId, t)) return rows;
+  const done = (f) => doneRecs(jobId, f).some(r => r.date === t);
+  rows.push({ name:"Site diary", done:!!diaryOn(jobId, t), href:"" });
+  rows.push({ name:"Daily activity briefing", done:done("briefing"), href:"hs/briefings" });
+  const pd = plantDue(jobId), onToday = plantOnDay(jobId, t).length;
+  if(onToday) rows.push({ name:"Plant inspections", done:!pd.dueToday.length, href:"hs/plant",
+    note:pd.dueToday.length ? pd.dueToday.length + " of " + onToday + " still to do" : onToday + " done" });
+  const exc = excDue(jobId).todayDue;
+  if(exc.length) rows.push({ name:"Excavation inspections", done:false, href:"hs/excavations", note:plural(exc.length, "excavation") + " open" });
+  [["toolboxtalk","toolbox"],["puwer","puwer"],["loler","loler"]].forEach(([f, sub]) => {
+    const w = weeklyDue(jobId, f);
+    if(w.dueNow || (w.doneThisWeek && doneRecs(jobId, f).some(r => r.date === t))) rows.push({ name:CC_FORM[f], done:!w.dueNow, href:"hs/" + sub });
+  });
+  return rows;
+}
+const CC_KIND = { plant:"Plant", lifting:"Lifting gear", tools:"Work equipment", labour:"Labour", deliveries:"Delivery",
+  defects:"Defect", rams:"RAMS", vos:"Dayworks", leave:"Time off", events:"Calendar", tempworks:"Temporary works", scans:"Scanned sheet", packs:"H&S pack" };
+function ccActivity(jobId, team){
+  const by = {}; (team || []).forEach(m => { by[m.id] = m.name; });
+  const items = [];
+  Object.keys(S.items[jobId] || {}).forEach(k => {
+    if(k === "meta" || k === "counters" || k.charAt(0) === "_") return;
+    list(jobId, k).forEach(x => { if(x.__at) items.push({ k, x }); });
+  });
+  return items.sort((a, b) => String(b.x.__at).localeCompare(String(a.x.__at))).slice(0, 10).map(({ k, x }) => {
+    const who = by[x.__by] || x.by || x.byName || "";
+    let text;
+    if(k === "records") text = (CC_FORM[x.form || "diary"] || "Form") + (x.status === "submitted" ? " submitted" : " draft saved")
+      + (x.date ? " for " + short(x.date) : "");
+    else if(k === "signs") text = (x.name || "Someone") + " signed the " + (x.doc === "rams" ? "RAMS" : "briefing");
+    else text = (CC_KIND[k] || k) + ": " + (x.item || x.name || x.description || x.title || x.ref || "updated");
+    return { at:x.__at, text, who:k === "signs" ? "" : who };
+  });
+}
+function ccHeader(job, team, jobId){
+  const st = CC_STATUS[job.status] || null, t = today();
+  const days = (a, b) => Math.round((new Date(b) - new Date(a)) / 864e5);
+  let prog = "";
+  if(job.start_date && job.end_date && job.end_date > job.start_date){
+    const total = days(job.start_date, job.end_date), gone = Math.max(0, Math.min(total, days(job.start_date, t)));
+    const pct = Math.round(gone / total * 100), late = t > job.end_date ? days(job.end_date, t) : 0;
+    prog = `<div class="ccprog ${late ? "late" : ""}"><div class="bar2"><i style="width:${pct}%"></i></div>
+      <span>${late ? plural(late, "day") + " past the expected completion (" + nice(job.end_date) + ")"
+        : t < job.start_date ? "Starts " + nice(job.start_date) + " · finishes " + nice(job.end_date)
+        : "Week " + (Math.floor(gone / 7) + 1) + " of " + Math.ceil(total / 7) + " · " + pct + "% of the programme gone · finishes " + nice(job.end_date)}</span></div>`;
+  } else prog = `<div class="ccprog"><span>${job.start_date ? "Started " + nice(job.start_date) + " · " : ""}No expected completion date set${
+    can("jobs", "edit") ? ` — <button class="lnk" data-editjob="${jobId}">add it</button>` : ""}</span></div>`;
+  const names = r => team.filter(m => m.role === r).map(m => esc(m.name)).filter(Boolean).join(", ");
+  return `<div class="cchead">
+    <div class="cct"><div><div class="ccref">${esc(job.code || "")}${st ? ` <span class="pill ${st[1]}">${st[0]}</span>` : ""}</div>
+      <h1>${esc(job.name)}</h1>
+      <div class="ccsub">${esc([job.address, job.principal_contractor ? "for " + job.principal_contractor : ""].filter(Boolean).join(" · ") || "No address or Principal Contractor yet")}</div></div>
+      ${can("jobs", "edit") ? `<button class="btn ghost sm" data-editjob="${jobId}">Edit job details</button>` : ""}</div>
+    ${prog}
+    <div class="ccteam">
+      <div><span>Project Manager</span><b>${names("project_manager") || "—"}</b></div>
+      <div><span>Site Manager</span><b>${names("site_manager") || "—"}</b></div>
+      <div><span>Start</span><b>${job.start_date ? nice(job.start_date) : "—"}</b></div>
+      <div><span>Expected completion</span><b>${job.end_date ? nice(job.end_date) : "—"}</b></div>
+    </div></div>`;
+}
+
 async function viewJob(jobId){
   if(!S.jobs.length) await loadJobs();
   const job = jobById(jobId);
   if(!job) return shell("dash", `<p class="empty">That job can't be found, or you don't have access to it.</p>`);
-  await loadItems(jobId, true);
+  const [, team] = await Promise.all([loadItems(jobId, true), loadJobTeam(jobId)]);
   const plant = list(jobId, "plant").filter(onSite), lift = list(jobId, "lifting").filter(onSite);
   const tools = list(jobId, "tools").filter(onSite), labour = list(jobId, "labour").filter(onSite);
   const dels = list(jobId, "deliveries");
@@ -957,20 +1130,29 @@ async function viewJob(jobId){
   const examFlag = arr => { const s = arr.map(examState).filter(Boolean);
     return s.some(x => x.cls === "red") ? `<span class="flag red">Exam overdue</span>` : s.some(x => x.cls === "amber") ? `<span class="flag amber">Exam due</span>` : ""; };
   const tile = (key, title, value, flag) => `<a class="st" href="#/job/${jobId}/${key}">${flag || ""}<span class="ic">${TI[key]}</span><span class="t">${title}</span><span class="v">${value}</span></a>`;
-  const attn = [];
-  [["plant","Plant"],["lifting","Lifting"]].forEach(([k]) => list(jobId, k).filter(onSite).forEach(x => { const e = examState(x);
-    if(e && e.cls !== "ok") attn.push({ cls:e.cls, sort:x.examDate, href:k, tag:e.cls === "red" ? "Exam overdue" : "Exam due",
-      what:`<b>${esc(x.item)}</b>${x.fleetNo || x.idNo ? " · " + esc(x.fleetNo || x.idNo) : ""}`, when:nice(x.examDate) }); }));
-  dels.forEach(d => { const st = deliveryState(d);
-    if(st.key === "overdue" || st.key === "today") attn.push({ cls:st.key === "overdue" ? "red" : "amber", sort:d.dueDate, href:"deliveries",
-      tag:st.key === "overdue" ? "Delivery overdue" : "Delivery today",
-      what:`<b>${esc(d.description || d.type)}</b>${d.supplier ? " from " + esc(d.supplier) : ""}`,
-      when:short(d.dueDate) + (d.dueTime && d.dueTime !== "none" ? " " + esc(d.dueTime) : "") }); });
-  attn.sort((a, b) => (a.cls === b.cls ? 0 : a.cls === "red" ? -1 : 1) || String(a.sort).localeCompare(String(b.sort)));
+  const needs = ccNeeds(jobId), todayRows = ccToday(jobId), feed = ccActivity(jobId, team);
+  const when = v => { const d = new Date(v), t = today(), day = d.toISOString().slice(0, 10);
+    const hh = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    return day === t ? "Today " + hh : day === addDays(t, -1) ? "Yesterday " + hh : short(day); };
   return shell("dash", `
     <div class="crumbs"><a href="#/">All jobs</a> › ${esc(job.name)}</div>
-    <div class="jobbar">${esc(job.name)}<span class="ref">${esc([job.code, job.principal_contractor].filter(Boolean).join(" · "))}</span>
-      <span class="sp"></span>${can("jobs", "edit") ? `<button class="lnk" data-editjob="${jobId}">Edit job details</button>` : ""}</div>
+    ${ccHeader(job, team, jobId)}
+    <div class="ccgrid">
+      <div>
+        <div class="attn panel"><h2>Needs action</h2>${needs.length
+          ? `<ul>${needs.map(a => `<li class="${a.cls}">${TI.alert}<span class="tag">${a.tag}</span><span class="what">${a.what}</span><span class="when">${a.when}</span>
+              ${a.href ? `<a class="lnk" href="#/job/${jobId}/${a.href}">Open</a>` : "<span></span>"}</li>`).join("")}</ul>`
+          : `<div class="clear">${TI.ok}Nothing needs anyone right now.</div>`}</div>
+        <div class="panel cctoday"><h2>Due today</h2>${todayRows.length
+          ? `<ul>${todayRows.map(r => `<li class="${r.done ? "ok" : "due"}"><span class="dot"></span><span class="what">${esc(r.name)}${r.note ? ` <em>${esc(r.note)}</em>` : ""}</span>
+              <span class="ccst">${r.done ? "Done" : "To do"}</span>${r.href ? `<a class="lnk" href="#/job/${jobId}/${r.href}">Open</a>` : "<span></span>"}</li>`).join("")}</ul>`
+          : `<p class="muted">Not a working day on this job.</p>`}</div>
+      </div>
+      <div class="panel ccfeed"><h2>Recent activity</h2>${feed.length
+        ? `<ul>${feed.map(e => `<li><span class="w">${when(e.at)}</span><span class="x">${esc(e.text)}${e.who ? ` <em>· ${esc(e.who)}</em>` : ""}</span></li>`).join("")}</ul>`
+        : `<p class="muted">Nothing recorded on this job yet.</p>`}</div>
+    </div>
+    <h2 class="ccsect">Sections</h2>
     <div class="sectiles">
       ${tile("plant", "Plant", plural(plant.length, "item"), examFlag(plant))}
       ${tile("lifting", "Lifting", plural(lift.length, "item"), examFlag(lift))}
@@ -982,10 +1164,7 @@ async function viewJob(jobId){
       ${tile("hs", "Health and Safety", (n => n ? plural(n, "item") + " overdue" : "All up to date")(hsOverdueCount(jobId)),
         hsOverdueCount(jobId) ? `<span class="flag red">Overdue</span>` : "")}
     </div>
-    <div class="attn panel"><h2>Needs attention</h2>${attn.length
-      ? `<ul>${attn.map(a => `<li class="${a.cls}">${TI.alert}<span class="tag">${a.tag}</span><span class="what">${a.what}</span><span class="when">${a.when}</span>
-          <a class="lnk" href="#/job/${jobId}/${a.href}">Open</a></li>`).join("")}</ul>`
-      : `<div class="clear">${TI.ok}Nothing overdue — exams and today's deliveries are all in hand.</div>`}</div>`);
+`);
 }
 
 /* ------------------------------------------------- registers (generic) */
