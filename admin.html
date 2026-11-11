@@ -171,6 +171,7 @@ table.t td.acts{text-align:right;white-space:nowrap;width:1%}
 
 /* ---------- buttons, forms ---------- */
 .btn{border:1.5px solid var(--green);background:var(--green);color:#fff;border-radius:10px;padding:9px 16px;font-weight:700;font-size:14px}
+a.btn{display:inline-block;text-decoration:none}
 .btn:hover{background:var(--green-h);border-color:var(--green-h)}
 .btn.line{background:#fff;color:var(--green);border-color:var(--green)}
 .btn.line:hover{background:var(--tint)}
@@ -441,6 +442,42 @@ img.sig{height:34px;max-width:140px;object-fit:contain;display:block;background:
 .panel h2 .lnk,.panel h2 a,.panel h2 button{color:var(--green)}
 .panel h2 .btn{background:#fff;color:var(--green);border:1.5px solid var(--green)}
 .panel h2 .btn:hover{background:var(--tint)}
+/* job set-up */
+.steps{list-style:none;display:flex;gap:6px;margin:0 0 22px;padding:0;flex-wrap:wrap}
+.steps li{flex:1 1 120px}
+.steps li>a,.steps li>div{display:flex;align-items:center;gap:9px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--ink-3);text-decoration:none;font-size:13.5px;font-weight:600}
+.steps li b{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:99px;background:var(--tint-2);color:var(--ink-2);font-size:12px;flex:none}
+.steps li.on>div{border-color:var(--green);color:var(--ink);box-shadow:inset 0 0 0 1px var(--green)}
+.steps li.on b{background:var(--green);color:#fff}
+.steps li.done>a{color:var(--ink-2)} .steps li.done b{background:var(--tint);color:var(--green)}
+.steps li>a:hover{border-color:var(--green);color:var(--green)}
+.setup{max-width:860px}
+.setup .panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+.setup p.lead{margin:0 0 16px;color:var(--ink-2);font-size:14px;line-height:1.5;max-width:68ch}
+.setup .hint{font-size:12.5px;color:var(--ink-3)}
+.setuph{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin:18px 0 8px}
+.setupacts{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line)}
+.pickgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:8px}
+.pick{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:12px;cursor:pointer;background:#fff}
+.pick:has(input:checked){border-color:var(--green);background:var(--tint)}
+.pick input{margin-top:3px;accent-color:var(--green);width:16px;height:16px;flex:none}
+.pick span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pick b{font-size:14px} .pick em{font-style:normal;font-size:12.5px;color:var(--ink-3)}
+.setup .clear{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;color:var(--green);font-weight:600;font-size:14px;background:var(--tint);margin:0 0 14px}
+.setup .clear svg{width:18px;height:18px}
+.setupgaps{padding:12px 16px;border-radius:12px;background:var(--amber-50);color:var(--amber);font-size:14px;margin:0 0 14px}
+.setupgaps ul{margin:6px 0 0;padding-left:18px} .setupgaps li{margin:2px 0}
+table.review{width:100%;border-collapse:collapse;font-size:14px}
+table.review th{text-align:left;font-weight:600;color:var(--ink-3);width:200px;padding:9px 10px 9px 0;vertical-align:top;border-top:1px solid var(--line)}
+table.review td{padding:9px 0;border-top:1px solid var(--line)}
+table.review td:last-child{text-align:right;width:1%;white-space:nowrap}
+.drafts{margin:0 0 26px}
+.drafts h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin:0 0 10px}
+.draftrow{display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px dashed var(--amber);background:var(--amber-50);border-radius:14px;margin:0 0 8px}
+.draftrow .n{font-weight:700} .draftrow .m{color:var(--ink-3);font-size:13px} .draftrow .sp{flex:1}
+.draftbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px;border-radius:14px;background:var(--amber-50);color:var(--amber);font-size:14px;font-weight:600;margin:0 0 16px}
+.draftbar .sp{flex:1}
+@media (max-width:640px){table.review th{width:auto}.steps li{flex:1 1 44%}}
 </style>
 </head>
 <body>
@@ -786,7 +823,8 @@ function shell(active, inner){
 /* ------------------------------------------------------------ dashboard */
 async function viewDashboard(){
   await loadJobs();
-  const live = S.jobs.filter(j => j.status !== "archived");
+  const live = S.jobs.filter(j => j.status !== "archived" && j.status !== "draft");
+  const drafts = S.jobs.filter(j => j.status === "draft");
   await Promise.all(live.map(j => loadItems(j.id, true)));
   const t = today(), ws = weekStart(t);
   /* everything the card needs about one job, worked out the same way as the job's own pages */
@@ -853,6 +891,9 @@ async function viewDashboard(){
     <div class="title"><h1>Jobs</h1><span class="sub">${plural(live.length, "live job")}</span><span class="sp"></span>
       ${S.jobs.some(j => j.status === "archived") ? `<a class="lnk" href="#/archived">Archived jobs</a>` : ""}<span class="today">${dateNow}</span></div>
     ${live.length ? `<div class="kpis">${kpi("Live jobs", live.length)}${kpi("Ops on site", tot.ops)}${kpi("Machines on site", tot.plant)}${kpi("Live hire / week", money(tot.hireW))}${kpi("Exams overdue", tot.exams, true)}${kpi("H&amp;S overdue", tot.hs, true)}</div>` : ""}
+    ${drafts.length ? `<div class="drafts"><h2>Being set up — not on site phones yet</h2>${drafts.map(j => `<div class="draftrow">
+      <span><span class="n">${esc(j.name)}</span> <span class="m">${esc([j.code, j.principal_contractor].filter(Boolean).join(" · "))}</span></span><span class="sp"></span>
+      ${can("jobs", "edit") ? `<a class="btn sm" href="#/setup/${j.id}/review">Continue set-up</a>` : `<span class="pill amber">Draft</span>`}</div>`).join("")}</div>` : ""}
     <div class="jobcards">
       ${S2.map(card).join("")}
       ${can("jobs", "create") ? `<button class="jt new" data-newjob><span class="plus">+</span><span class="n">Create new job</span></button>` : ""}
@@ -865,6 +906,219 @@ async function viewArchived(){
     <div class="title"><h1>Archived jobs</h1></div>
     <div class="jobtiles">${arch.map(j => `<a class="jt" href="#/job/${j.id}"><span class="n">${esc(j.name)}</span>
       <span class="m">${esc(j.code || "")}</span></a>`).join("") || `<p class="empty">None.</p>`}</div>`);
+}
+
+/* ------------------------------------------------------------- job set-up --
+   Creating a job step by step: details, team, forms, RAMS, then a review.
+   The job is saved as a draft after the first step, so set-up can stop and
+   pick up again later. Site phones don't see a draft until it's activated. */
+const SETUP_STEPS = [["details","Job details"],["team","Team"],["forms","Forms"],["rams","RAMS"],["review","Review"]];
+const JOB_ROLE_KEYS = ["admin","director_qs","contracts_manager","project_manager","site_manager","deputy","operative","qs","viewer"];
+const SEES_EVERY_JOB = ["admin","director_qs","contracts_manager","hire_controller"];
+function setupNav(jobId, step){
+  const at = SETUP_STEPS.findIndex(s => s[0] === step);
+  /* a tick only where the step has really been done, not just passed */
+  const done = { details:!!jobId, team:!!jobId && (S.members || []).some(m => m.job_id === jobId),
+    forms:!!jobId && list(jobId, "_forms").length > 0, rams:!!jobId && !!ramsCurrent(jobId), review:false };
+  return `<ol class="steps" aria-label="Set-up steps">${SETUP_STEPS.map(([k, l], i) => {
+    const tick = i !== at && done[k];
+    const inner = `<b>${tick ? "&#10003;" : i + 1}</b><span>${l}</span>`;
+    return `<li class="${tick ? "done" : i === at ? "on" : ""}" ${i === at ? `aria-current="step"` : ""}>${
+      jobId && i !== at ? `<a href="#/setup/${jobId}/${k}">${inner}</a>` : `<div>${inner}</div>`}</li>`; }).join("")}</ol>`;
+}
+async function viewSetup(jobId, step){
+  if(!can("jobs", jobId ? "edit" : "create")) return shell("dash", `<p class="empty">You don't have permission to ${jobId ? "change this job" : "set up jobs"}.</p>`);
+  await loadJobs();
+  const job = jobId ? jobById(jobId) : null;
+  if(jobId && !job) return shell("dash", `<p class="empty">That job can't be found.</p>`);
+  step = job && SETUP_STEPS.some(s => s[0] === step) ? step : "details";
+  if(job) await Promise.all([loadItems(job.id, true), loadTeam().catch(() => {})]);
+  const at = SETUP_STEPS.findIndex(s => s[0] === step) + 1;
+  let body;
+  if(step === "details") body = setupDetails(job);
+  else if(step === "team") body = setupTeam(job);
+  else if(step === "forms") body = setupForms(job);
+  else if(step === "rams") body = setupRams(job);
+  else body = setupReview(job);
+  return shell("dash", `<div class="crumbs"><a href="#/">All jobs</a> › ${job ? `<a href="#/job/${job.id}">${esc(job.name)}</a> › Set-up` : "New job"}</div>
+    <div class="title"><h1>${job ? esc(job.name) : "Set up a new job"}</h1>
+      <span class="sub">Step ${at} of ${SETUP_STEPS.length}${job && job.status === "draft" ? " · draft — not on site phones yet" : ""}</span></div>
+    <div class="setup">${setupNav(job && job.id, step)}${body}</div>`);
+}
+const setupActs = (back, next, extra) => `<p class="err" hidden></p><div class="acts setupacts">
+  <span>${back ? `<a class="btn ghost" href="${back}">Back</a>` : `<a class="btn ghost" href="#/">Cancel</a>`}</span>
+  <span>${extra || ""}${next}</span></div>`;
+
+function setupDetails(job){
+  const meta = job ? (S.items[job.id] || {}).meta || {} : {};
+  const info = meta.info || {};
+  const v = job ? { name:job.name, code:job.code || "", pc:job.principal_contractor || info.pc || "", address:job.address || info.address || "",
+    theirRef:info.theirRef || "", start:job.start_date || meta.start || "", end:job.end_date || "" }
+    : { name:"", code:"", pc:"", address:"", theirRef:"", start:today(), end:"" };
+  return `<div class="panel"><h2>Job details</h2>
+    <div class="f"><label>Job name *</label>${job ? `<div class="hint">The name links the job to every record on site, so it can't be changed.</div>` : ""}
+      <input class="in" data-k="name" value="${esc(v.name)}" ${job ? "disabled" : ""} placeholder="e.g. Bramhall High School"></div>
+    <div class="g2"><div class="f"><label>Job number *</label><input class="in" data-k="code" value="${esc(v.code)}" placeholder="e.g. CG180"></div>
+      <div class="f"><label>Their order reference</label><input class="in" data-k="theirRef" value="${esc(v.theirRef)}"></div></div>
+    <div class="g2"><div class="f"><label>Principal Contractor</label><input class="in" data-k="pc" value="${esc(v.pc)}"></div>
+      <div class="f"><label>Site address</label><input class="in" data-k="address" value="${esc(v.address)}"></div></div>
+    <div class="g2"><div class="f"><label>Start date</label><input class="in" type="date" data-k="start" value="${esc(v.start)}"></div>
+      <div class="f"><label>Expected completion</label><input class="in" type="date" data-k="end" value="${esc(v.end)}">
+        <div class="hint">Shows how far through the programme the job is.</div></div></div>
+    ${setupActs("", `<button class="btn" data-setupsave="details">${job ? "Save and continue" : "Save as a draft and continue"}</button>`)}</div>`;
+}
+
+function setupTeam(job){
+  const mine = new Set((S.members || []).filter(m => m.job_id === job.id).map(m => m.user_id));
+  const alloc = !!can("labour", "allocate");
+  const people = (S.team || []).filter(p => p.active !== false);
+  const auto = people.filter(p => SEES_EVERY_JOB.includes(p.role_key));
+  const pick = people.filter(p => !SEES_EVERY_JOB.includes(p.role_key));
+  const group = (title, list) => list.length ? `<h3 class="setuph">${esc(title)}</h3><div class="pickgrid">${list.map(p => `<label class="pick">
+      <input type="checkbox" data-member="${esc(p.id)}" ${mine.has(p.id) ? "checked" : ""} ${alloc ? "" : "disabled"}>
+      <span><b>${esc(p.full_name || p.email)}</b><em>${esc(p.role_name || "No role")}${p.joined ? "" : " · invited, not signed in yet"}</em></span></label>`).join("")}</div>` : "";
+  const by = keys => pick.filter(p => keys.includes(p.role_key));
+  const other = pick.filter(p => !["project_manager","site_manager","operative"].includes(p.role_key));
+  return `<div class="panel"><h2>Who's on this job</h2>
+    <p class="lead">${alloc ? `Tick the people who work on ${esc(job.name)}. They'll see it in the app; anyone not ticked won't.`
+      : "Only someone who allocates staff can change who's on a job. This is who's on it now."}</p>
+    ${group("Project Managers", by(["project_manager"]))}
+    ${group("Site Managers", by(["site_manager"]))}
+    ${group("Operatives", by(["operative"]))}
+    ${group("Others", other)}
+    ${!pick.length ? `<p class="empty">Nobody to put on the job yet. Invite people from Staff.</p>` : ""}
+    ${auto.length ? `<p class="hint" style="margin-top:16px">${esc(auto.map(p => p.full_name || p.email).join(", "))} see every job already, so they aren't listed.</p>` : ""}
+    ${setupActs(`#/setup/${job.id}/details`, alloc ? `<button class="btn" data-setupsave="team">Save and continue</button>`
+      : `<a class="btn" href="#/setup/${job.id}/forms">Continue</a>`)}</div>`;
+}
+
+function setupForms(job){
+  const fd = formDays(job.id);
+  return `<div class="panel"><h2>Forms</h2>
+    <p class="lead">Every working day the app asks for the site diary and the daily activity briefing, a plant inspection for each machine
+      on site, an excavation inspection for each open excavation, and a HAVs record when vibrating tools are used.</p>
+    <h3 class="setuph">Weekly forms — the day each is due on site</h3>
+    <div class="g4">${FORM_DAYS.map(([k, l]) => `<div class="f"><label>${esc(l)}</label><select class="in" data-fd="${k}">${DAY_NAMES.map((n, i) =>
+      `<option value="${i}" ${i === fd[k] ? "selected" : ""}>${n}</option>`).join("")}</select></div>`).join("")}</div>
+    <div class="hint">The app chases each one from that day, and the console shows it overdue after it.</div>
+    ${setupActs(`#/setup/${job.id}/team`, `<button class="btn" data-setupsave="forms">Save and continue</button>`)}</div>`;
+}
+
+function setupRams(job){
+  const cur = ramsCurrent(job.id);
+  return `<div class="panel"><h2>RAMS</h2>
+    <p class="lead">Upload the risk assessment and method statement so everyone on site can read and sign them. It can also be done later,
+      from Health and safety, RAMS.</p>
+    ${cur ? `<div class="clear">${TI.ok}Rev ${esc(revText(cur))} is uploaded${cur.title ? " — " + esc(cur.title) : ""}.</div>`
+      : `<p><button class="btn line" data-ramsup>+ Upload RAMS</button></p>`}
+    ${setupActs(`#/setup/${job.id}/forms`, `<a class="btn" href="#/setup/${job.id}/review">${cur ? "Continue" : "Skip for now"}</a>`)}</div>`;
+}
+
+function setupReview(job){
+  const meta = (S.items[job.id] || {}).meta || {}, info = meta.info || {};
+  const team = (S.members || []).filter(m => m.job_id === job.id).map(m => (S.team || []).find(p => p.id === m.user_id)).filter(Boolean);
+  const names = key => team.filter(p => p.role_key === key).map(p => p.full_name || p.email);
+  const fd = formDays(job.id), cur = ramsCurrent(job.id);
+  const gaps = [];
+  if(!job.end_date) gaps.push(["details", "No expected completion date"]);
+  if(!names("site_manager").length) gaps.push(["team", "No Site Manager on the job"]);
+  if(!cur) gaps.push(["rams", "No RAMS uploaded"]);
+  const row = (label, value, step) => `<tr><th>${label}</th><td>${value}</td><td><a class="lnk" href="#/setup/${job.id}/${step}">Change</a></td></tr>`;
+  const draft = job.status === "draft";
+  return `<div class="panel"><h2>Review</h2>
+    ${gaps.length ? `<div class="setupgaps"><b>Worth sorting before the job starts:</b><ul>${gaps.map(([s, t]) =>
+      `<li>${esc(t)} — <a class="lnk" href="#/setup/${job.id}/${s}">sort it</a></li>`).join("")}</ul></div>`
+      : `<div class="clear">${TI.ok}Everything's in place.</div>`}
+    <table class="review">
+      ${row("Job", esc([job.code, job.name].filter(Boolean).join(" · ")), "details")}
+      ${row("Principal Contractor", esc(job.principal_contractor || info.pc || "—"), "details")}
+      ${row("Site address", esc(job.address || info.address || "—"), "details")}
+      ${row("Programme", esc((job.start_date ? nice(job.start_date) : "No start date") + " to " + (job.end_date ? nice(job.end_date) : "no completion date")), "details")}
+      ${row("Project Manager", esc(names("project_manager").join(", ") || "—"), "team")}
+      ${row("Site Manager", esc(names("site_manager").join(", ") || "—"), "team")}
+      ${row("Others on the job", esc(String(team.filter(p => !["project_manager","site_manager"].includes(p.role_key)).length)), "team")}
+      ${row("Weekly forms", esc(FORM_DAYS.map(([k, l]) => l + " " + DAY_NAMES[fd[k]]).join(" · ")), "forms")}
+      ${row("RAMS", cur ? "Rev " + esc(revText(cur)) : "Not uploaded", "rams")}
+    </table>
+    ${setupActs(`#/setup/${job.id}/rams`, draft ? `<button class="btn" data-activate>Activate the job</button>` : `<a class="btn" href="#/job/${job.id}">Done</a>`,
+      draft ? `<a class="btn ghost" href="#/" style="margin-right:8px">Keep as a draft</a>` : "")}
+    ${draft ? `<p class="hint" style="text-align:right">Activating puts the job on the phones of everyone on it.</p>` : ""}</div>`;
+}
+
+function bindSetup(jobId, step){
+  const root = document.querySelector(".setup");
+  if(!root) return;
+  const err = t => { const e = root.querySelector(".err"); if(e){ e.textContent = t; e.hidden = !t; } };
+  const busy = (b, on, label) => { if(!b) return; b.disabled = on; if(label) b.textContent = label; };
+  const go2 = (id, s) => { location.hash = `#/setup/${id}/${s}`; };
+  const job = jobId ? jobById(jobId) : null;
+
+  const save = root.querySelector("[data-setupsave]");
+  if(save) save.onclick = async () => {
+    err("");
+    try{
+      if(step === "details"){
+        const val = k => (root.querySelector(`[data-k="${k}"]`).value || "").trim();
+        const name = job ? job.name : val("name"), code = val("code");
+        if(!name) return err("Give the job a name.");
+        if(!code) return err("Give the job a number.");
+        if(!job && S.jobs.some(j => j.name.trim().toLowerCase() === name.toLowerCase())) return err("There's already a job with that name.");
+        if(val("start") && val("end") && val("end") < val("start")) return err("The expected completion is before the start date.");
+        busy(save, true, "Saving…");
+        const row = { code, principal_contractor:val("pc") || null, address:val("address") || null,
+          start_date:val("start") || null, end_date:val("end") || null };
+        let id = job && job.id;
+        if(job){ const { error } = await sb.from("jobs").update(row).eq("id", id); if(error) throw error; }
+        else {
+          const { data, error } = await sb.from("jobs").insert(Object.assign({ name, status:"draft" }, row)).select("id").single();
+          if(error) throw error; id = data.id;
+        }
+        await loadItems(id, true);
+        const m = Object.assign({}, S.items[id].meta || {});
+        m.info = Object.assign({}, m.info || {}, { pc:val("pc"), address:val("address"), ref:code, theirRef:val("theirRef") });
+        if(val("start")) m.start = val("start");
+        await saveMeta(id, m);
+        if(!list(id, "_forms").length) await saveItem(id, "_forms", Object.assign({ id:"days" }, HS_WEEKLY_DAY));
+        await loadJobs();
+        toast(job ? "Saved" : "Saved as a draft");
+        return go2(id, "team");
+      }
+      if(step === "team"){
+        busy(save, true, "Saving…");
+        const want = new Set([...root.querySelectorAll("[data-member]")].filter(x => x.checked).map(x => x.dataset.member));
+        const had = new Set((S.members || []).filter(m => m.job_id === jobId).map(m => m.user_id));
+        const add = [...want].filter(u => !had.has(u)), drop = [...had].filter(u => !want.has(u)
+          && !SEES_EVERY_JOB.includes(((S.team || []).find(p => p.id === u) || {}).role_key));
+        if(add.length){
+          const { error } = await sb.from("job_members").insert(add.map(u => {
+            const k = ((S.team || []).find(p => p.id === u) || {}).role_key;
+            return { job_id:jobId, user_id:u, job_role:JOB_ROLE_KEYS.includes(k) ? k : "viewer" }; }));
+          if(error) throw error;
+        }
+        if(drop.length){ const { error } = await sb.from("job_members").delete().eq("job_id", jobId).in("user_id", drop); if(error) throw error; }
+        toast(add.length || drop.length ? "Team saved" : "No changes");
+        return go2(jobId, "forms");
+      }
+      if(step === "forms"){
+        busy(save, true, "Saving…");
+        const days = {}; FORM_DAYS.forEach(([k]) => days[k] = Number(root.querySelector(`[data-fd="${k}"]`).value));
+        const had = list(jobId, "_forms")[0];
+        if(!had || FORM_DAYS.some(([k]) => Number(had[k]) !== days[k])) await saveItem(jobId, "_forms", Object.assign({ id:"days" }, days));
+        return go2(jobId, "rams");
+      }
+    }catch(e){ busy(save, false, step === "details" && !job ? "Save as a draft and continue" : "Save and continue"); err(words(e)); }
+  };
+  const up = root.querySelector("[data-ramsup]");
+  if(up) up.onclick = () => ramsForm(jobId);
+  const act = root.querySelector("[data-activate]");
+  if(act) act.onclick = async () => {
+    busy(act, true, "Activating…");
+    const { error } = await sb.from("jobs").update({ status:"live" }).eq("id", jobId);
+    if(error){ busy(act, false, "Activate the job"); return err(words(error)); }
+    await loadJobs();
+    toast(job.name + " is live");
+    location.hash = "#/job/" + jobId;
+  };
 }
 
 function jobForm(job, meta){
@@ -886,7 +1140,7 @@ function jobForm(job, meta){
     <div class="g3">
       <div class="f"><label>Start date</label><input class="in" type="date" data-k="start" value="${esc(v.start)}"></div>
       <div class="f"><label>Expected completion</label><input class="in" type="date" data-k="end" value="${esc(v.end)}"></div>
-      <div class="f"><label>Status</label><select class="in" data-k="status">${["tender","live","complete","archived"].map(s =>
+      <div class="f"><label>Status</label><select class="in" data-k="status">${(v.status === "draft" ? ["draft"] : []).concat(["tender","live","complete","archived"]).map(s =>
         `<option ${s === v.status ? "selected" : ""} value="${s}">${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div>
     </div>
     <div class="fdset"><h4>Weekly forms — the day each is due on site</h4>
@@ -983,7 +1237,7 @@ function deleteJobConfirm(job, busy){
    with the job's sections underneath. */
 const CC_FORM = { diary:"Site diary", briefing:"Daily activity briefing", plantcheck:"Plant inspection", excavation:"Excavation inspection",
   havs:"HAVs record", toolboxtalk:"Toolbox talk", puwer:"PUWER inspection", loler:"LOLER inspection" };
-const CC_STATUS = { live:["Live","ok"], tender:["Tender","amber"], complete:["Complete",""], archived:["Archived",""] };
+const CC_STATUS = { draft:["Draft — being set up","amber"], live:["Live","ok"], tender:["Tender","amber"], complete:["Complete",""], archived:["Archived",""] };
 const ccSame = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 async function loadJobTeam(jobId){
   try{
@@ -1136,6 +1390,8 @@ async function viewJob(jobId){
     return day === t ? "Today " + hh : day === addDays(t, -1) ? "Yesterday " + hh : short(day); };
   return shell("dash", `
     <div class="crumbs"><a href="#/">All jobs</a> › ${esc(job.name)}</div>
+    ${job.status === "draft" ? `<div class="draftbar">This job is still being set up, so it isn't on site phones yet.<span class="sp"></span>
+      ${can("jobs", "edit") ? `<a class="btn sm" href="#/setup/${jobId}/review">Continue set-up</a>` : ""}</div>` : ""}
     ${ccHeader(job, team, jobId)}
     <div class="ccgrid">
       <div>
@@ -3063,6 +3319,7 @@ async function route(){
     else if(h[0] === "staff"){ html = await viewStaff(); bind = bindStaff; }
     else if(h[0] === "admin" && isAdmin()){ html = await viewAdmin(); bind = bindLibrary; }
     else if(h[0] === "archived"){ html = await viewArchived(); }
+    else if(h[0] === "setup"){ const id = h[1] && h[1] !== "new" ? h[1] : null, st = id ? h[2] : "details"; html = await viewSetup(id, st); bind = () => bindSetup(id, st); }
     else if(h[0] === "job" && h[1]){
       const id = h[1], sec = h[2];
       if(!sec){ html = await viewJob(id); bind = () => { const e = $("[data-editjob]"); if(e) e.onclick = () => jobForm(jobById(id), S.items[id].meta); }; }
@@ -3087,7 +3344,7 @@ async function route(){
         }
       }
     }
-    else { html = await viewDashboard(); bind = () => { const n = $("[data-newjob]"); if(n) n.onclick = () => jobForm(null, null); }; }
+    else { html = await viewDashboard(); bind = () => { const n = $("[data-newjob]"); if(n) n.onclick = () => { location.hash = "#/setup/new"; }; }; }
     done();
     if(my !== routing) return;
     root.innerHTML = html;
