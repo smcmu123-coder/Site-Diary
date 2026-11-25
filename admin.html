@@ -183,6 +183,7 @@ table.t td.acts{text-align:right;white-space:nowrap;width:1%}
 .lnk{background:none;border:none;color:var(--green);font-weight:700;padding:4px 6px;font-size:13px}
 .lnk:hover{text-decoration:underline}
 .lnk.red{color:var(--red)}
+.btn.line.red{color:var(--red);border-color:var(--red)}.btn.line.red:hover{background:#fdeeee}
 .f{display:flex;flex-direction:column;gap:5px;margin:0 0 12px}
 .f label{font-size:12.5px;font-weight:700;color:var(--green)}
 .f .hint{font-size:12px;color:var(--ink-3);margin-top:-2px}
@@ -1377,16 +1378,23 @@ function weeklyDue(jobId, form){
    "sub" supersede each other. Additional information (COSHH assessment, lift
    plan…) hangs off a revision in its "addendums" list, signed like the RAMS. */
 const ramsKey = v => String(v || "").trim().toLowerCase();
+/* the set a revision belongs to: "" for ours; every subcontractor RAMS uploaded starts its own set,
+   so a job can hold several subcontractors' RAMS and several from the same one */
+const ramsSetOf = r => !r || !String(r.sub || "").trim() ? "" : (r.set || "sub:" + ramsKey(r.sub));
 const ramsJob = jobId => list(jobId, "rams").slice().sort((a, b) => (b.revNo || 0) - (a.revNo || 0));
-const ramsAll = (jobId, sub) => ramsJob(jobId).filter(r => ramsKey(r.sub) === ramsKey(sub));
-const ramsCurrent = (jobId, sub) => ramsAll(jobId, sub).find(r => r.status === "current") || null;
+const ramsAll = (jobId, set) => ramsJob(jobId).filter(r => ramsSetOf(r) === (set || ""));
+const ramsCurrent = (jobId, set) => ramsAll(jobId, set).find(r => r.status === "current") || null;
 const revText = r => r ? String(r.revLabel || r.revNo || "") : "";
-function ramsSubs(jobId){
+function ramsSets(jobId){
   const by = new Map();
-  ramsJob(jobId).filter(r => ramsKey(r.sub)).sort((a, b) => (a.uploadedAt || 0) - (b.uploadedAt || 0)).forEach(r => by.set(ramsKey(r.sub), String(r.sub).trim()));
+  ramsJob(jobId).filter(r => ramsSetOf(r)).sort((a, b) => (a.uploadedAt || 0) - (b.uploadedAt || 0)).forEach(r => by.set(ramsSetOf(r), r));
+  return [...by.entries()].sort((a, b) => String(a[1].sub).localeCompare(String(b[1].sub)) || String(a[1].title || "").localeCompare(String(b[1].title || ""))).map(e => e[0]);
+}
+function ramsSubNames(jobId){
+  const by = new Map(); ramsJob(jobId).filter(r => ramsKey(r.sub)).forEach(r => by.set(ramsKey(r.sub), String(r.sub).trim()));
   return [...by.values()].sort((a, b) => a.localeCompare(b));
 }
-const ramsCurrentAll = jobId => [ramsCurrent(jobId)].concat(ramsSubs(jobId).map(s => ramsCurrent(jobId, s))).filter(Boolean);
+const ramsCurrentAll = jobId => [ramsCurrent(jobId)].concat(ramsSets(jobId).map(k => ramsCurrent(jobId, k))).filter(Boolean);
 /* who on site hasn't signed this (a revision or one piece of its additional information) */
 function ramsUnsignedOn(jobId, x){
   if(!x || x.noSign) return [];        /* additional information marked "for information" isn't signed */
@@ -1394,8 +1402,9 @@ function ramsUnsignedOn(jobId, x){
   return list(jobId, "labour").filter(onSite).filter(p => !signed.has(p.id));
 }
 const ramsUnsigned = jobId => ramsUnsignedOn(jobId, ramsCurrent(jobId));
-/* every signature still needed on the job: each current RAMS and its additional information */
-const ramsToSign = jobId => ramsCurrentAll(jobId).reduce((n, r) => n + ramsUnsignedOn(jobId, r).length
+/* every signature still needed from our staff: our current RAMS and its additional information
+   (subcontractor RAMS are signed by their own people, added on site, so nothing is "owed") */
+const ramsToSign = jobId => ramsCurrentAll(jobId).filter(r => !r.sub).reduce((n, r) => n + ramsUnsignedOn(jobId, r).length
   + (r.addendums || []).reduce((m, a) => m + ramsUnsignedOn(jobId, a).length, 0), 0);
 const RAMS_ADD_NAMES = ["COSHH assessment","Lift plan","Permit to dig","Temporary works design","Traffic management plan","Rescue plan","Confined space plan"];
 /* temporary works ------------------------------------------------------- */
@@ -1613,10 +1622,10 @@ function hsTileState(jobId, key){
   if(key === "plant"){ const s = plantDue(jobId); return { v:plural(n("plantcheck"), "inspection"), flag:late(s.overdue.length, "overdue") || (s.dueToday.length ? { cls:"amber", label:s.dueToday.length + " due today" } : null) }; }
   if(["puwer","loler"].includes(key)){ const s = weeklyDue(jobId, key); return { v:plural(n(key), "week") + " done", flag:late(s.overdue.length, "overdue") || (s.dueNow ? { cls:"amber", label:"Due today" } : null) }; }
   if(key === "toolbox"){ const s = weeklyDue(jobId, "toolboxtalk"); return { v:plural(n("toolboxtalk"), "talk"), flag:late(s.overdue.length, "overdue") || (s.dueNow ? { cls:"amber", label:"Due today" } : null) }; }
-  if(key === "rams"){ const c = ramsCurrent(jobId), subs = ramsSubs(jobId).length;
+  if(key === "rams"){ const c = ramsCurrent(jobId), subs = ramsSets(jobId).length;
     if(!c && !subs) return { v:"None uploaded", flag:{ cls:"amber", label:"No RAMS" } };
     const u = ramsToSign(jobId);
-    return { v:(c ? "Rev " + revText(c) : "No RAMS of ours") + "\n" + (subs ? plural(subs, "subcontractor") + " RAMS" : plural((c.sigs || []).length, "signature")),
+    return { v:(c ? "Rev " + revText(c) : "No RAMS of ours") + "\n" + (subs ? subs + " subcontractor RAMS" : plural((c.sigs || []).length, "signature")),
       flag:u ? { cls:"amber", label:u + " to sign" } : !c ? { cls:"amber", label:"No RAMS of ours" } : null }; }
   if(key === "tempworks"){ const a = twAll(jobId), live = a.filter(x => x.status !== "Removed"); return { v:plural(a.length, "item") + (live.length ? "\n" + live.length + " in place" : "") }; }
   return { v:"" };
@@ -1753,59 +1762,97 @@ function hsToolbox(jobId){
 }
 /* 8. RAMS — ours, then each subcontractor's; each with its additional information */
 function hsRams(jobId){
-  const ours = ramsCurrent(jobId), subs = ramsSubs(jobId), all = ramsJob(jobId), old = all.filter(r => r.status !== "current");
-  const edit = !!can("rams", "create");
+  const ours = ramsCurrent(jobId), sets = ramsSets(jobId), all = ramsJob(jobId), old = all.filter(r => r.status !== "current");
+  const edit = !!can("rams", "create"), del = !!can("rams", "delete");
   const docs = r => [["raDoc","Risk assessment"],["msDoc","Method statement"],["doc","Document"]].filter(([f]) => r[f])
     .map(([f, l]) => `<button class="lnk" data-doc="${esc(r.id)}:${f}">${l}</button>`).join("") || "—";
   const sigImg = s => s.sigSrc && String(s.sigSrc).indexOf("data:") === 0 ? `<img class="sig" src="${s.sigSrc}" alt="Signature of ${esc(s.name)}">` : `<span class="pill ok">Signed</span>`;
   const when = v => v ? new Date(v).toLocaleString("en-GB", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
   const names = ps => ps.length ? ps.slice(0, 4).map(p => esc(p.name)).join(", ") + (ps.length > 4 ? " +" + (ps.length - 4) + " more" : "") : `<span class="pill ok">Everyone</span>`;
   const enc = v => esc(encodeURIComponent(v || ""));
-  const block = (cur, sub) => {
-    if(!cur) return `<div class="panel">${emptyState(sub ? "No current revision of " + esc(sub) + "'s RAMS" : "No RAMS of ours on this job yet",
-        "Upload the risk assessment and method statement — everyone on site then signs it in the app.",
-        edit ? `<button class="btn" data-ramsup="${enc(sub)}">+ Upload ${sub ? "a revision" : "RAMS"}</button>` : "")}</div>`;
-    const un = ramsUnsignedOn(jobId, cur), adds = cur.addendums || [];
-    return `<div class="panel"><div class="ph2"><h2>${sub ? esc(sub) + " — " : ""}Current — Rev ${esc(revText(cur))}</h2>
+  const block = (cur, set) => {
+    const last = set ? ramsAll(jobId, set)[0] : null, sub = last ? last.sub : "";
+    if(!cur) return `<div class="panel">${emptyState(sub ? esc(sub) + " — " + esc(last.title || "RAMS") + ": no current revision" : "No RAMS of ours on this job yet",
+        sub ? "Upload a new revision, or remove the old ones." : "Upload the risk assessment and method statement — everyone on site then signs it in the app.",
+        edit ? `<button class="btn" data-ramsup="${enc(set)}">+ Upload ${sub ? "a revision" : "RAMS"}</button>` : "")}</div>`;
+    const isSub = !!cur.sub, un = isSub ? [] : ramsUnsignedOn(jobId, cur), adds = cur.addendums || [];
+    const owed = x => isSub ? `<span class="muted">Signed on site by ${esc(cur.sub)}</span>` : names(ramsUnsignedOn(jobId, x));
+    return `<div class="panel"><div class="ph2"><h2>${sub ? esc(sub) + " — " + esc(cur.title || "RAMS") + " — " : ""}Current — Rev ${esc(revText(cur))}</h2>
         ${edit ? `<span class="acts"><button class="btn line sm" data-ramsadd="${esc(cur.id)}">+ Upload additional information</button>
-          <button class="btn line sm" data-ramsup="${enc(sub)}">Upload new revision</button></span>` : ""}</div>
+          <button class="btn line sm" data-ramsup="${enc(set)}">Upload new revision</button>
+          ${del ? `<button class="btn line sm red" data-ramsrm="${esc(cur.id)}">Remove</button>` : ""}</span>` : ""}</div>
       <table class="t"><tr><th>Title</th><th>Revision</th><th>Uploaded</th><th class="num">Signed</th><th>Still to sign</th><th>Documents</th></tr>
         <tr><td><b>${esc(cur.title || "RAMS")}</b></td><td>Rev ${esc(revText(cur))}</td><td>${when(cur.uploadedAt)}</td>
-          <td class="num">${(cur.sigs || []).length}</td><td>${names(un)}</td><td>${docs(cur)}</td></tr></table>
+          <td class="num">${(cur.sigs || []).length}</td><td>${isSub ? owed(cur) : names(un)}</td><td>${docs(cur)}</td></tr></table>
       <h3 class="h3s">Additional information</h3>
-      ${adds.length ? `<table class="t"><tr><th>Name</th><th>Uploaded</th><th class="num">Signed</th><th>Still to sign</th><th>File</th></tr>
+      ${adds.length ? `<table class="t"><tr><th>Name</th><th>Uploaded</th><th class="num">Signed</th><th>Still to sign</th><th>File</th>${del ? "<th></th>" : ""}</tr>
         ${adds.map((a, i) => `<tr><td><b>${esc(a.title || "Additional information")}</b></td><td>${when(a.uploadedAt)}</td><td class="num">${a.noSign ? "—" : (a.sigs || []).length}</td>
-          <td>${a.noSign ? `<span class="pill">For information — no signatures</span>` : names(ramsUnsignedOn(jobId, a))}</td><td>${a.doc ? `<button class="lnk" data-doc="${esc(cur.id)}:add${i}">Open</button>` : "—"}</td></tr>`).join("")}</table>`
+          <td>${a.noSign ? `<span class="pill">For information — no signatures</span>` : owed(a)}</td><td>${a.doc ? `<button class="lnk" data-doc="${esc(cur.id)}:add${i}">Open</button>` : "—"}</td>
+          ${del ? `<td class="acts"><button class="lnk red" data-ramsaddrm="${esc(cur.id)}:${esc(a.id)}">Remove</button></td>` : ""}</tr>`).join("")}</table>`
         : `<p class="muted">None yet — a COSHH assessment, lift plan or anything else that goes with this RAMS.${edit ? " Use <b>+ Upload additional information</b>." : ""}</p>`}
       <details class="sigs" open><summary>Signatures on Rev ${esc(revText(cur))} (${(cur.sigs || []).length})</summary>
         ${(cur.sigs || []).length ? `<table class="t"><tr><th>Name</th><th>Signed</th><th>Signature</th></tr>
-          ${(cur.sigs || []).slice().sort((a, b) => (b.signedAt || 0) - (a.signedAt || 0)).map(s => `<tr><td><b>${esc(s.name || "—")}</b></td><td>${when(s.signedAt)}</td><td>${sigImg(s)}</td></tr>`).join("")}</table>`
-          : `<p class="muted">Nobody has signed yet — everyone on site signs it in the app, under RAMS.</p>`}
+          ${(cur.sigs || []).slice().sort((a, b) => (b.signedAt || 0) - (a.signedAt || 0)).map(s => `<tr><td><b>${esc(s.name || "—")}</b>${s.company ? `<span class="sub2">${esc(s.company)}</span>` : ""}</td><td>${when(s.signedAt)}</td><td>${sigImg(s)}</td></tr>`).join("")}</table>`
+          : `<p class="muted">${isSub ? "Nobody has signed yet — in the app, open RAMS and use + Add signature as each of " + esc(cur.sub) + "'s people signs." : "Nobody has signed yet — everyone on site signs it in the app, under RAMS."}</p>`}
         ${adds.filter(a => (a.sigs || []).length).map(a => `<h3 class="h3s">${esc(a.title || "Additional information")} (${a.sigs.length})</h3><table class="t"><tr><th>Name</th><th>Signed</th><th>Signature</th></tr>
-          ${a.sigs.slice().sort((x, y) => (y.signedAt || 0) - (x.signedAt || 0)).map(s => `<tr><td><b>${esc(s.name || "—")}</b></td><td>${when(s.signedAt)}</td><td>${sigImg(s)}</td></tr>`).join("")}</table>`).join("")}
+          ${a.sigs.slice().sort((x, y) => (y.signedAt || 0) - (x.signedAt || 0)).map(s => `<tr><td><b>${esc(s.name || "—")}</b>${s.company ? `<span class="sub2">${esc(s.company)}</span>` : ""}</td><td>${when(s.signedAt)}</td><td>${sigImg(s)}</td></tr>`).join("")}</table>`).join("")}
       </details></div>`;
   };
-  return shell("dash", hsHead(jobId, "RAMS", "Risk assessments and method statements — ours and subcontractors'",
+  return shell("dash", hsHead(jobId, "RAMS", "Risk assessments and method statements — ours and subcontractors', kept separate",
       edit ? `<button class="btn line" data-ramssub>+ Upload subcontractor RAMS</button><button class="btn" data-ramsup="">+ Upload RAMS</button>` : "") + `
-    <div class="stats">${stat("Our RAMS", ours ? "Rev " + revText(ours) : "None")}${stat("Subcontractor RAMS", subs.length)}${stat("Signatures still needed", ramsToSign(jobId), true)}${stat("Superseded", old.length)}</div>
+    <div class="stats">${stat("Our RAMS", ours ? "Rev " + revText(ours) : "None")}${stat("Subcontractor RAMS", sets.length)}${stat("Signatures still needed", ramsToSign(jobId), true)}${stat("Superseded", old.length)}</div>
     <div class="secbar">Our RAMS</div>
     ${block(ours, "")}
     <div class="secbar">Subcontractor RAMS</div>
-    ${subs.length ? subs.map(sb2 => block(ramsCurrent(jobId, sb2), sb2)).join("")
-      : `<div class="panel">${emptyState("No subcontractor RAMS yet", "Upload each subcontractor's RAMS — it's signed, superseded and given additional information the same way as ours.",
+    ${sets.length ? sets.map(k => block(ramsCurrent(jobId, k), k)).join("")
+      : `<div class="panel">${emptyState("No subcontractor RAMS yet", "Upload as many as you need — from each subcontractor, and more than one from the same one. Our staff don't sign them: their own people sign in the app with + Add signature.",
           edit ? `<button class="btn" data-ramssub>+ Upload subcontractor RAMS</button>` : "")}</div>`}
-    ${old.length ? `<div class="panel"><h2>Previous revisions — superseded</h2><table class="t"><tr><th>Whose</th><th>Revision</th><th>Title</th><th>Uploaded</th><th>Superseded</th><th class="num">Signatures</th><th>Documents</th></tr>
+    ${old.length ? `<div class="panel"><h2>Previous revisions — superseded</h2><table class="t"><tr><th>Whose</th><th>Revision</th><th>Title</th><th>Uploaded</th><th>Superseded</th><th class="num">Signatures</th><th>Documents</th>${del ? "<th></th>" : ""}</tr>
       ${old.map(r => `<tr class="off"><td>${esc(r.sub || "Ours")}</td><td>Rev ${esc(revText(r))}</td><td>${esc(r.title || "RAMS")}${(r.addendums || []).length ? `<span class="sub2">+ ${(r.addendums || []).map(a => esc(a.title || "Additional information")).join(", ")}</span>` : ""}</td>
-        <td>${when(r.uploadedAt)}</td><td>${when(r.supersededAt)}</td><td class="num">${(r.sigs || []).length}</td><td>${docs(r)}</td></tr>`).join("")}</table></div>` : ""}`);
+        <td>${when(r.uploadedAt)}</td><td>${when(r.supersededAt)}</td><td class="num">${(r.sigs || []).length}</td><td>${docs(r)}</td>
+        ${del ? `<td class="acts"><button class="lnk red" data-ramsrm="${esc(r.id)}">Remove</button></td>` : ""}</tr>`).join("")}</table></div>` : ""}`);
+}
+/* remove a RAMS revision — if it was the current one, the revision before it
+   (same owner) becomes current again with its signatures, as in the app */
+function ramsRemove(jobId, revId){
+  const rev = list(jobId, "rams").find(r => String(r.id) === String(revId)); if(!rev) return;
+  const isCur = rev.status === "current";
+  const prev = isCur ? ramsAll(jobId, ramsSetOf(rev)).filter(r => r.status !== "current")[0] : null;
+  const n = (rev.sigs || []).length, a = (rev.addendums || []).length;
+  confirmBox("Remove " + (rev.sub ? rev.sub + "'s " : "") + (rev.title || "RAMS") + " — Rev " + revText(rev) + "?",
+    "Its documents" + (a ? ", " + a + " additional information" : "") + (n ? " and " + plural(n, "signature") : "") + " are removed for everyone, on the app too. "
+      + (prev ? "Rev " + revText(prev) + " becomes the current revision again, with its signatures. " : isCur ? (rev.sub ? rev.sub + " will have no current RAMS. " : "The job will have no RAMS of ours until one is uploaded. ") : "")
+      + "This can't be undone.", "Remove", async () => {
+      try{
+        await deleteItem(jobId, "rams", rev.id);
+        if(prev){ const p2 = Object.assign({}, prev, { status:"current" }); delete p2.supersededAt; await saveItem(jobId, "rams", p2); }
+        toast("Rev " + revText(rev) + " removed" + (prev ? " — Rev " + revText(prev) + " is current again" : "")); route();
+      }catch(e){ toast(words(e)); }
+    });
+}
+function ramsAddRemove(jobId, key){
+  const [revId, addId] = key.split(":");
+  const rev = list(jobId, "rams").find(r => String(r.id) === revId), add = rev && (rev.addendums || []).find(a => String(a.id) === addId);
+  if(!add) return;
+  const n = (add.sigs || []).length;
+  confirmBox("Remove " + (add.title || "this additional information") + "?",
+    "It's taken off " + (rev.title || "the RAMS") + " — Rev " + revText(rev) + ", with its file" + (n ? " and " + plural(n, "signature") : "") + ", for everyone, on the app too. This can't be undone.",
+    "Remove", async () => {
+      try{ await saveItem(jobId, "rams", Object.assign({}, rev, { addendums:(rev.addendums || []).filter(a => String(a.id) !== addId) }));
+        toast((add.title || "Additional information") + " removed"); route(); }
+      catch(e){ toast(words(e)); }
+    });
 }
 /* upload our RAMS, a new revision of a subcontractor's, or a new subcontractor's */
-function ramsForm(jobId, sub, newSub){
-  const cur = newSub ? null : ramsCurrent(jobId, sub);
+function ramsForm(jobId, set, newSub){
+  const cur = newSub ? null : ramsCurrent(jobId, set), last = newSub ? null : ramsAll(jobId, set)[0], sub = last ? last.sub || "" : "";
   const next = cur && cur.revLabel ? (m => m ? m[1] + String(Number(m[2]) + 1).padStart(m[2].length, "0") : "")(String(cur.revLabel).match(/^(.*?)(\d+)$/)) : "";
-  modal(`<h3>${newSub ? "Upload subcontractor RAMS" : sub ? "Upload " + esc(sub) + "'s RAMS" : "Upload RAMS"}</h3>
+  modal(`<h3>${newSub ? "Upload subcontractor RAMS" : sub ? "New revision — " + esc(sub) + "'s " + esc(last.title || "RAMS") : "Upload RAMS"}</h3>
     <p class="lead">${cur ? "This becomes the current revision. Rev " + esc(revText(cur)) + " is marked superseded and keeps its signatures — everyone signs the new one in the app." : "Everyone on site then signs it in the app, under RAMS."}</p>
-    ${newSub ? `<div class="f"><label>Subcontractor *</label><input class="in" data-k="sub" placeholder="Company name, e.g. ABC Scaffolding"></div>` : ""}
-    <div class="g2"><div class="f"><label>Title *</label><input class="in" data-k="title" value="${esc(cur ? cur.title || "" : "")}" placeholder="e.g. Drainage installation"></div>
+    ${newSub ? `<div class="f"><label>Subcontractor *</label><input class="in" data-k="sub" placeholder="Company name, e.g. ABC Scaffolding">
+      ${ramsSubNames(jobId).length ? `<div class="chips">${ramsSubNames(jobId).map(n => `<button type="button" class="chip" data-name="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+        <div class="hint">Another RAMS from a subcontractor already on the job? Pick their name.</div>` : ""}</div>` : ""}
+    <div class="g2"><div class="f"><label>Title *</label><input class="in" data-k="title" value="${esc(last ? last.title || "" : "")}" placeholder="e.g. Drainage installation"></div>
       <div class="f"><label>Revision *</label><input class="in" data-k="rev" value="${esc(next)}" placeholder="e.g. P01"></div></div>
     <div class="f"><label>Risk assessment (PDF)</label><input class="in" type="file" accept="application/pdf,.pdf,image/*" data-f="raDoc"></div>
     <div class="f"><label>Method statement (PDF)</label><input class="in" type="file" accept="application/pdf,.pdf,image/*" data-f="msDoc">
@@ -1813,24 +1860,26 @@ function ramsForm(jobId, sub, newSub){
     <p class="err" hidden></p>
     <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Upload</button></div>`, (d, close) => {
     const err = t => { const e = d.querySelector(".err"); e.textContent = t; e.hidden = !t; };
+    d.querySelectorAll("[data-name]").forEach(b => b.onclick = () => { d.querySelector('[data-k="sub"]').value = b.dataset.name; d.querySelectorAll("[data-name]").forEach(x => x.classList.toggle("on", x === b)); });
     d.querySelector("[data-no]").onclick = close;
     d.querySelector("[data-yes]").onclick = async () => {
       const who = newSub ? d.querySelector('[data-k="sub"]').value.trim() : String(sub || "").trim();
+      const setKey = newSub ? "set_" + Date.now() : (set || "");
       const title = d.querySelector('[data-k="title"]').value.trim();
       const label = d.querySelector('[data-k="rev"]').value.trim().replace(/^rev(ision)?\.?\s*/i, "").toUpperCase().slice(0, 12);
       const ra = d.querySelector('[data-f="raDoc"]').files[0], ms = d.querySelector('[data-f="msDoc"]').files[0];
       if(newSub && !who) return err("Add the subcontractor's name.");
       if(!title) return err("Give the RAMS a title.");
       if(!label) return err("Add the revision, as it's printed on the document.");
-      if(ramsAll(jobId, who).some(r => String(r.revLabel || "").toUpperCase() === label)) return err("Rev " + label + " is already on " + (who ? who + "'s RAMS" : "this job") + " — check the revision.");
+      if(ramsAll(jobId, setKey).some(r => String(r.revLabel || "").toUpperCase() === label)) return err("Rev " + label + " is already on " + (who ? "this RAMS of " + who + "'s" : "this job") + " — check the revision.");
       if(!ra && !ms) return err("Add the risk assessment or the method statement.");
-      const was = ramsCurrent(jobId, who);
+      const was = ramsCurrent(jobId, setKey);
       const btn = d.querySelector("[data-yes]"); btn.disabled = true; btn.textContent = "Uploading…";
       try{
-        const rev = { id:"rams_" + Date.now(), revNo:Math.max(0, ...ramsAll(jobId, who).map(r => r.revNo || 0)) + 1, revLabel:label, title,
+        const rev = { id:"rams_" + Date.now(), revNo:Math.max(0, ...ramsAll(jobId, setKey).map(r => r.revNo || 0)) + 1, revLabel:label, title,
           raDoc:ra ? await uploadJobFile(jobId, ra) : null, msDoc:ms ? await uploadJobFile(jobId, ms) : null,
           uploadedAt:Date.now(), status:"current", addendums:[], sigs:[], distribution:[] };
-        if(who) rev.sub = who;
+        if(who){ rev.sub = who; rev.set = setKey; }
         if(was) await saveItem(jobId, "rams", Object.assign({}, was, { status:"superseded", supersededAt:Date.now() }));
         await saveItem(jobId, "rams", rev);
         close(); toast(was ? "New revision uploaded — signatures start again" : "RAMS uploaded — ready to sign"); route();
@@ -1849,7 +1898,7 @@ function ramsAddForm(jobId, revId){
       <div class="hint">Type your own name, or pick one.</div></div>
     <div class="f"><label>File (PDF or photo) *</label><input class="in" type="file" accept="application/pdf,.pdf,image/*" data-file></div>
     <div class="f"><label>Does it need signing? *</label>
-      <div class="radios"><label><input type="radio" name="needsign" value="yes"> Yes — everyone on site signs it in the app</label>
+      <div class="radios"><label><input type="radio" name="needsign" value="yes"> ${rev.sub ? "Yes — " + esc(rev.sub) + "'s people sign it (added in the app)" : "Yes — everyone on site signs it in the app"}</label>
         <label><input type="radio" name="needsign" value="no"> No — for information only</label></div></div>
     <p class="err" hidden></p>
     <div class="acts"><button class="btn ghost" data-no>Cancel</button><button class="btn" data-yes>Upload</button></div>`, (d, close) => {
@@ -1869,7 +1918,7 @@ function ramsAddForm(jobId, revId){
         const doc = await uploadJobFile(jobId, f);
         const now = list(jobId, "rams").find(r => String(r.id) === String(revId)) || rev;
         await saveItem(jobId, "rams", Object.assign({}, now, { addendums:(now.addendums || []).concat([Object.assign({ id:"add_" + Date.now(), title, doc, uploadedAt:Date.now(), sigs:[], distribution:[] }, noSign ? { noSign:true } : {})]) }));
-        close(); toast(noSign ? title + " added — for information, no signatures" : title + " added — everyone on site signs it in the app"); route();
+        close(); toast(noSign ? title + " added — for information, no signatures" : rev.sub ? title + " added — add signatures in the app as they sign" : title + " added — everyone on site signs it in the app"); route();
       }catch(e){ btn.disabled = false; btn.textContent = "Upload"; err(e.message || words(e)); }
     };
   });
@@ -1940,6 +1989,8 @@ function hsPage(jobId, sub){
     document.querySelectorAll("[data-ramsup]").forEach(b => b.onclick = () => ramsForm(jobId, decodeURIComponent(b.dataset.ramsup || ""), false));
     document.querySelectorAll("[data-ramssub]").forEach(b => b.onclick = () => ramsForm(jobId, "", true));
     document.querySelectorAll("[data-ramsadd]").forEach(b => b.onclick = () => ramsAddForm(jobId, b.dataset.ramsadd));
+    document.querySelectorAll("[data-ramsrm]").forEach(b => b.onclick = () => ramsRemove(jobId, b.dataset.ramsrm));
+    document.querySelectorAll("[data-ramsaddrm]").forEach(b => b.onclick = () => ramsAddRemove(jobId, b.dataset.ramsaddrm));
     bindDocs(key => { const [id, f] = key.split(":"); const r = list(jobId, "rams").find(x => String(x.id) === id) || {};
       return /^add\d+$/.test(f) ? ((r.addendums || [])[Number(f.slice(3))] || {}).doc : r[f]; }); } };
   if(sub === "tempworks") return { html:hsTempworks(jobId), bind:() => {

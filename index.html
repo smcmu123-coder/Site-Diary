@@ -1653,6 +1653,10 @@ html{ overscroll-behavior-y:none }
 #authGate .ag-rules li.ok::before{background:var(--ok);border-color:var(--ok);
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'><path d='M3.5 7.2l2.2 2.2 4.8-4.8' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-size:14px}
 #authUser{margin-top:18px;font-size:13px;color:var(--ink-2);text-align:center}
+/* sign out: a full-size button, easy to hit with a thumb or a glove */
+.home-who{margin:26px 0 0;font-size:13px;color:var(--ink-3);text-align:center}
+.btn.signout{display:flex;align-items:center;justify-content:center;width:100%;min-height:54px;margin:14px 0 0;
+  font-size:16.5px;font-weight:700;border-radius:14px}
 #authUser button{background:none;border:none;color:var(--green);font-weight:600;cursor:pointer;
   font-size:13px;padding:4px 6px}
 </style>
@@ -1998,7 +2002,7 @@ html{ overscroll-behavior-y:none }
     if(p.role && p.role.key === "hire_controller"){
       screen(`<h1>live hire</h1><p class="ag-sub">your account is for live hire across every job. it opens in the siteHUB console on a computer or tablet.</p>
         <a class="btn" href="admin.html" style="display:block;text-align:center;text-decoration:none">Open live hire</a>
-        <button class="ag-link" id="agOut" type="button">sign out</button>`);
+        <button class="btn line signout" id="agOut" type="button">Sign out</button>`);
       document.getElementById("agOut").onclick = signOut;
       return;
     }
@@ -2006,7 +2010,7 @@ html{ overscroll-behavior-y:none }
     if(p.role && p.role.key === "director_qs"){
       screen(`<h1>siteHUB console</h1><p class="ag-sub">your account is for viewing every job — the dashboard, registers and records. it opens in the siteHUB console on a computer, tablet or phone.</p>
         <a class="btn" href="admin.html" style="display:block;text-align:center;text-decoration:none">Open the console</a>
-        <button class="ag-link" id="agOut" type="button">sign out</button>`);
+        <button class="btn line signout" id="agOut" type="button">Sign out</button>`);
       document.getElementById("agOut").onclick = signOut;
       return;
     }
@@ -6326,29 +6330,39 @@ function currentLabour(){
    addendums under it) and everyone has to sign again from nothing. Old
    revisions keep their own signatures for good, even once superseded.
    Addendums hang off the current revision and need their own signatures. */
-/* Each subcontractor's RAMS is its own set: revisions with the same "sub"
-   supersede each other, and the company's own (no "sub") are a set of their own. */
+/* RAMS come in sets: a new revision supersedes only the one before it in the
+   same set. Ours (no "sub") are one set. Every subcontractor RAMS uploaded
+   starts a set of its own ("set"), so a job can hold any number of them —
+   several subcontractors, and several RAMS from the same one. */
 const ramsKey = v => String(v||"").trim().toLowerCase();
-function ramsForJob(sub){
-  const k = ramsKey(sub);
-  return (DB.rams||[]).filter(r=>r.job===DB.job && ramsKey(r.sub)===k).sort((a,b)=>b.revNo-a.revNo);
+const ramsSetOf = r => !r || !String(r.sub||"").trim() ? "" : (r.set || "sub:" + ramsKey(r.sub));
+function ramsForJob(set){
+  const k = set || "";
+  return (DB.rams||[]).filter(r=>r.job===DB.job && ramsSetOf(r)===k).sort((a,b)=>b.revNo-a.revNo);
 }
-function currentRams(sub){ return ramsForJob(sub).find(r=>r.status==="current") || null; }
-function ramsHistory(sub){ return ramsForJob(sub).filter(r=>r.status!=="current"); }
-/* the subcontractors with RAMS on this job, by the name last used for each */
-function ramsSubs(){
+function currentRams(set){ return ramsForJob(set).find(r=>r.status==="current") || null; }
+function ramsHistory(set){ return ramsForJob(set).filter(r=>r.status!=="current"); }
+/* the subcontractor sets on this job — by subcontractor, then title */
+function ramsSets(){
   const by = new Map();
-  (DB.rams||[]).filter(r=>r.job===DB.job && ramsKey(r.sub))
+  (DB.rams||[]).filter(r=>r.job===DB.job && ramsSetOf(r))
     .sort((a,b)=>(a.uploadedAt||0)-(b.uploadedAt||0))
-    .forEach(r=>by.set(ramsKey(r.sub), String(r.sub).trim()));
+    .forEach(r=>by.set(ramsSetOf(r), r));
+  return [...by.entries()].sort((a,b)=>String(a[1].sub).localeCompare(String(b[1].sub))
+    || String(a[1].title||"").localeCompare(String(b[1].title||""))).map(e=>e[0]);
+}
+/* subcontractor names already used on this job, for picking from */
+function ramsSubNames(){
+  const by = new Map();
+  (DB.rams||[]).filter(r=>r.job===DB.job && ramsKey(r.sub)).forEach(r=>by.set(ramsKey(r.sub), String(r.sub).trim()));
   return [...by.values()].sort((a,b)=>a.localeCompare(b));
 }
-/* every current revision on the job — ours first, then each subcontractor's */
+/* every current revision on the job — ours first, then each subcontractor RAMS */
 function ramsCurrentAll(){
-  return [currentRams()].concat(ramsSubs().map(s=>currentRams(s))).filter(Boolean);
+  return [currentRams()].concat(ramsSets().map(k=>currentRams(k))).filter(Boolean);
 }
-function nextRamsRevNo(sub){
-  const all = ramsForJob(sub);
+function nextRamsRevNo(set){
+  const all = ramsForJob(set);
   return all.length ? Math.max(...all.map(r=>r.revNo))+1 : 1;
 }
 /* The revision as the document itself names it — a letter, a number or
@@ -6359,8 +6373,8 @@ function cleanRevLabel(v){
   return String(v||"").trim().replace(/^rev(ision)?\.?\s*/i, "").toUpperCase().slice(0, 12);
 }
 /* What the next one is probably called, worked out from the last one. */
-function suggestRevLabel(sub){
-  const last = ramsForJob(sub)[0];
+function suggestRevLabel(set){
+  const last = ramsForJob(set)[0];
   if(!last || !last.revLabel) return "";
   const l = last.revLabel;
   let m = l.match(/^(.*?)(\d+)$/);
@@ -6369,12 +6383,12 @@ function suggestRevLabel(sub){
   if(m) return m[2] === "Z" ? m[1] + "AA" : m[1] + String.fromCharCode(m[2].charCodeAt(0) + 1);
   return "";
 }
-function revLabelTaken(label, exceptId, sub){
-  return ramsForJob(sub).some(r=>r.id!==exceptId && revText(r).toUpperCase() === label.toUpperCase());
+function revLabelTaken(label, exceptId, set){
+  return ramsForJob(set).some(r=>r.id!==exceptId && revText(r).toUpperCase() === label.toUpperCase());
 }
 
 function ramsOutstanding(rev){
-  if(!rev) return [];
+  if(!rev || rev.sub) return [];          /* subcontractor RAMS: our staff don't sign */
   const signed = (rev.sigs||[]).map(s=>s.personId);
   return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
 }
@@ -6384,7 +6398,7 @@ function ramsAddendumOutstanding(add){
   return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
 }
 function ramsOutstandingTotal(rev){
-  if(!rev) return 0;
+  if(!rev || rev.sub) return 0;
   let n = ramsOutstanding(rev).length;
   (rev.addendums||[]).forEach(a=>{ n += ramsAddendumOutstanding(a).length; });
   return n;
@@ -7553,7 +7567,7 @@ function ramsSignedPages(sigs, label){
        <p style="font-size:10px;color:#555;margin:0 0 10px">${esc(label)}</p>` +
       (rows.length
         ? regTbl(["", "Name", "Signature", "Date signed"],
-            part.map((s,i)=>[String(pi*RAMS_SIG_ROWS + i + 1), s.name||"—",
+            part.map((s,i)=>[String(pi*RAMS_SIG_ROWS + i + 1), (s.name||"—") + (s.company ? " — " + s.company : ""),
               s.sigSrc ? `<img src="${s.sigSrc}" alt="Signature" style="height:32px;display:block">` : "—",
               shortDate(iso(new Date(s.signedAt)))]),
             { widths:[.06,.30,.40,.24], raw:[2] })
@@ -8470,6 +8484,8 @@ function homeView(){
       <button class="btn add" data-addform="${sel}">Add a form</button>
       <button class="btn quiet" data-go="list">All records</button>
     </div>
+    ${window.sitehubAuth && sitehubAuth.user ? `<p class="home-who">Signed in as ${esc(sitehubAuth.user.name || "")}${sitehubAuth.user.roleName ? " &middot; " + esc(sitehubAuth.user.roleName) : ""}</p>
+      <button type="button" class="btn line signout" onclick="sitehubAuth.signOut()">Sign out</button>` : ""}
   </div>`;
 }
 
@@ -11576,10 +11592,10 @@ function liftingView(){
 /* ====================================================================== ==
    RAMS — risk assessments and method statements
    ====================================================================== */
-function blankRamsDraft(sub, newSub){
-  const last = newSub ? null : ramsForJob(sub)[0];
-  return { title: last ? (last.title||"") : "", rev: newSub ? "" : suggestRevLabel(sub), raDoc:null, msDoc:null,
-    sub: newSub ? "" : (sub||""), newSub: !!newSub };
+function blankRamsDraft(set, newSub){
+  const last = newSub ? null : ramsForJob(set)[0];
+  return { title: last ? (last.title||"") : "", rev: newSub ? "" : suggestRevLabel(set), raDoc:null, msDoc:null,
+    set: newSub ? "" : (set||""), sub: last ? (last.sub||"") : "", newSub: !!newSub };
 }
 function blankRamsAddendumDraft(revId){ return { revId, title:"", doc:null }; }
 
@@ -11613,6 +11629,8 @@ function ramsSignRow(person, sigs, signKey){
 }
 
 function ramsSignTable(people, sigs, signKey){
+  const owner = ramsParseKey(signKey).rev;
+  if(owner && owner.sub) return ramsSubSignTable(sigs, signKey, owner.sub);
   const signedCount = (sigs||[]).length;
   if(!people.length){
     return `<div class="tempty" style="border:1.5px dashed var(--line);border-radius:13px">
@@ -11676,12 +11694,13 @@ function ramsRevCard(rev, people){
         <b style="font-size:16.5px;font-weight:650;display:block">${esc(rev.title||"RAMS")} — Rev ${esc(revText(rev))}</b>
         <span style="font-size:13px;color:var(--ink-2)">Uploaded ${shortDate(iso(new Date(rev.uploadedAt)))}</span>
       </div>
-      <span class="pill ${allSigned?"ok":"amber"}">${allSigned?"All signed":out.length+" to sign"}</span>
+      ${rev.sub ? `<span class="pill ${(rev.sigs||[]).length?"ok":"grey"}">${(rev.sigs||[]).length} signed</span>`
+        : `<span class="pill ${allSigned?"ok":"amber"}">${allSigned?"All signed":out.length+" to sign"}</span>`}
     </div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <button class="btn line sm" style="margin:0" data-ramsdoc="rev:${rev.id}">${
         addendums.length ? "View the whole pack" : "View the document"}</button>
-      <button class="btn line sm" style="margin:0" data-ramsnotify="rev:${rev.id}">Notify everyone</button>
+      ${rev.sub ? "" : `<button class="btn line sm" style="margin:0" data-ramsnotify="rev:${rev.id}">Notify everyone</button>`}
       ${ramsDelBtn("rev:"+rev.id)}
     </div>
     ${ramsDocRows(rev, true)}
@@ -11711,12 +11730,13 @@ function ramsRevCard(rev, people){
           <span style="font-size:13px;color:var(--ink-2)">Added ${shortDate(iso(new Date(add.uploadedAt)))}</span>
         </div>
         ${add.noSign ? `<span class="pill grey">No signatures needed</span>`
+          : rev.sub ? `<span class="pill ${(add.sigs||[]).length?"ok":"grey"}">${(add.sigs||[]).length} signed</span>`
           : `<span class="pill ${asigned?"ok":"amber"}">${asigned?"All signed":aout.length+" to sign"}</span>`}
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
         <button class="btn line sm" style="margin:0" data-ramsdoc="add:${rev.id}:${add.id}">Open on its own</button>
         <button class="btn line sm" style="margin:0" data-ramsdoc="rev:${rev.id}">In the whole pack</button>
-        ${add.noSign ? "" : `<button class="btn line sm" style="margin:0" data-ramsnotify="add:${rev.id}:${add.id}">Notify everyone</button>`}
+        ${add.noSign || rev.sub ? "" : `<button class="btn line sm" style="margin:0" data-ramsnotify="add:${rev.id}:${add.id}">Notify everyone</button>`}
         ${ramsDelBtn("add:"+rev.id+":"+add.id)}
       </div>
       ${add.noSign ? `<p class="hint" style="margin:12px 0 0">For information — read with the RAMS, not signed.</p>`
@@ -11725,6 +11745,61 @@ function ramsRevCard(rev, people){
     </div>`;
   }).join("")}
   ${rev.status==="current" ? ramsAddInfoBlock(rev) : ""}`;
+}
+
+/* who has signed a subcontractor RAMS (or its additional information) — their
+   own people, added one at a time with "+ Add signature" */
+function ramsSubSignTable(sigs, signKey, sub){
+  const rows = (sigs||[]).slice().sort((a,b)=>a.signedAt-b.signedAt);
+  return `<div class="ttable">
+    <div class="thead"><span class="c1">Signed by</span><span class="c3">Signed</span></div>
+    ${rows.length ? rows.map(s=>`<div class="trow">
+      <div class="main">
+        <span class="c1"><b>${esc(s.name||"—")}</b><span>${esc(s.company||"")}</span></span>
+        <span class="pill ok">Signed</span>
+      </div>
+      <div class="more"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        ${s.sigSrc ? `<img src="${s.sigSrc}" alt="Signature" style="height:40px;background:#fff;border-radius:8px;padding:3px 8px;border:1px solid var(--line-2)">` : ""}
+        <span style="font-size:12px;color:var(--ink-3)">${stamp(s.signedAt)}</span>
+        ${cfg().allowDelete ? `<button type="button" data-ramssigrm="${signKey}:${esc(s.personId)}"
+          style="margin-left:auto;font-size:13px;font-weight:650;color:var(--bad)">Remove</button>` : ""}
+      </div></div>
+    </div>`).join("")
+    : `<div class="tempty">Nobody from ${esc(sub)} has signed yet.</div>`}
+    <div class="tfoot"><span>${rows.length} signed</span></div>
+  </div>
+  <button type="button" class="btn line" style="margin:10px 0 0" data-ramsaddsig="${signKey}">+ Add signature</button>`;
+}
+/* name, company, then the signature pad */
+function ramsAddSignature(key){
+  const { rev, target } = ramsParseKey(key);
+  if(!rev || !target) return;
+  const what = target === rev ? (rev.title||"RAMS") + " — Rev " + revText(rev) : (target.title||"Additional information");
+  const wrap = document.createElement("div");
+  wrap.className = "scrim";
+  wrap.innerHTML = `<div class="dlg" style="text-align:left">
+      <h3>Add a signature</h3>
+      <p>Signing onto ${esc(what)}${rev.sub ? " (" + esc(rev.sub) + ")" : ""}.</p>
+      <div class="f"><label>Name</label><input class="in" data-sn="name" autocomplete="off" placeholder="Their full name"></div>
+      <div class="f"><label>Company</label><input class="in" data-sn="company" value="${esc(rev.sub||"")}"></div>
+      <button class="btn" data-yes>Next — sign</button>
+      <button class="btn ghost" style="margin:0" data-no>Cancel</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  const nm = wrap.querySelector('[data-sn="name"]');
+  setTimeout(()=>nm.focus(), 50);
+  wrap.querySelector("[data-no]").onclick = ()=>wrap.remove();
+  wrap.querySelector("[data-yes]").onclick = ()=>{
+    const name = nm.value.trim(), company = wrap.querySelector('[data-sn="company"]').value.trim();
+    if(!name){ toast("Add their name first."); nm.focus(); return; }
+    wrap.remove();
+    openSignaturePad(null, src=>{
+      target.sigs = target.sigs || [];
+      target.sigs.push({ personId:"ext_" + Date.now(), name, company, sigSrc:src, signedAt:Date.now() });
+      save(); render();
+      toast("Signed — " + name);
+    });
+  };
 }
 
 /* additional information on a revision — a COSHH assessment, a lift plan,
@@ -11750,10 +11825,10 @@ function ramsAddInfoBlock(rev){
       </div></div>
     <div class="f" style="margin:16px 0 0"><label>Does it need signing?</label>
       <div class="g2">
-        <button type="button" class="btn ${d.sign===true?"":"line"}" style="margin:0" data-ramsaddsign="yes">Yes — everyone signs</button>
+        <button type="button" class="btn ${d.sign===true?"":"line"}" style="margin:0" data-ramsaddsign="yes">${rev.sub ? "Yes — add signatures" : "Yes — everyone signs"}</button>
         <button type="button" class="btn ${d.sign===false?"":"line"}" style="margin:0" data-ramsaddsign="no">No — for information</button>
       </div></div>
-    <button class="btn" style="margin:16px 0 8px" data-ramsaddsave="1">${d.sign===false?"Add — no signatures needed":"Add — everyone signs it"}</button>
+    <button class="btn" style="margin:16px 0 8px" data-ramsaddsave="1">${d.sign===false?"Add — no signatures needed":rev.sub?"Add":"Add — everyone signs it"}</button>
     <button class="btn ghost" style="margin:0" data-ramsaddcancel="1">Cancel</button></div>`;
 }
 
@@ -11845,9 +11920,9 @@ function ramsRevDocFields(d){
 function ramsView(){
   const people = onSiteLabour(todayISO());
   const cur = currentRams();
-  const subs = ramsSubs();
+  const sets = ramsSets();
   const d = ramsDraft;
-  const draftHere = key => d && (key === "__new" ? d.newSub : !d.newSub && ramsKey(d.sub) === key);
+  const draftHere = key => d && (key === "__new" ? d.newSub : !d.newSub && (d.set||"") === key);
 
   const draftCard = (sub, c) => `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
       <h3 style="margin-bottom:14px">${d.newSub ? "Upload subcontractor RAMS"
@@ -11855,28 +11930,32 @@ function ramsView(){
       ${c ? `<p class="hint" style="margin:-8px 0 14px">This supersedes Rev ${esc(revText(c))} —
         everyone signs again from scratch.</p>` : ""}
       ${d.newSub ? `<div class="f"><label>Subcontractor</label>
-        <input class="in" data-ramsnd="sub" value="${esc(d.sub||"")}" placeholder="Company name, e.g. ABC Scaffolding"></div>` : ""}
+        <input class="in" data-ramsnd="sub" value="${esc(d.sub||"")}" placeholder="Company name, e.g. ABC Scaffolding">
+        ${ramsSubNames().length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${ramsSubNames().map(n=>
+          `<button type="button" class="pill ${d.sub===n?"ok":"grey"}" style="padding:7px 11px;font-size:13px" data-ramssubname="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+          <div class="hint" style="margin:6px 0 0">Another RAMS from one already on the job? Tap their name.</div>` : ""}</div>` : ""}
       ${ramsRevDocFields(d)}
       <button class="btn" style="margin:16px 0 8px" data-ramsupsave="1">
         ${c?"Supersede and start signing":"Add to the job"}</button>
       <button class="btn ghost" style="margin:0" data-ramsupcancel="1">Cancel</button></div>`;
-  const upBtn = (sub, c) => `<button class="btn add" data-ramsupload="${esc(encodeURIComponent(sub||""))}">
-      ${c ? "+ Upload a new revision" + (sub ? " of " + esc(sub) + "'s RAMS" : "") : sub ? "+ Upload " + esc(sub) + "'s RAMS" : "+ Upload the RAMS"}</button>`;
+  const upBtn = (set, last, c) => `<button class="btn add" data-ramsupload="${esc(encodeURIComponent(set||""))}">
+      ${c ? "+ Upload a new revision" + (set && last ? " of " + esc(last.sub) + "'s " + esc(last.title||"RAMS") : "")
+        : set && last ? "+ Upload a revision of " + esc(last.sub) + "'s " + esc(last.title||"RAMS") : "+ Upload the RAMS"}</button>`;
 
   const ours = `<div class="sect">Our RAMS</div>
     ${cur ? ramsRevCard(cur, people)
       : `<div class="card"><h3>Nothing uploaded yet</h3>
           <p>Add the current RAMS so the gang can sign it on site.</p></div>`}
-    ${draftHere("") ? draftCard("", cur) : upBtn("", cur)}`;
+    ${draftHere("") ? draftCard("", cur) : upBtn("", null, cur)}`;
 
-  const theirs = `<div class="sect">Subcontractor RAMS${subs.length ? " (" + subs.length + ")" : ""}</div>
-    ${subs.length ? "" : `<p class="hint" style="margin:0 0 10px">RAMS from subcontractors on this job — uploaded, signed and superseded the same way as ours, each with its own additional information.</p>`}
-    ${subs.map(sub=>{
-      const c = currentRams(sub);
+  const theirs = `<div class="sect">Subcontractor RAMS${sets.length ? " (" + sets.length + ")" : ""}</div>
+    ${sets.length ? "" : `<p class="hint" style="margin:0 0 10px">RAMS from your subcontractors — as many as you need, from as many subcontractors. Kept separate from ours: our staff don't sign them; add signatures from the subcontractor's own people as they sign.</p>`}
+    ${sets.map(k=>{
+      const c = currentRams(k), last = ramsForJob(k)[0];
       return (c ? ramsRevCard(c, people)
-          : `<div class="card"><span style="font-size:12px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em">Subcontractor · ${esc(sub)}</span>
-              <h3>No current revision</h3></div>`)
-        + (draftHere(ramsKey(sub)) ? draftCard(sub, c) : upBtn(sub, c));
+          : `<div class="card"><span style="font-size:12px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.03em">Subcontractor · ${esc(last.sub)}</span>
+              <h3>${esc(last.title||"RAMS")} — no current revision</h3></div>`)
+        + (draftHere(k) ? draftCard(last.sub, c) : upBtn(k, last, c));
     }).join("")}
     ${draftHere("__new") ? draftCard("", null) : `<button class="btn add" data-ramsupload="__new">+ Upload subcontractor RAMS</button>`}`;
 
@@ -11912,9 +11991,10 @@ function ramsView(){
     <h1 class="greet" style="font-size:22px;margin-top:12px">RAMS</h1>
     <p class="sub">${esc(DB.job)}</p>
     <div class="card" style="background:var(--green-50);box-shadow:none">
-      <p>The latest revision of each RAMS, signed by everyone on site, with any additional
-      information — a COSHH assessment, a lift plan — signed the same way. Upload a new revision
-      and it supersedes the last: signatures start again, but nothing already signed is ever lost.</p>
+      <p>Our RAMS is signed by everyone on site. Subcontractor RAMS are kept separate — add
+      signatures from the subcontractor's own people as they sign. Additional information (a COSHH
+      assessment, a lift plan) goes with each one. Upload a new revision and it supersedes the
+      last: signatures start again, but nothing already signed is ever lost.</p>
     </div>
     ${ours}
     ${theirs}
@@ -13222,7 +13302,7 @@ function settingsView(){
       })()}
       ${DB.lastShared?`<p style="margin-top:12px;font-size:12.5px;color:var(--ink-3)">
         Last copy sent ${stamp(DB.lastShared)}</p>`:""}
-      ${window.sitehubAuth && sitehubAuth.user ? `<p id="authUser">Signed in as ${esc(sitehubAuth.user.name)}${sitehubAuth.user.roleName ? " &middot; " + esc(sitehubAuth.user.roleName) : ""}<br>${(window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone ? "" : `<button type="button" onclick="sitehubAuth.showInstall()">Add to home screen</button> &middot; `}<button type="button" onclick="sitehubAuth.signOut()">Sign out</button></p>` : ""}
+      ${window.sitehubAuth && sitehubAuth.user ? `<p id="authUser">Signed in as ${esc(sitehubAuth.user.name)}${sitehubAuth.user.roleName ? " &middot; " + esc(sitehubAuth.user.roleName) : ""}<br>${(window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone ? "" : `<button type="button" onclick="sitehubAuth.showInstall()">Add to home screen</button>`}</p><button type="button" class="btn line signout" onclick="sitehubAuth.signOut()">Sign out</button>` : ""}
       <p style="margin-top:18px;font-size:12px;color:var(--ink-3);text-align:center">
         CGC siteHUB &middot; build ${esc(APP_BUILD)}</p>
     </div>`;
@@ -14340,6 +14420,11 @@ function bind(){
     ramsDraft = v === "__new" ? blankRamsDraft("", true) : blankRamsDraft(v === "1" ? "" : decodeURIComponent(v));
     render();
   });
+  app.querySelectorAll("[data-ramssubname]").forEach(b=>b.onclick = ()=>{
+    if(!ramsDraft) return;
+    ramsDraft.sub = b.getAttribute("data-ramssubname");
+    render();
+  });
   const rupc = app.querySelector("[data-ramsupcancel]");
   if(rupc) rupc.onclick = ()=>{ ramsDraft = null; render(); };
   const rups = app.querySelector("[data-ramsupsave]");
@@ -14352,20 +14437,22 @@ function bind(){
     }
     const sub = String(ramsDraft.sub||"").trim();
     if(ramsDraft.newSub && !sub){ toast("Add the subcontractor's name."); return; }
+    /* a new subcontractor RAMS starts a set of its own; a new revision joins its set */
+    const set = ramsDraft.newSub ? "set_" + Date.now() : (ramsDraft.set || "");
     const label = cleanRevLabel(ramsDraft.rev);
-    if(label && revLabelTaken(label, null, sub)){
-      toast("Rev " + label + " is already on " + (sub ? sub + "'s RAMS" : "this job") + " — check the revision."); return;
+    if(label && revLabelTaken(label, null, set)){
+      toast("Rev " + label + " is already on " + (sub ? "this RAMS of " + sub + "'s" : "this job") + " — check the revision."); return;
     }
     DB.rams = DB.rams || [];
-    const cur = currentRams(sub);
+    const cur = currentRams(set);
     if(cur){
       cur.status = "superseded";
       cur.supersededAt = Date.now();
     }
-    const fresh = { id:"rams_"+Date.now(), job:DB.job, revNo:nextRamsRevNo(sub), revLabel: label,
+    const fresh = { id:"rams_"+Date.now(), job:DB.job, revNo:nextRamsRevNo(set), revLabel: label,
       title: ramsDraft.title.trim() || "RAMS", raDoc: ramsDraft.raDoc, msDoc: ramsDraft.msDoc,
       uploadedAt: Date.now(), status:"current", addendums:[], sigs:[], distribution:[] };
-    if(sub) fresh.sub = sub;
+    if(sub){ fresh.sub = sub; fresh.set = set; }
     DB.rams.push(fresh);
     ramsDraft = null;
     save();
@@ -14380,6 +14467,16 @@ function bind(){
     ramsDraft = null;
     ramsAddendumDraft = blankRamsAddendumDraft(rev.id);
     render();
+  });
+  app.querySelectorAll("[data-ramsaddsig]").forEach(b=>b.onclick = ()=>ramsAddSignature(b.getAttribute("data-ramsaddsig")));
+  app.querySelectorAll("[data-ramssigrm]").forEach(b=>b.onclick = ()=>{
+    const { target, personId } = ramsParseKey(b.getAttribute("data-ramssigrm"));
+    const sig = target && (target.sigs||[]).find(x=>x.personId===personId);
+    if(!sig) return;
+    askConfirm("Remove " + (sig.name||"this") + "'s signature?", "It comes off this RAMS for everyone. This can't be undone.", "Remove", ()=>{
+      target.sigs = target.sigs.filter(x=>x.personId!==personId);
+      save(); render(); toast("Signature removed");
+    });
   });
   app.querySelectorAll("[data-ramsaddsign]").forEach(b=>b.onclick = ()=>{
     if(!ramsAddendumDraft) return;
@@ -14407,7 +14504,7 @@ function bind(){
     ramsAddendumDraft = null;
     save();
     go("rams");
-    toast(noSign ? "Added — no signatures needed" : "Added — everyone on site needs to sign it");
+    toast(noSign ? "Added — no signatures needed" : cur.sub ? "Added — add signatures as they sign" : "Added — everyone on site needs to sign it");
   };
 
   app.querySelectorAll("[data-ramsdoc]").forEach(el=>el.onclick=()=>{
@@ -14457,7 +14554,7 @@ function bind(){
     const n = (rev.sigs||[]).length;
     const adds = (rev.addendums||[]).length;
     const wasCurrent = rev.status === "current";
-    const previous = wasCurrent ? ramsHistory(rev.sub)[0] : null;
+    const previous = wasCurrent ? ramsHistory(ramsSetOf(rev))[0] : null;
     askConfirm("Delete Rev " + revText(rev) + "?",
       "Its documents" + (adds ? ", " + adds + " additional information" : "")
         + (n ? " and " + n + " signature" + (n===1?"":"s") : "") + " are removed. "
@@ -17046,9 +17143,9 @@ function opHomeView(){
           : ramsAll.length ? ramsAll.length + " to read" : "None uploaded yet", "", "")}
     </div>
     <p class="hint" style="margin-top:18px;text-align:center">${c.lastPull ? "Up to date as of " + timeOnly(c.lastPull) : "Connecting…"}</p>
-    <p style="margin-top:18px;font-size:13px;color:var(--ink-3);text-align:center">
-      Signed in as ${esc(cfg().user.name || "")} &middot; Operative<br>
-      <button type="button" class="ag-link" style="margin-top:6px" data-opsignout>Sign out</button></p>`;
+    <p class="home-who">
+      Signed in as ${esc(cfg().user.name || "")} &middot; Operative</p>
+    <button type="button" class="btn line signout" data-opsignout>Sign out</button>`;
 }
 
 /* RAMS to read — ours and each subcontractor's, with their additional
