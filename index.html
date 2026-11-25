@@ -6379,7 +6379,7 @@ function ramsOutstanding(rev){
   return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
 }
 function ramsAddendumOutstanding(add){
-  if(!add) return [];
+  if(!add || add.noSign) return [];
   const signed = (add.sigs||[]).map(s=>s.personId);
   return onSiteLabour(todayISO()).filter(p=>!signed.includes(p.id));
 }
@@ -7656,7 +7656,7 @@ function ramsDocSheet(target, titleLine, subLine){
   /* a single addendum, viewed on its own: its own divider, who has signed
      it, then the document page by page */
   if(target.__isAddendum){
-    const signed = ramsSignedPages(target.sigs, subLine);
+    const signed = target.noSign ? { count:0, html:"" } : ramsSignedPages(target.sigs, subLine);
     const start = 1 + signed.count + 1;
     const total = start + ramsDocCount(target.doc) - 1;
     return ramsDivider(target.__label||"Addendum", titleLine) + signed.html
@@ -7677,7 +7677,7 @@ function ramsDocSheet(target, titleLine, subLine){
   if(!docs.length) docs.push({ label:title, doc:null });
 
   const signed = ramsSignedPages(target.sigs, DB.job + " · Rev " + revText(target));
-  const addSigned = addendums.map((a,i)=>
+  const addSigned = addendums.map((a,i)=> a.noSign ? { count:0, html:"" } :
     ramsSignedPages(a.sigs, DB.job + " · " + (a.title||"Additional information")));
 
   /* the contents can run to more than one page, and the page numbers inside
@@ -11710,15 +11710,17 @@ function ramsRevCard(rev, people){
           <b style="font-size:15.5px;font-weight:650;display:block">${esc(add.title||"Additional information")}</b>
           <span style="font-size:13px;color:var(--ink-2)">Added ${shortDate(iso(new Date(add.uploadedAt)))}</span>
         </div>
-        <span class="pill ${asigned?"ok":"amber"}">${asigned?"All signed":aout.length+" to sign"}</span>
+        ${add.noSign ? `<span class="pill grey">No signatures needed</span>`
+          : `<span class="pill ${asigned?"ok":"amber"}">${asigned?"All signed":aout.length+" to sign"}</span>`}
       </div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
         <button class="btn line sm" style="margin:0" data-ramsdoc="add:${rev.id}:${add.id}">Open on its own</button>
         <button class="btn line sm" style="margin:0" data-ramsdoc="rev:${rev.id}">In the whole pack</button>
-        <button class="btn line sm" style="margin:0" data-ramsnotify="add:${rev.id}:${add.id}">Notify everyone</button>
+        ${add.noSign ? "" : `<button class="btn line sm" style="margin:0" data-ramsnotify="add:${rev.id}:${add.id}">Notify everyone</button>`}
         ${ramsDelBtn("add:"+rev.id+":"+add.id)}
       </div>
-      <div style="margin-top:14px">${ramsSignTable(people, add.sigs, "add:"+rev.id+":"+add.id)}</div>
+      ${add.noSign ? `<p class="hint" style="margin:12px 0 0">For information — read with the RAMS, not signed.</p>`
+        : `<div style="margin-top:14px">${ramsSignTable(people, add.sigs, "add:"+rev.id+":"+add.id)}</div>`}
       <div data-ramsdistfor="add:${rev.id}:${add.id}">${ramsDistLine(add.distribution)}</div>
     </div>`;
   }).join("")}
@@ -11734,7 +11736,7 @@ function ramsAddInfoBlock(rev){
     return `<button class="btn add" style="margin-top:0" data-ramsaddendum="${rev.id}">+ Upload additional information</button>`;
   return `<div class="card" style="box-shadow:inset 0 0 0 1.5px var(--green)">
     <h3 style="margin-bottom:4px">Upload additional information</h3>
-    <p class="hint" style="margin:0 0 14px">Goes with ${esc(rev.title||"the RAMS")} — Rev ${esc(revText(rev))}${rev.sub ? " (" + esc(rev.sub) + ")" : ""}. Everyone on site signs it.</p>
+    <p class="hint" style="margin:0 0 14px">Goes with ${esc(rev.title||"the RAMS")} — Rev ${esc(revText(rev))}${rev.sub ? " (" + esc(rev.sub) + ")" : ""}.</p>
     <div class="f"><label>Name</label>
       <input class="in" data-ramsnd="title" value="${esc(d.title||"")}" placeholder="e.g. COSHH assessment or Lift plan">
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${RAMS_ADD_NAMES.map(n=>
@@ -11746,7 +11748,12 @@ function ramsAddInfoBlock(rev){
         <button type="button" class="btn line" style="margin:0" data-ramsscan="1">${d.doc?"Rescan":"Scan"}</button>
         <button type="button" class="btn line" style="margin:0" data-ramsup="1">Upload</button>
       </div></div>
-    <button class="btn" style="margin:16px 0 8px" data-ramsaddsave="1">Add — everyone signs it</button>
+    <div class="f" style="margin:16px 0 0"><label>Does it need signing?</label>
+      <div class="g2">
+        <button type="button" class="btn ${d.sign===true?"":"line"}" style="margin:0" data-ramsaddsign="yes">Yes — everyone signs</button>
+        <button type="button" class="btn ${d.sign===false?"":"line"}" style="margin:0" data-ramsaddsign="no">No — for information</button>
+      </div></div>
+    <button class="btn" style="margin:16px 0 8px" data-ramsaddsave="1">${d.sign===false?"Add — no signatures needed":"Add — everyone signs it"}</button>
     <button class="btn ghost" style="margin:0" data-ramsaddcancel="1">Cancel</button></div>`;
 }
 
@@ -14374,6 +14381,11 @@ function bind(){
     ramsAddendumDraft = blankRamsAddendumDraft(rev.id);
     render();
   });
+  app.querySelectorAll("[data-ramsaddsign]").forEach(b=>b.onclick = ()=>{
+    if(!ramsAddendumDraft) return;
+    ramsAddendumDraft.sign = b.getAttribute("data-ramsaddsign") === "yes";
+    render();
+  });
   app.querySelectorAll("[data-ramsaddname]").forEach(b=>b.onclick = ()=>{
     if(!ramsAddendumDraft) return;
     ramsAddendumDraft.title = b.getAttribute("data-ramsaddname");
@@ -14385,15 +14397,17 @@ function bind(){
   if(radds) radds.onclick = ()=>{
     if(!String(ramsAddendumDraft.title||"").trim()){ toast("Give it a name — like COSHH assessment or Lift plan."); return; }
     if(!ramsAddendumDraft.doc){ toast("Add the file first — upload it or scan it."); return; }
+    if(ramsAddendumDraft.sign !== true && ramsAddendumDraft.sign !== false){ toast("Say whether it needs signing — Yes or No."); return; }
     const cur = (DB.rams||[]).find(r=>r.id===ramsAddendumDraft.revId);
     if(!cur){ ramsAddendumDraft = null; render(); return; }
     cur.addendums = cur.addendums || [];
+    const noSign = ramsAddendumDraft.sign === false;
     cur.addendums.push({ id:"add_"+Date.now(), title: ramsAddendumDraft.title.trim(),
-      doc: ramsAddendumDraft.doc, uploadedAt: Date.now(), sigs:[], distribution:[] });
+      doc: ramsAddendumDraft.doc, uploadedAt: Date.now(), sigs:[], distribution:[], ...(noSign ? { noSign:true } : {}) });
     ramsAddendumDraft = null;
     save();
     go("rams");
-    toast("Added — everyone on site needs to sign it");
+    toast(noSign ? "Added — no signatures needed" : "Added — everyone on site needs to sign it");
   };
 
   app.querySelectorAll("[data-ramsdoc]").forEach(el=>el.onclick=()=>{
