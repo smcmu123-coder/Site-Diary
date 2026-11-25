@@ -2883,7 +2883,7 @@ function manageForm(uid){
       <span>${manage && !isMe ? (p.joined
         ? `<button class="btn danger sm" data-active>${p.active ? "Switch off access" : "Switch access on"}</button>
            <button class="btn danger sm" data-remove>Remove from SiteHUB</button>`
-        : `<button class="btn line sm" data-resend>Resend invite</button> <button class="btn danger sm" data-cancelinv>Cancel invite</button>`) : ""}</span>
+        : `<button class="btn line sm" data-resend>Resend invite</button> <button class="btn line sm" data-invlink>Get invite link</button> <button class="btn danger sm" data-cancelinv>Cancel invite</button>`) : ""}</span>
       <span><button class="btn ghost" data-no>Close</button>${(manage && !isMe) || alloc ? ` <button class="btn" data-yes>Save</button>` : ""}</span>
     </div>`, (d, close) => {
     bindChips(d, chosen);
@@ -2914,6 +2914,38 @@ function manageForm(uid){
     if(rs) rs.onclick = () => busy(async () => (await invoke({ action:"resend", email:p.email, redirect_to:location.origin + location.pathname.replace(/admin\.html$/, "") })).message, "Invite sent again");
     const ci = d.querySelector("[data-cancelinv]");
     if(ci) ci.onclick = () => busy(async () => (await invoke({ action:"cancel", email:p.email })).message, "Invite cancelled");
+    /* for when the email isn't getting through: a link to send by WhatsApp or text */
+    const il = d.querySelector("[data-invlink]");
+    if(il) il.onclick = async () => {
+      il.disabled = true; il.textContent = "Making the link…"; err("");
+      try{
+        const r = await invoke({ action:"link", email:p.email, app_url:new URL("./", location.href).href, redirect_to:location.origin + location.pathname.replace(/admin\.html$/, "") });
+        close(); inviteLinkBox(p, r.url);
+      }catch(e){ il.disabled = false; il.textContent = "Get invite link"; err(e.message || words(e)); }
+    };
+  });
+}
+
+/* the invite link, ready to copy or send by WhatsApp / text */
+function inviteLinkBox(p, url){
+  const first = String(p.full_name || "").split(" ")[0];
+  const msg = (first ? "Hi " + first + ", here" : "Here") + "'s your link to set up siteHUB for Cheltenham Green Civils. Open it on your phone: " + url;
+  modal(`<h3>Invite link for ${esc(p.full_name || p.email)}</h3>
+    <p class="lead">Send this to them by WhatsApp or text. It opens siteHUB and asks for their name and a password — the same as the email would.</p>
+    <div class="f"><label>Link</label><textarea class="in" rows="3" readonly data-url style="font-size:13px;word-break:break-all">${esc(url)}</textarea></div>
+    <div class="hint">It works once, and expires after a while — send it straight away. If it's too late, use <b>Get invite link</b> again. Any earlier invite email or link stops working.</div>
+    <div class="acts" style="justify-content:space-between;flex-wrap:wrap;margin-top:14px">
+      <span><button class="btn line sm" data-copy>Copy link</button>
+        <a class="btn line sm" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Send by WhatsApp</a>
+        <a class="btn line sm" href="sms:?&body=${encodeURIComponent(msg)}">Send by text</a></span>
+      <span><button class="btn" data-no>Done</button></span>
+    </div>`, (d, close) => {
+    d.querySelector("[data-no]").onclick = close;
+    d.querySelector("[data-copy]").onclick = async () => {
+      const ta = d.querySelector("[data-url]");
+      try{ await navigator.clipboard.writeText(msg); toast("Copied — paste it into WhatsApp or a text"); }
+      catch(e){ ta.select(); try{ document.execCommand("copy"); toast("Copied"); }catch(_){ toast("Select the link and copy it"); } }
+    };
   });
 }
 
